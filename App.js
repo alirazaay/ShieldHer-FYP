@@ -9,6 +9,8 @@ import ProfileScreen from './src/screens/ProfileScreen';
 import ChangePassword from './src/screens/ChangePassword';
 import NotificationSettings from './src/screens/NotificationSettings';
 import LocationSettings from './src/screens/LocationSettings';
+import UserLocationMapScreen from './src/screens/UserLocationMapScreen';
+import GroupLocationMapScreen from './src/screens/GroupLocationMapScreen';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { enableScreens } from 'react-native-screens';
@@ -47,6 +49,8 @@ export default function App() {
         <Stack.Screen name="ChangePassword" component={ChangePassword} />
         <Stack.Screen name="NotificationSettings" component={NotificationSettings} />
         <Stack.Screen name="LocationSettings" component={LocationSettings} />
+        <Stack.Screen name="UserLocationMap" component={UserLocationMapScreen} />
+        <Stack.Screen name="GroupLocationMap" component={GroupLocationMapScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

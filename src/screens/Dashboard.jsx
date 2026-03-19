@@ -1,9 +1,11 @@
-import React, { useRef, useState } from 'react';
-import { SafeAreaView, ScrollView, View, Text, StyleSheet, TouchableOpacity, Modal, Animated } from 'react-native';
+import React, { useRef, useState, useEffect } from 'react';
+import { SafeAreaView, ScrollView, View, Text, StyleSheet, TouchableOpacity, Modal, Animated, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import LogoutPopup from './LogoutPopup';
 import { signOutUser } from '../services/auth';
+import { auth } from '../config/firebase';
+import { requestLocationPermission, startLocationTracking, stopLocationTracking, getLocationErrorMessage } from '../services/location';
 
 const Dashboard = ({ navigation }) => {
   const insets = useSafeAreaInsets();
@@ -11,7 +13,65 @@ const Dashboard = ({ navigation }) => {
   const opacity = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(0.95)).current;
 
-  const openLogout = () => {
+  // Location tracking state
+  const [locationTracking, setLocationTracking] = useState(false);
+  const [locationError, setLocationError] = useState(null);
+  const [locationSubscription, setLocationSubscription] = useState(null);
+
+  // Location tracking initialization
+  useEffect(() => {
+    const initializeLocationTracking = async () => {
+      try {
+        const currentUser = auth.currentUser;
+        if (!currentUser) {
+          navigation?.replace('Login');
+          return;
+        }
+
+        // Request location permission
+        const permissionResult = await requestLocationPermission();
+        if (!permissionResult.granted) {
+          console.warn('[Dashboard] Location permission not granted:', permissionResult.status);
+          setLocationError({
+            message: permissionResult.message || 'Location permission required',
+            type: 'warning',
+          });
+          return;
+        }
+
+        // Start tracking location
+        const subscription = await startLocationTracking(currentUser.uid);
+        setLocationSubscription(subscription);
+        setLocationTracking(true);
+        console.log('[Dashboard] Location tracking started');
+      } catch (error) {
+        console.error('[Dashboard] Location tracking initialization error:', error);
+        setLocationError({
+          message: getLocationErrorMessage(error),
+          type: 'error',
+        });
+      }
+    };
+
+    initializeLocationTracking();
+
+    // Cleanup: stop location tracking when component unmounts
+    return () => {
+      if (locationSubscription) {
+        stopLocationTracking(locationSubscription);
+        setLocationTracking(false);
+        console.log('[Dashboard] Location tracking stopped');
+      }
+    };
+  }, [navigation]);
+
+  // Auto-dismiss location error messages after 4 seconds
+  useEffect(() => {
+    if (locationError) {
+      const timeout = setTimeout(() => setLocationError(null), 4000);
+      return () => clearTimeout(timeout);
+    }
+  }, [locationError]);
     setLogoutVisible(true);
     Animated.parallel([
       Animated.timing(opacity, { toValue: 1, duration: 160, useNativeDriver: true }),
@@ -42,6 +102,13 @@ const Dashboard = ({ navigation }) => {
         </View>
         <View style={styles.appBarRight}>
           <MaterialCommunityIcons name="bell-outline" size={20} color="#fff" style={{ marginRight: 16 }} />
+
+          {/* Location Tracking Status Indicator */}
+          <View style={styles.locationStatusContainer}>
+            <View style={[styles.locationStatusDot, locationTracking ? styles.locationActive : styles.locationInactive]} />
+            {locationTracking && <ActivityIndicator size="small" color="#31D159" style={{ marginLeft: 2 }} />}
+          </View>
+
           <TouchableOpacity onPress={() => navigation?.push('Profile')} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
             <View style={styles.avatar}><Text style={styles.avatarText}>A</Text></View>
           </TouchableOpacity>
@@ -52,6 +119,30 @@ const Dashboard = ({ navigation }) => {
       </View>
 
   <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        {/* Location Error Toast */}
+        {locationError && (
+          <View
+            style={[
+              styles.errorToast,
+              locationError.type === 'error' ? styles.errorToastError : styles.errorToastWarning,
+            ]}
+          >
+            <MaterialCommunityIcons
+              name={locationError.type === 'error' ? 'alert-circle' : 'information'}
+              size={16}
+              color={locationError.type === 'error' ? '#EF4444' : '#F59E0B'}
+            />
+            <Text
+              style={[
+                styles.errorToastText,
+                { color: locationError.type === 'error' ? '#EF4444' : '#F59E0B' },
+              ]}
+            >
+              {locationError.message}
+            </Text>
+          </View>
+        )}
+
         {/* Emergency Protocol */}
         <Text style={styles.sectionTitle}>Emergency Protocol</Text>
 
@@ -119,6 +210,22 @@ const styles = StyleSheet.create({
   },
   brand: { color: '#fff', fontSize: 18, fontWeight: '800' },
   appBarRight: { flexDirection: 'row', alignItems: 'center' },
+  locationStatusContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  locationStatusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  locationActive: {
+    backgroundColor: '#31D159',
+  },
+  locationInactive: {
+    backgroundColor: '#EF4444',
+  },
   avatar: {
     width: 24,
     height: 24,
@@ -130,6 +237,32 @@ const styles = StyleSheet.create({
   },
   avatarText: { color: '#fff', fontWeight: '800', fontSize: 12 },
   logout: { color: '#fff', fontWeight: '800' },
+
+  errorToast: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginHorizontal: 12,
+    marginVertical: 12,
+    borderRadius: 8,
+    gap: 8,
+  },
+  errorToastError: {
+    backgroundColor: '#FEE2E2',
+    borderLeftWidth: 3,
+    borderLeftColor: '#EF4444',
+  },
+  errorToastWarning: {
+    backgroundColor: '#FEF3C7',
+    borderLeftWidth: 3,
+    borderLeftColor: '#F59E0B',
+  },
+  errorToastText: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '500',
+  },
 
   scroll: {
     flexGrow: 1,

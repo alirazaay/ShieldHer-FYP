@@ -249,6 +249,33 @@ export async function changePassword(email, oldPassword, newPassword) {
 }
 
 /**
+ * Fetch all connected users for a guardian (users who have accepted the guardian's invite)
+ * @param {string} guardianId - Guardian's Firebase user ID
+ * @returns {Promise<Array>} Array of connected user objects
+ */
+export async function getConnectedUsers(guardianId) {
+  try {
+    if (!guardianId) throw new Error('Guardian ID is required');
+
+    const connectedUsersRef = collection(db, 'users', guardianId, 'connectedUsers');
+    const connectedUsersSnap = await getDocs(connectedUsersRef);
+
+    const connectedUsers = [];
+    connectedUsersSnap.forEach((doc) => {
+      connectedUsers.push({
+        id: doc.id,
+        ...doc.data(),
+      });
+    });
+
+    return connectedUsers;
+  } catch (error) {
+    console.error('[profile] getConnectedUsers error:', error);
+    throw error;
+  }
+}
+
+/**
  * Map Firebase error codes to user-friendly messages
  * @param {Error} error - Firebase error object
  * @returns {string} User-friendly error message

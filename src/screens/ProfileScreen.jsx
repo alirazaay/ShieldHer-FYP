@@ -27,6 +27,7 @@ import {
 } from '../services/profile';
 import { signOutUser } from '../services/auth';
 import GuardianListItem from '../components/GuardianListItem';
+import { sendGuardianInvite, getInviteErrorMessage } from '../services/guardianInvites';
 
 const ProfileScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
@@ -68,6 +69,12 @@ const ProfileScreen = ({ navigation }) => {
     relationship: '',
   });
   const [addingGuardian, setAddingGuardian] = useState(false);
+  const [showInviteGuardianModal, setShowInviteGuardianModal] = useState(false);
+  const [inviteGuardianData, setInviteGuardianData] = useState({
+    guardianEmail: '',
+    message: '',
+  });
+  const [sendingInvite, setSendingInvite] = useState(false);
 
   // Load user profile and guardians on mount
   useEffect(() => {
@@ -327,6 +334,61 @@ const ProfileScreen = ({ navigation }) => {
         message: getErrorMessage(err),
         type: 'error',
       });
+    }
+  };
+
+  const handleSendGuardianInvite = async () => {
+    try {
+      // Validation
+      if (!inviteGuardianData.guardianEmail?.trim()) {
+        setError({ message: 'Guardian email is required', type: 'error' });
+        return;
+      }
+
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(inviteGuardianData.guardianEmail)) {
+        setError({ message: 'Invalid email address', type: 'error' });
+        return;
+      }
+
+      setSendingInvite(true);
+      const currentUser = auth.currentUser;
+
+      if (!currentUser) {
+        navigation?.replace('Login');
+        return;
+      }
+
+      // Send invite
+      await sendGuardianInvite({
+        userId: currentUser.uid,
+        userEmail: currentUser.email,
+        userName: userProfile.fullName,
+        userPhone: userProfile.phone,
+        guardianEmail: inviteGuardianData.guardianEmail.trim(),
+        userProfileImage: userProfile.profileImage || null,
+        message: inviteGuardianData.message.trim(),
+      });
+
+      // Reset form and close modal
+      setInviteGuardianData({
+        guardianEmail: '',
+        message: '',
+      });
+      setShowInviteGuardianModal(false);
+
+      setError({
+        message: 'Invite sent successfully!',
+        type: 'success',
+      });
+    } catch (err) {
+      console.error('[ProfileScreen] handleSendGuardianInvite error:', err);
+      setError({
+        message: getInviteErrorMessage(err),
+        type: 'error',
+      });
+    } finally {
+      setSendingInvite(false);
     }
   };
 
@@ -596,6 +658,12 @@ const ProfileScreen = ({ navigation }) => {
               title="+ Add Guardian"
               onPress={() => setShowAddGuardianModal(true)}
             />
+
+            <View style={styles.spacer} />
+            <PrimaryButton
+              title="📨 Invite Guardian"
+              onPress={() => setShowInviteGuardianModal(true)}
+            />
           </View>
         )}
 
@@ -770,8 +838,90 @@ const ProfileScreen = ({ navigation }) => {
           </View>
         </View>
       </Modal>
+
+      {/* Invite Guardian Modal */}
+      <Modal
+        visible={showInviteGuardianModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowInviteGuardianModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { paddingTop: insets.top + 16 }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Invite Guardian</Text>
+              <TouchableOpacity
+                onPress={() => setShowInviteGuardianModal(false)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <MaterialCommunityIcons name="close" size={24} color="#111318" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalScrollView} showsVerticalScrollIndicator={false}>
+              <View style={styles.inviteDescription}>
+                <MaterialCommunityIcons name="information" size={20} color="#0B26FF" />
+                <Text style={styles.inviteDescriptionText}>
+                  Send an invite to someone so they can become your guardian
+                </Text>
+              </View>
+
+              <View style={styles.spacer} />
+
+              <FormInput
+                label="Guardian Email Address"
+                value={inviteGuardianData.guardianEmail}
+                onChangeText={(text) =>
+                  setInviteGuardianData({ ...inviteGuardianData, guardianEmail: text })
+                }
+                placeholder="guardian@email.com"
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+
+              <View style={styles.spacer} />
+
+              <Text style={styles.label}>Message (Optional)</Text>
+              <TextInput
+                value={inviteGuardianData.message}
+                onChangeText={(text) =>
+                  setInviteGuardianData({ ...inviteGuardianData, message: text })
+                }
+                placeholder="Why should they be your guardian?"
+                placeholderTextColor="#9AA0A6"
+                multiline
+                numberOfLines={4}
+                style={styles.messageInput}
+              />
+
+              <View style={styles.spacer} />
+              <View style={styles.spacer} />
+
+              <View style={styles.buttonRow}>
+                <View style={styles.buttonWrapper}>
+                  <PrimaryButton
+                    title={sendingInvite ? 'Sending...' : 'Send Invite'}
+                    onPress={handleSendGuardianInvite}
+                    disabled={sendingInvite}
+                  />
+                </View>
+                <TouchableOpacity
+                  onPress={() => setShowInviteGuardianModal(false)}
+                  style={styles.cancelButton}
+                  disabled={sendingInvite}
+                >
+                  <Text style={styles.cancelText}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={{ height: insets.bottom + 20 }} />
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
+};
 };
 
 // Sub-component: Info Row (for display mode)
@@ -1035,6 +1185,41 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 16,
     paddingTop: 16,
+  },
+  label: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#3D3F44',
+    marginBottom: 8,
+  },
+  messageInput: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#E0E0E2',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: '#111318',
+    textAlignVertical: 'top',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+  },
+  inviteDescription: {
+    backgroundColor: '#F0F4FF',
+    borderLeftWidth: 4,
+    borderLeftColor: '#0B26FF',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  inviteDescriptionText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#0B26FF',
+    fontWeight: '500',
   },
 });
 

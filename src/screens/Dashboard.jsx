@@ -1,11 +1,12 @@
-import React, { useRef, useState, useEffect } from 'react';
-import { SafeAreaView, ScrollView, View, Text, StyleSheet, TouchableOpacity, Modal, Animated, ActivityIndicator } from 'react-native';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
+import { SafeAreaView, ScrollView, View, Text, StyleSheet, TouchableOpacity, Modal, Animated, ActivityIndicator, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import LogoutPopup from './LogoutPopup';
 import { signOutUser } from '../services/auth';
 import { auth } from '../config/firebase';
 import { requestLocationPermission, startLocationTracking, stopLocationTracking, getLocationErrorMessage } from '../services/location';
+import { checkActiveAlert, fetchUserLocation, createAlert, getAlertErrorMessage } from '../services/alertService';
 
 const Dashboard = ({ navigation }) => {
   const insets = useSafeAreaInsets();
@@ -17,6 +18,12 @@ const Dashboard = ({ navigation }) => {
   const [locationTracking, setLocationTracking] = useState(false);
   const [locationError, setLocationError] = useState(null);
   const [locationSubscription, setLocationSubscription] = useState(null);
+
+  // SOS alert state
+  const [sosLoading, setSosLoading] = useState(false);
+  const [sosError, setSosError] = useState(null);
+  const [sosMessage, setSosMessage] = useState(null);
+  const [confirmSosVisible, setConfirmSosVisible] = useState(false);
 
   // Location tracking initialization
   useEffect(() => {
@@ -72,6 +79,19 @@ const Dashboard = ({ navigation }) => {
       return () => clearTimeout(timeout);
     }
   }, [locationError]);
+
+  // Auto-dismiss SOS error/success messages after 4 seconds
+  useEffect(() => {
+    if (sosError || sosMessage) {
+      const timeout = setTimeout(() => {
+        setSosError(null);
+        setSosMessage(null);
+      }, 4000);
+      return () => clearTimeout(timeout);
+    }
+  }, [sosError, sosMessage]);
+
+  const openLogout = () => {
     setLogoutVisible(true);
     Animated.parallel([
       Animated.timing(opacity, { toValue: 1, duration: 160, useNativeDriver: true }),
@@ -86,12 +106,66 @@ const Dashboard = ({ navigation }) => {
     ]).start(() => setLogoutVisible(false));
   };
 
+  const handleSosConfirm = async () => {
+    try {
+      setSosLoading(true);
+      setConfirmSosVisible(false);
+      setSosError(null);
+      setSosMessage(null);
+
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        navigation?.replace('Login');
+        return;
+      }
+
+      // Check for active alert within cooldown
+      const hasActiveAlert = await checkActiveAlert(currentUser.uid);
+      if (hasActiveAlert) {
+        setSosError({
+          message: 'An alert was recently sent. Please wait before sending another.',
+          type: 'warning',
+        });
+        console.log('[Dashboard] SOS alert blocked by cooldown');
+        return;
+      }
+
+      // Fetch user's current location
+      const location = await fetchUserLocation(currentUser.uid);
+
+      // Create the SOS alert
+      const alertId = await createAlert(
+        currentUser.uid,
+        location.latitude,
+        location.longitude,
+        location.accuracy
+      );
+
+      setSosMessage({
+        message: 'Emergency alert sent to your guardians!',
+        type: 'success',
+      });
+      console.log('[Dashboard] SOS alert created:', alertId);
+    } catch (error) {
+      console.error('[Dashboard] SOS alert error:', error);
+      setSosError({
+        message: getAlertErrorMessage(error),
+        type: 'error',
+      });
+    } finally {
+      setSosLoading(false);
+    }
+  };
+
+  const handleSosPress = () => {
+    if (sosLoading) return;
+    setConfirmSosVisible(true);
+  };
+
   const onHoldVoice = () => {
     // Placeholder: long press action hook
     console.log('Voice trigger pressed');
   };
-
-  return (
     <SafeAreaView style={styles.safe}>
       {/* Top App Bar */}
       {/* App bar positioned below status bar using safe area inset */}
@@ -118,7 +192,31 @@ const Dashboard = ({ navigation }) => {
         </View>
       </View>
 
-  <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        {/* SOS Error/Success Toast */}
+        {(sosError || sosMessage) && (
+          <View
+            style={[
+              styles.errorToast,
+              sosError ? (sosError.type === 'error' ? styles.errorToastError : styles.errorToastWarning) : styles.errorToastSuccess,
+            ]}
+          >
+            <MaterialCommunityIcons
+              name={sosMessage ? 'check-circle' : (sosError?.type === 'error' ? 'alert-circle' : 'information')}
+              size={16}
+              color={sosMessage ? '#10B981' : (sosError?.type === 'error' ? '#EF4444' : '#F59E0B')}
+            />
+            <Text
+              style={[
+                styles.errorToastText,
+                { color: sosMessage ? '#10B981' : (sosError?.type === 'error' ? '#EF4444' : '#F59E0B') },
+              ]}
+            >
+              {sosMessage?.message || sosError?.message}
+            </Text>
+          </View>
+        )}
+
         {/* Location Error Toast */}
         {locationError && (
           <View
@@ -147,12 +245,23 @@ const Dashboard = ({ navigation }) => {
         <Text style={styles.sectionTitle}>Emergency Protocol</Text>
 
         {/* SOS big circle */}
-        <View style={styles.sosWrap}>
-          <View style={styles.sosCircle}>
-            <MaterialCommunityIcons name="alert" size={20} color="#fff" style={styles.sosIcon} />
-            <Text style={styles.sosText}>SOS</Text>
+        <TouchableOpacity
+          onPress={handleSosPress}
+          disabled={sosLoading}
+          style={styles.sosWrap}
+          activeOpacity={0.8}
+        >
+          <View style={[styles.sosCircle, sosLoading && styles.sosCircleLoading]}>
+            {sosLoading ? (
+              <ActivityIndicator size="large" color="#fff" />
+            ) : (
+              <>
+                <MaterialCommunityIcons name="alert" size={20} color="#fff" style={styles.sosIcon} />
+                <Text style={styles.sosText}>SOS</Text>
+              </>
+            )}
           </View>
-        </View>
+        </TouchableOpacity>
         <Text style={styles.warning}>Warning: Initiates contact with Guardians and Local Authorities.</Text>
 
         {/* Voice trigger button */}
@@ -180,6 +289,44 @@ const Dashboard = ({ navigation }) => {
           </View>
         </View>
       </ScrollView>
+
+      {/* SOS Confirmation Modal */}
+      <Modal transparent visible={confirmSosVisible} animationType="fade" onRequestClose={() => setConfirmSosVisible(false)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.confirmationDialog}>
+            <MaterialCommunityIcons name="alert" size={48} color="#E01111" style={{ marginBottom: 16 }} />
+            <Text style={styles.confirmTitle}>Emergency Alert</Text>
+            <Text style={styles.confirmMessage}>
+              Send SOS alert to your guardians and local authorities?
+            </Text>
+            <Text style={styles.confirmWarning}>
+              Your location and contact details will be shared.
+            </Text>
+            <View style={styles.confirmButtonGroup}>
+              <TouchableOpacity
+                onPress={() => setConfirmSosVisible(false)}
+                style={[styles.confirmButton, styles.confirmButtonCancel]}
+                disabled={sosLoading}
+              >
+                <Text style={[styles.confirmButtonText, styles.confirmButtonTextCancel]}>
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleSosConfirm}
+                style={[styles.confirmButton, styles.confirmButtonConfirm]}
+                disabled={sosLoading}
+              >
+                {sosLoading ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.confirmButtonText}>Send Alert</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Logout Modal Overlay */}
       <Modal transparent visible={logoutVisible} animationType="none" onRequestClose={closeLogout}>
@@ -258,6 +405,16 @@ const styles = StyleSheet.create({
     borderLeftWidth: 3,
     borderLeftColor: '#F59E0B',
   },
+  errorToastWarning: {
+    backgroundColor: '#FEF3C7',
+    borderLeftWidth: 3,
+    borderLeftColor: '#F59E0B',
+  },
+  errorToastSuccess: {
+    backgroundColor: '#D1FAE5',
+    borderLeftWidth: 3,
+    borderLeftColor: '#10B981',
+  },
   errorToastText: {
     flex: 1,
     fontSize: 12,
@@ -286,6 +443,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
+  },
+  sosCircleLoading: {
+    opacity: 0.8,
   },
   sosIcon: { position: 'absolute', top: 16 },
   sosText: { color: '#fff', fontSize: 28, fontWeight: '900', letterSpacing: 1 },
@@ -332,11 +492,73 @@ const styles = StyleSheet.create({
 
   modalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    backgroundColor: 'rgba(0,0,0,0.5)',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
   },
+  confirmationDialog: {
+    width: '100%',
+    maxWidth: 340,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    paddingHorizontal: 24,
+    paddingVertical: 28,
+    alignItems: 'center',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+  },
+  confirmTitle: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#111318',
+    marginBottom: 8,
+  },
+  confirmMessage: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#3E4046',
+    textAlign: 'center',
+    marginBottom: 8,
+    lineHeight: 20,
+  },
+  confirmWarning: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#9AA0A6',
+    textAlign: 'center',
+    marginBottom: 24,
+    fontStyle: 'italic',
+  },
+  confirmButtonGroup: {
+    width: '100%',
+    gap: 12,
+  },
+  confirmButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  confirmButtonCancel: {
+    backgroundColor: '#F3F4F6',
+  },
+  confirmButtonConfirm: {
+    backgroundColor: '#E01111',
+  },
+  confirmButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  confirmButtonTextCancel: {
+    color: '#111318',
+  },
+
   modalCardWrap: {
     width: '82%',
   },

@@ -166,6 +166,8 @@ const Dashboard = ({ navigation }) => {
     // Placeholder: long press action hook
     console.log('Voice trigger pressed');
   };
+
+  return (
     <SafeAreaView style={styles.safe}>
       {/* Top App Bar */}
       {/* App bar positioned below status bar using safe area inset */}

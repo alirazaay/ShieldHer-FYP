@@ -10,7 +10,101 @@ import { requestLocationPermission, startLocationTracking, stopLocationTracking,
 import { getConnectedUsers } from '../services/profile';
 import { subscribeToUserLocation } from '../services/locationListener';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { subscribeToAlerts, respondToAlert, resolveAlert, getAlertLifecycleErrorMessage, formatAlertTime } from '../services/alertLifecycleService';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Sub-component: Alert Card
+// ─────────────────────────────────────────────────────────────────────────────
+const AlertCard = ({ alert, connectedUsers, currentUserId, onRespond, onResolve, loading }) => {
+  const user = connectedUsers.find(u => u.id === alert.userId);
+  const userName = user ? user.name : 'Unknown User';
+  const timeStr = formatAlertTime(alert.timestamp);
+
+  const isResponding = alert.status === 'responding';
+  const isResolved = alert.status === 'resolved';
+
+  let statusText = 'ACTIVE SOS';
+  let badgeColor = '#EF4444'; // Red
+  let iconName = 'alert-decagram';
+  if (isResponding) {
+    statusText = 'RESPONDING';
+    badgeColor = '#F59E0B'; // Amber
+    iconName = 'shield-account';
+  } else if (isResolved) {
+    statusText = 'RESOLVED';
+    badgeColor = '#10B981'; // Green
+    iconName = 'check-decagram';
+  }
+
+  // Treat missing status as 'active' for legacy compatibility
+  const isActive = alert.status === 'active' || !alert.status;
+
+  const respondedByMe = alert.respondedBy === currentUserId;
+  let responderText = null;
+  if (isResponding && alert.respondedBy) {
+    responderText = respondedByMe ? 'Responded by you' : 'Responded by another guardian';
+  }
+
+  const isCardLoading = loading === alert.id;
+
+  return (
+    <View style={[styles.alertCard, { borderLeftColor: badgeColor }]}>
+      <View style={styles.alertCardHeader}>
+        <View style={styles.alertUserRow}>
+          <MaterialCommunityIcons name="account-alert" size={20} color="#111318" />
+          <Text style={styles.alertUserName}>{userName}</Text>
+        </View>
+        <View style={[styles.alertBadge, { backgroundColor: badgeColor }]}>
+          <MaterialCommunityIcons name={iconName} size={12} color="#fff" />
+          <Text style={styles.alertBadgeText}>{statusText}</Text>
+        </View>
+      </View>
+
+      <View style={styles.alertDetails}>
+        <Text style={styles.alertTime}>
+          <MaterialCommunityIcons name="clock-outline" size={14} color="#6B7280" /> {timeStr}
+        </Text>
+        {responderText && (
+          <Text style={styles.alertResponder}>
+            <MaterialCommunityIcons name="account-hard-hat" size={14} color="#6B7280" /> {responderText}
+          </Text>
+        )}
+      </View>
+
+      {!isResolved && (
+        <View style={styles.alertActions}>
+          {isActive && (
+            <TouchableOpacity
+              style={[styles.alertButton, styles.alertButtonRespond]}
+              onPress={() => onRespond(alert.id)}
+              disabled={isCardLoading}
+            >
+              {isCardLoading ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.alertButtonText}>Respond to Alert</Text>
+              )}
+            </TouchableOpacity>
+          )}
+
+          {(isActive || isResponding) && (
+            <TouchableOpacity
+              style={[styles.alertButton, styles.alertButtonResolve, isActive && styles.alertButtonSecondary]}
+              onPress={() => onResolve(alert.id)}
+              disabled={isCardLoading}
+            >
+              <Text style={[styles.alertButtonText, isActive && styles.alertButtonTextSecondary]}>Mark as Resolved</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+    </View>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Main Dashboard Component
+// ─────────────────────────────────────────────────────────────────────────────
 const GuardianDashboard = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const [pendingInvites, setPendingInvites] = useState([]);
@@ -29,6 +123,12 @@ const GuardianDashboard = ({ navigation }) => {
   const [loadingConnectedUsers, setLoadingConnectedUsers] = useState(false);
   const [locationSubscriptions, setLocationSubscriptions] = useState({});
 
+  // Alert Lifecycle state
+  const [activeAlerts, setActiveAlerts] = useState([]);
+  const [respondingAlerts, setRespondingAlerts] = useState([]);
+  const [resolvedAlerts, setResolvedAlerts] = useState([]);
+  const [processingAlertId, setProcessingAlertId] = useState(null);
+
   const loadPendingInvites = useCallback(async () => {
     try {
       setLoading(true);
@@ -42,8 +142,6 @@ const GuardianDashboard = ({ navigation }) => {
 
       const invites = await fetchPendingInvites(currentUser.email);
       setPendingInvites(invites);
-
-      console.log('[GuardianDashboard] Loaded pending invites:', invites.length);
     } catch (err) {
       console.error('[GuardianDashboard] Error loading invites:', err);
       setError({ message: getInviteErrorMessage(err), type: 'error' });
@@ -87,7 +185,6 @@ const GuardianDashboard = ({ navigation }) => {
       });
 
       setLocationSubscriptions(newSubscriptions);
-      console.log('[GuardianDashboard] Loaded connected users:', users.length);
     } catch (err) {
       console.error('[GuardianDashboard] Error loading connected users:', err);
     } finally {
@@ -95,13 +192,35 @@ const GuardianDashboard = ({ navigation }) => {
     }
   }, [navigation]);
 
+  // Alert Subscription Setup
+  useEffect(() => {
+    if (connectedUsers.length === 0) return;
+
+    const userIds = connectedUsers.map(u => u.id);
+    const unsubscribe = subscribeToAlerts(
+      userIds,
+      (alerts) => {
+        setActiveAlerts(alerts.filter(a => a.status === 'active' || !a.status));
+        setRespondingAlerts(alerts.filter(a => a.status === 'responding'));
+        setResolvedAlerts(alerts.filter(a => a.status === 'resolved'));
+      },
+      (err) => {
+        console.error('[GuardianDashboard] Alerts subscription error:', err);
+      }
+    );
+
+    return () => {
+      unsubscribe();
+    };
+  }, [connectedUsers]);
+
   // Initial load
   useEffect(() => {
     loadPendingInvites();
     loadConnectedUsers();
   }, [loadPendingInvites, loadConnectedUsers]);
 
-  // Reload when screen is focused (back from other screens)
+  // Reload when screen is focused
   useFocusEffect(
     useCallback(() => {
       loadPendingInvites();
@@ -117,6 +236,14 @@ const GuardianDashboard = ({ navigation }) => {
     }
   }, [error]);
 
+  // Auto-dismiss location error messages after 4 seconds
+  useEffect(() => {
+    if (locationError) {
+      const timeout = setTimeout(() => setLocationError(null), 4000);
+      return () => clearTimeout(timeout);
+    }
+  }, [locationError]);
+
   // Location tracking initialization
   useEffect(() => {
     const initializeLocationTracking = async () => {
@@ -127,10 +254,8 @@ const GuardianDashboard = ({ navigation }) => {
           return;
         }
 
-        // Request location permission
         const permissionResult = await requestLocationPermission();
         if (!permissionResult.granted) {
-          console.warn('[GuardianDashboard] Location permission not granted:', permissionResult.status);
           setLocationError({
             message: permissionResult.message || 'Location permission required',
             type: 'warning',
@@ -138,13 +263,10 @@ const GuardianDashboard = ({ navigation }) => {
           return;
         }
 
-        // Start tracking location
         const subscription = await startLocationTracking(currentUser.uid);
         setLocationSubscription(subscription);
         setLocationTracking(true);
-        console.log('[GuardianDashboard] Location tracking started');
       } catch (err) {
-        console.error('[GuardianDashboard] Location tracking initialization error:', err);
         setLocationError({
           message: getLocationErrorMessage(err),
           type: 'error',
@@ -154,52 +276,33 @@ const GuardianDashboard = ({ navigation }) => {
 
     initializeLocationTracking();
 
-    // Cleanup: stop location tracking when component unmounts
     return () => {
       if (locationSubscription) {
         stopLocationTracking(locationSubscription);
         setLocationTracking(false);
-        console.log('[GuardianDashboard] Location tracking stopped');
       }
     };
   }, [navigation]);
 
-  // Auto-dismiss location error messages after 4 seconds
-  useEffect(() => {
-    if (locationError) {
-      const timeout = setTimeout(() => setLocationError(null), 4000);
-      return () => clearTimeout(timeout);
-    }
-  }, [locationError]);
-
-  // Cleanup location subscriptions when component unmounts
+  // Cleanup location subscriptions
   useEffect(() => {
     return () => {
       Object.values(locationSubscriptions).forEach((unsubscribe) => {
         if (unsubscribe) unsubscribe();
       });
-      console.log('[GuardianDashboard] Location subscriptions cleaned up');
     };
   }, [locationSubscriptions]);
 
+  // ── Invite Actions ───────────────────────────────────────────────────────────
   const handleAcceptInvite = async (inviteId) => {
     try {
       setProcessingInviteId(inviteId);
       const currentUser = auth.currentUser;
-      if (!currentUser) {
-        navigation?.replace('Login');
-        return;
-      }
-
+      if (!currentUser) return;
       await acceptInvite(inviteId, currentUser.uid, currentUser.email);
-
-      // Remove the accepted invite from the list
       setPendingInvites((prev) => prev.filter((invite) => invite.id !== inviteId));
-
       setError({ message: 'Invite accepted successfully!', type: 'success' });
-      console.log('[GuardianDashboard] Invite accepted:', inviteId);
     } catch (err) {
-      console.error('[GuardianDashboard] Error accepting invite:', err);
       setError({ message: getInviteErrorMessage(err), type: 'error' });
     } finally {
       setProcessingInviteId(null);
@@ -209,133 +312,163 @@ const GuardianDashboard = ({ navigation }) => {
   const handleRejectInvite = async (inviteId) => {
     try {
       setProcessingInviteId(inviteId);
-
       await rejectInvite(inviteId);
-
-      // Remove the rejected invite from the list
       setPendingInvites((prev) => prev.filter((invite) => invite.id !== inviteId));
-
       setError({ message: 'Invite rejected', type: 'success' });
-      console.log('[GuardianDashboard] Invite rejected:', inviteId);
     } catch (err) {
-      console.error('[GuardianDashboard] Error rejecting invite:', err);
       setError({ message: getInviteErrorMessage(err), type: 'error' });
     } finally {
       setProcessingInviteId(null);
     }
   };
 
+  // ── Alert Actions ────────────────────────────────────────────────────────────
+  const handleRespondToAlert = async (alertId) => {
+    try {
+      setProcessingAlertId(alertId);
+      await respondToAlert(alertId, auth.currentUser.uid);
+      setError({ message: 'You are now responding to the alert', type: 'success' });
+    } catch (err) {
+      setError({ message: getAlertLifecycleErrorMessage(err), type: 'error' });
+    } finally {
+      setProcessingAlertId(null);
+    }
+  };
+
+  const handleResolveAlert = async (alertId) => {
+    try {
+      setProcessingAlertId(alertId);
+      await resolveAlert(alertId, auth.currentUser.uid);
+      setError({ message: 'Alert marked as resolved', type: 'success' });
+    } catch (err) {
+      setError({ message: getAlertLifecycleErrorMessage(err), type: 'error' });
+    } finally {
+      setProcessingAlertId(null);
+    }
+  };
+
   return (
     <SafeAreaView style={[styles.safe, { paddingTop: insets.top }]}>
-      {/* Error Toast - Invites */}
-      {error && (
-        <View
-          style={[
-            styles.messageContainer,
-            error.type === 'success' ? styles.messageSuccess : styles.messageError,
-          ]}
-        >
-          <MaterialCommunityIcons
-            name={error.type === 'success' ? 'check-circle' : 'alert-circle'}
-            size={16}
-            color={error.type === 'success' ? '#059669' : '#DC2626'}
-          />
-          <Text
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        
+        {/* Error Toast - General */}
+        {error && (
+          <View
             style={[
-              styles.messageText,
-              { color: error.type === 'success' ? '#059669' : '#DC2626' },
+              styles.messageContainer,
+              error.type === 'success' ? styles.messageSuccess : styles.messageError,
             ]}
           >
-            {error.message}
-          </Text>
-        </View>
-      )}
+            <MaterialCommunityIcons
+              name={error.type === 'success' ? 'check-circle' : 'alert-circle'}
+              size={16}
+              color={error.type === 'success' ? '#059669' : '#DC2626'}
+            />
+            <Text
+              style={[
+                styles.messageText,
+                { color: error.type === 'success' ? '#059669' : '#DC2626' },
+              ]}
+            >
+              {error.message}
+            </Text>
+          </View>
+        )}
 
-      {/* Error Toast - Location */}
-      {locationError && (
-        <View
-          style={[
-            styles.messageContainer,
-            locationError.type === 'error' ? styles.messageError : styles.messageWarning,
-          ]}
-        >
-          <MaterialCommunityIcons
-            name={locationError.type === 'error' ? 'alert-circle' : 'information'}
-            size={16}
-            color={locationError.type === 'error' ? '#EF4444' : '#F59E0B'}
-          />
-          <Text
+        {/* Error Toast - Location */}
+        {locationError && (
+          <View
             style={[
-              styles.messageText,
-              { color: locationError.type === 'error' ? '#EF4444' : '#F59E0B' },
+              styles.messageContainer,
+              locationError.type === 'error' ? styles.messageError : styles.messageWarning,
             ]}
           >
-            {locationError.message}
-          </Text>
+            <MaterialCommunityIcons
+              name={locationError.type === 'error' ? 'alert-circle' : 'information'}
+              size={16}
+              color={locationError.type === 'error' ? '#EF4444' : '#F59E0B'}
+            />
+            <Text
+              style={[
+                styles.messageText,
+                { color: locationError.type === 'error' ? '#EF4444' : '#F59E0B' },
+              ]}
+            >
+              {locationError.message}
+            </Text>
+          </View>
+        )}
+
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.title}>Guardian Dashboard</Text>
+          <Text style={styles.subtitle}>Protecting your connected users</Text>
         </View>
-      )}
 
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.title}>Pending Invites</Text>
-        <Text style={styles.subtitle}>
-          {pendingInvites.length > 0
-            ? `You have ${pendingInvites.length} pending invite${pendingInvites.length !== 1 ? 's' : ''}`
-            : 'No pending invites'}
-        </Text>
-      </View>
-
-      {/* Loading State */}
-      {loading && (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color="#4F2CF5" />
-          <Text style={styles.loadingText}>Loading invites...</Text>
-        </View>
-      )}
-
-      {/* Empty State */}
-      {!loading && pendingInvites.length === 0 && (
-        <View style={styles.centerContainer}>
-          <MaterialCommunityIcons name="inbox-outline" size={64} color="#9AA0A6" />
-          <Text style={styles.emptyStateTitle}>No Pending Invites</Text>
-          <Text style={styles.emptyStateSubtitle}>
-            When users invite you to be their guardian, they'll appear here
-          </Text>
-        </View>
-      )}
-
-      {/* Invites List */}
-      {!loading && pendingInvites.length > 0 && (
-        <ScrollView
-          style={styles.listContainer}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.invitesCard}>
-            {pendingInvites.map((invite, index) => (
-              <View key={invite.id}>
-                <GuardianInviteItem
-                  invite={invite}
-                  onAccept={handleAcceptInvite}
-                  onReject={handleRejectInvite}
-                  loading={processingInviteId}
-                />
-                {index < pendingInvites.length - 1 && <View style={styles.divider} />}
-              </View>
+        {/* ── ALERTS SECTION ──────────────────────────────────────────────────────── */}
+        
+        {/* Active Alerts */}
+        {activeAlerts.length > 0 && (
+          <View style={styles.alertSection}>
+            <Text style={styles.alertSectionTitleActive}>🚨 Active Emergencies</Text>
+            {activeAlerts.map(alert => (
+              <AlertCard
+                key={alert.id}
+                alert={alert}
+                connectedUsers={connectedUsers}
+                currentUserId={auth.currentUser?.uid}
+                onRespond={handleRespondToAlert}
+                onResolve={handleResolveAlert}
+                loading={processingAlertId}
+              />
             ))}
           </View>
-        </ScrollView>
-      )}
+        )}
 
-      {/* Connected Users Section */}
-      {connectedUsers.length > 0 && (
-        <View style={styles.connectedUsersSection}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Connected Users</Text>
-            {loadingConnectedUsers && <ActivityIndicator size="small" color="#4F2CF5" />}
+        {/* Responding Alerts */}
+        {respondingAlerts.length > 0 && (
+          <View style={styles.alertSection}>
+            <Text style={styles.alertSectionTitleResponding}>🛡️ Responding</Text>
+            {respondingAlerts.map(alert => (
+              <AlertCard
+                key={alert.id}
+                alert={alert}
+                connectedUsers={connectedUsers}
+                currentUserId={auth.currentUser?.uid}
+                onRespond={handleRespondToAlert}
+                onResolve={handleResolveAlert}
+                loading={processingAlertId}
+              />
+            ))}
           </View>
+        )}
 
-          {connectedUsers.length > 0 ? (
+        {/* Resolved Alerts (Recent) */}
+        {resolvedAlerts.length > 0 && (
+          <View style={styles.alertSection}>
+            <Text style={styles.alertSectionTitleResolved}>✅ Recently Resolved</Text>
+            {resolvedAlerts.slice(0, 3).map(alert => ( // Show only the 3 most recent
+              <AlertCard
+                key={alert.id}
+                alert={alert}
+                connectedUsers={connectedUsers}
+                currentUserId={auth.currentUser?.uid}
+                onRespond={null}
+                onResolve={null}
+                loading={false}
+              />
+            ))}
+          </View>
+        )}
+
+        {/* ── CONNECTED USERS ──────────────────────────────────────────────────────── */}
+        {connectedUsers.length > 0 && (
+          <View style={styles.connectedUsersSection}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Connected Users</Text>
+              {loadingConnectedUsers && <ActivityIndicator size="small" color="#4F2CF5" />}
+            </View>
+
             <View style={styles.usersScrollContainer}>
               <ScrollView
                 horizontal
@@ -352,17 +485,10 @@ const GuardianDashboard = ({ navigation }) => {
                   >
                     <View style={styles.userQuickAvatar}>
                       <Text style={styles.userQuickAvatarText}>
-                        {user.name
-                          .split(' ')
-                          .map((n) => n[0])
-                          .join('')
-                          .toUpperCase()
-                          .slice(0, 2)}
+                        {user.name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)}
                       </Text>
                     </View>
-                    <Text style={styles.userQuickName} numberOfLines={1}>
-                      {user.name}
-                    </Text>
+                    <Text style={styles.userQuickName} numberOfLines={1}>{user.name}</Text>
                     {userLocations[user.id] && (
                       <View style={styles.userQuickStatus}>
                         <View style={styles.userQuickStatusDot} />
@@ -372,7 +498,6 @@ const GuardianDashboard = ({ navigation }) => {
                   </TouchableOpacity>
                 ))}
 
-                {/* "View All Locations" Card */}
                 <TouchableOpacity
                   onPress={() => navigation.push('GroupLocationMap')}
                   style={styles.userQuickCardAll}
@@ -386,10 +511,7 @@ const GuardianDashboard = ({ navigation }) => {
                 </TouchableOpacity>
               </ScrollView>
             </View>
-          ) : null}
 
-          {/* Full List of Connected Users */}
-          {connectedUsers.length > 0 && (
             <View style={styles.usersList}>
               {connectedUsers.map((user, index) => (
                 <View key={user.id}>
@@ -403,9 +525,36 @@ const GuardianDashboard = ({ navigation }) => {
                 </View>
               ))}
             </View>
-          )}
-        </View>
-      )}
+          </View>
+        )}
+
+        {/* ── PENDING INVITES ──────────────────────────────────────────────────────── */}
+        {pendingInvites.length > 0 && (
+          <View style={styles.invitesSection}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Pending Invites ({pendingInvites.length})</Text>
+            </View>
+            <View style={styles.invitesCard}>
+              {pendingInvites.map((invite, index) => (
+                <View key={invite.id}>
+                  <GuardianInviteItem
+                    invite={invite}
+                    onAccept={handleAcceptInvite}
+                    onReject={handleRejectInvite}
+                    loading={processingInviteId}
+                  />
+                  {index < pendingInvites.length - 1 && <View style={styles.divider} />}
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {loading && !pendingInvites.length && !connectedUsers.length && (
+          <ActivityIndicator style={{ marginTop: 40 }} size="large" color="#4F2CF5" />
+        )}
+
+      </ScrollView>
     </SafeAreaView>
   );
 };
@@ -415,16 +564,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#E9EAEE',
   },
-  centerContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 20,
+  scrollContent: {
+    paddingBottom: 40,
   },
   header: {
     paddingHorizontal: 16,
     paddingVertical: 16,
-    backgroundColor: '#E9EAEE',
   },
   title: {
     fontSize: 28,
@@ -461,57 +606,135 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     flex: 1,
   },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: '#4B5057',
+  
+  // ALERTS UI
+  alertSection: {
+    marginHorizontal: 16,
+    marginBottom: 20,
   },
-  emptyStateTitle: {
+  alertSectionTitleActive: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#DC2626', // Red
+    marginBottom: 10,
+    textTransform: 'uppercase',
+  },
+  alertSectionTitleResponding: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#D97706', // Amber
+    marginBottom: 10,
+    textTransform: 'uppercase',
+  },
+  alertSectionTitleResolved: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#059669', // Green
+    marginBottom: 10,
+    textTransform: 'uppercase',
+  },
+  alertCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    borderLeftWidth: 4,
+  },
+  alertCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  alertUserRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  alertUserName: {
     fontSize: 18,
     fontWeight: '700',
     color: '#111318',
-    marginTop: 16,
-    marginBottom: 4,
   },
-  emptyStateSubtitle: {
+  alertBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+  },
+  alertBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  alertDetails: {
+    marginBottom: 16,
+    gap: 4,
+  },
+  alertTime: {
+    fontSize: 13,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  alertResponder: {
     fontSize: 13,
     color: '#4B5057',
-    textAlign: 'center',
+    fontWeight: '600',
   },
-  listContainer: {
+  alertActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  alertButton: {
     flex: 1,
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  listContent: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+  alertButtonRespond: {
+    backgroundColor: '#EF4444',
   },
-  invitesCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 1.41,
+  alertButtonResolve: {
+    backgroundColor: '#10B981',
   },
-  divider: {
-    height: 1,
-    backgroundColor: '#E0E0E2',
-    marginVertical: 8,
+  alertButtonSecondary: {
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
+  alertButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  alertButtonTextSecondary: {
+    color: '#4B5057',
+  },
+
+  // OTHER UI
   connectedUsersSection: {
     backgroundColor: '#fff',
     marginHorizontal: 16,
-    marginBottom: 16,
+    marginBottom: 20,
     borderRadius: 12,
     paddingVertical: 12,
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 1.41,
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  invitesSection: {
+    marginHorizontal: 16,
+    marginBottom: 20,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -617,6 +840,22 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#E0E0E2',
     paddingTop: 12,
+  },
+  invitesCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#E0E0E2',
+    marginVertical: 8,
   },
 });
 

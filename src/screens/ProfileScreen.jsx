@@ -922,7 +922,6 @@ const ProfileScreen = ({ navigation }) => {
     </KeyboardAvoidingView>
   );
 };
-};
 
 // Sub-component: Info Row (for display mode)
 function InfoRow({ label, value }) {

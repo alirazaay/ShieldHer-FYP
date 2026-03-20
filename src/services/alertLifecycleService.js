@@ -73,6 +73,8 @@ export function subscribeToAlerts(userIds, onUpdate, onError) {
   }
 }
 
+import { createTimelineEvent } from './alertHistoryService';
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Respond to an alert: sets status → "responding", stores respondedBy
 //
@@ -108,11 +110,15 @@ export async function respondToAlert(alertId, guardianId) {
     });
 
     console.log('[alertLifecycle] respondToAlert: status set to responding');
+
+    // [Timeline hook] Record the response event in the alert's subcollection
+    await createTimelineEvent(alertId, 'responded', guardianId);
   } catch (error) {
     console.error('[alertLifecycle] respondToAlert error:', error);
     throw error;
   }
 }
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Resolve an alert: sets status → "resolved", stores resolvedAt timestamp
@@ -149,6 +155,9 @@ export async function resolveAlert(alertId, guardianId) {
     });
 
     console.log('[alertLifecycle] resolveAlert: status set to resolved');
+
+    // [Timeline hook] Record the resolution event in the alert's subcollection
+    await createTimelineEvent(alertId, 'resolved', guardianId);
   } catch (error) {
     console.error('[alertLifecycle] resolveAlert error:', error);
     throw error;

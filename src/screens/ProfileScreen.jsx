@@ -672,6 +672,13 @@ const ProfileScreen = ({ navigation }) => {
           <Text style={styles.sectionTitle}>Settings</Text>
 
           <SettingLink
+            icon="history"
+            label="View Alert History"
+            onPress={() => navigation?.push('AlertHistory', { isGuardian: userProfile.role !== 'user' })}
+          />
+          <View style={styles.divider} />
+
+          <SettingLink
             icon="lock"
             label="Change Password"
             onPress={() => navigation?.push('ChangePassword')}

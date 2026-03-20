@@ -77,6 +77,8 @@ export async function checkActiveAlert(userId) {
   }
 }
 
+import { createTimelineEvent } from './alertHistoryService';
+
 /**
  * Create a new SOS alert in Firestore
  * @param {string} userId - Firebase user ID
@@ -110,6 +112,14 @@ export async function createAlert(userId, latitude, longitude, accuracy = null) 
     await setDoc(newAlertRef, alertData);
 
     console.log('[alertService] SOS alert created successfully:', newAlertRef.id);
+
+    // [Timeline hook] Record the trigger event in the alert's subcollection
+    await createTimelineEvent(newAlertRef.id, 'triggered', userId, {
+      latitude,
+      longitude,
+      accuracy,
+    });
+
     return newAlertRef.id;
   } catch (error) {
     console.error('[alertService] createAlert error:', error);

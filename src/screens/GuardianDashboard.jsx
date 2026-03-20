@@ -401,8 +401,16 @@ const GuardianDashboard = ({ navigation }) => {
 
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>Guardian Dashboard</Text>
-          <Text style={styles.subtitle}>Protecting your connected users</Text>
+          <View>
+            <Text style={styles.title}>Guardian Dashboard</Text>
+            <Text style={styles.subtitle}>Protecting your connected users</Text>
+          </View>
+          <TouchableOpacity 
+            style={styles.historyButton}
+            onPress={() => navigation.push('AlertHistory', { isGuardian: true })}
+          >
+            <MaterialCommunityIcons name="history" size={24} color="#4F2CF5" />
+          </TouchableOpacity>
         </View>
 
         {/* ── ALERTS SECTION ──────────────────────────────────────────────────────── */}
@@ -568,8 +576,16 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 16,
+  },
+  historyButton: {
+    padding: 8,
+    backgroundColor: '#EEF2FF',
+    borderRadius: 8,
   },
   title: {
     fontSize: 28,

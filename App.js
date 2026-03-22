@@ -13,6 +13,8 @@ import UserLocationMapScreen from './src/screens/UserLocationMapScreen';
 import GroupLocationMapScreen from './src/screens/GroupLocationMapScreen';
 import AlertHistoryScreen from './src/screens/AlertHistoryScreen';
 import AlertTimelineScreen from './src/screens/AlertTimelineScreen';
+import SOSCountdownScreen from './src/screens/SOSCountdownScreen';
+import AlertActiveScreen from './src/screens/AlertActiveScreen';
 
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -159,6 +161,8 @@ export default function App() {
         <Stack.Screen name="GroupLocationMap" component={GroupLocationMapScreen} />
         <Stack.Screen name="AlertHistory" component={AlertHistoryScreen} />
         <Stack.Screen name="AlertTimeline" component={AlertTimelineScreen} />
+        <Stack.Screen name="SOSCountdownScreen" component={SOSCountdownScreen} />
+        <Stack.Screen name="AlertActiveScreen" component={AlertActiveScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

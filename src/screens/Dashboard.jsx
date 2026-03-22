@@ -158,8 +158,7 @@ const Dashboard = ({ navigation }) => {
   };
 
   const handleSosPress = () => {
-    if (sosLoading) return;
-    setConfirmSosVisible(true);
+    navigation.navigate('SOSCountdownScreen');
   };
 
   const onHoldVoice = () => {

@@ -304,3 +304,45 @@ export function getErrorMessage(error) {
   const code = error.code || error.message;
   return errorCodeMap[code] || error.message || 'An error occurred. Please try again.';
 }
+
+/**
+ * Fetch the current state of Safety Mode
+ * @param {string} uid - Firebase user ID
+ * @returns {Promise<boolean>} Current safety mode state (true/false)
+ */
+export async function getSafetyModeState(uid) {
+  try {
+    if (!uid) return false;
+    const userSnap = await getDoc(doc(db, 'users', uid));
+    if (userSnap.exists()) {
+      return !!userSnap.data()?.safetyModeEnabled;
+    }
+    return false;
+  } catch (error) {
+    console.error('[profile] getSafetyModeState error:', error);
+    return false;
+  }
+}
+
+/**
+ * Toggle the user's Safety Mode (continuous background tracking wrapper)
+ * @param {string} uid - Firebase user ID
+ * @param {boolean} isEnabled - Toggle state
+ * @returns {Promise<void>} 
+ */
+export async function toggleSafetyMode(uid, isEnabled) {
+  try {
+    if (!uid) throw new Error('User ID is required');
+
+    const userDocRef = doc(db, 'users', uid);
+    await updateDoc(userDocRef, {
+      safetyModeEnabled: isEnabled,
+      updatedAt: serverTimestamp(),
+    });
+
+    console.log(`[profile] Safety Mode set to: ${isEnabled}`);
+  } catch (error) {
+    console.error('[profile] toggleSafetyMode error:', error);
+    throw error;
+  }
+}

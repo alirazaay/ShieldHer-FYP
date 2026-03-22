@@ -5,8 +5,11 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import LogoutPopup from './LogoutPopup';
 import { signOutUser } from '../services/auth';
 import { auth } from '../config/firebase';
-import { requestLocationPermission, startLocationTracking, stopLocationTracking, getLocationErrorMessage } from '../services/location';
+import { auth } from '../config/firebase';
+import { requestLocationPermission, getLocationErrorMessage } from '../services/location';
 import { checkActiveAlert, fetchUserLocation, createAlert, getAlertErrorMessage } from '../services/alertService';
+import { getSafetyModeState } from '../services/profile';
+import { startLocationTracking, stopLocationTracking } from '../services/locationListener';
 
 const Dashboard = ({ navigation }) => {
   const insets = useSafeAreaInsets();
@@ -25,50 +28,37 @@ const Dashboard = ({ navigation }) => {
   const [sosMessage, setSosMessage] = useState(null);
   const [confirmSosVisible, setConfirmSosVisible] = useState(false);
 
-  // Location tracking initialization
+  // Location tracking initialization against Safety Mode
   useEffect(() => {
     const initializeLocationTracking = async () => {
       try {
         const currentUser = auth.currentUser;
-        if (!currentUser) {
-          navigation?.replace('Login');
-          return;
-        }
+        if (!currentUser) return;
 
-        // Request location permission
-        const permissionResult = await requestLocationPermission();
-        if (!permissionResult.granted) {
-          console.warn('[Dashboard] Location permission not granted:', permissionResult.status);
-          setLocationError({
-            message: permissionResult.message || 'Location permission required',
-            type: 'warning',
-          });
-          return;
+        // Check Safety Mode status inside Firestore
+        const isSafetyModeEnabled = await getSafetyModeState(currentUser.uid);
+        
+        if (isSafetyModeEnabled) {
+          await startLocationTracking(currentUser.uid);
+          setLocationTracking(true);
+          console.log('[Dashboard] Safety Mode ON: Location tracking started');
+        } else {
+          stopLocationTracking();
+          setLocationTracking(false);
+          console.log('[Dashboard] Safety Mode OFF: Location tracking bypassed');
         }
-
-        // Start tracking location
-        const subscription = await startLocationTracking(currentUser.uid);
-        setLocationSubscription(subscription);
-        setLocationTracking(true);
-        console.log('[Dashboard] Location tracking started');
       } catch (error) {
         console.error('[Dashboard] Location tracking initialization error:', error);
-        setLocationError({
-          message: getLocationErrorMessage(error),
-          type: 'error',
-        });
+        setLocationTracking(false);
       }
     };
 
     initializeLocationTracking();
 
-    // Cleanup: stop location tracking when component unmounts
     return () => {
-      if (locationSubscription) {
-        stopLocationTracking(locationSubscription);
-        setLocationTracking(false);
-        console.log('[Dashboard] Location tracking stopped');
-      }
+      stopLocationTracking();
+      setLocationTracking(false);
+      console.log('[Dashboard] Dashboard unmounted: Location tracking stopped natively');
     };
   }, [navigation]);
 

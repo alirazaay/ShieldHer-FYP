@@ -6,12 +6,16 @@ import {
   TouchableOpacity,
   StyleSheet,
   Switch,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { auth } from '../config/firebase';
 import PrimaryButton from '../components/PrimaryButton';
-import { updateUserProfile, getErrorMessage } from '../services/profile';
+import { updateUserProfile, getSafetyModeState, toggleSafetyMode, getErrorMessage } from '../services/profile';
+import { requestLocationPermission } from '../services/location';
+import { startLocationTracking, stopLocationTracking } from '../services/locationListener';
 
 const LocationSettingsScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
@@ -24,6 +28,57 @@ const LocationSettingsScreen = ({ navigation }) => {
 
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState(null);
+  
+  const [safetyMode, setSafetyMode] = useState(false);
+  const [safetyModeLoading, setSafetyModeLoading] = useState(true);
+
+  // Load Safety Mode on mount
+  React.useEffect(() => {
+    const initSafety = async () => {
+      const user = auth.currentUser;
+      if (user) {
+        const smState = await getSafetyModeState(user.uid);
+        setSafetyMode(smState);
+      }
+      setSafetyModeLoading(false);
+    };
+    initSafety();
+  }, []);
+
+  const handleSafetyModeToggle = async (newValue) => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    try {
+      setSafetyModeLoading(true);
+
+      if (newValue) {
+        // Turning ON
+        const permResult = await requestLocationPermission();
+        if (!permResult.granted) {
+          Alert.alert(
+            'Permission Denied',
+            'Location permission is required to enable Safety Mode.'
+          );
+          setSafetyMode(false);
+        } else {
+          await toggleSafetyMode(user.uid, true);
+          await startLocationTracking(user.uid);
+          setSafetyMode(true);
+        }
+      } else {
+        // Turning OFF
+        await toggleSafetyMode(user.uid, false);
+        stopLocationTracking();
+        setSafetyMode(false);
+      }
+    } catch (err) {
+      console.error('[LocationSettings] Error toggling Safety Mode:', err);
+      Alert.alert('Error', 'Failed to toggle Safety Mode.');
+    } finally {
+      setSafetyModeLoading(false);
+    }
+  };
 
   const handleToggle = (key) => {
     setPreferences((prev) => ({
@@ -119,6 +174,33 @@ const LocationSettingsScreen = ({ navigation }) => {
 
       {/* Content */}
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        {/* Safety Mode Toggle */}
+        <View style={[styles.section, { borderColor: '#E01111', borderWidth: safetyMode ? 2 : 0 }]}>
+          <View style={styles.settingRow}>
+            <View style={styles.settingLeft}>
+              <MaterialCommunityIcons name="shield-check" size={24} color={safetyMode ? "#E01111" : "#9AA0A6"} />
+              <View style={styles.settingText}>
+                <Text style={styles.settingLabel}>
+                  Safety Mode: {safetyModeLoading ? '...' : (safetyMode ? 'ON' : 'OFF')}
+                </Text>
+                <Text style={styles.settingDescription}>
+                  When enabled, the app continuously tracks your location and allows guardians to monitor your safety.
+                </Text>
+              </View>
+            </View>
+            {safetyModeLoading ? (
+              <ActivityIndicator size="small" color="#E01111" />
+            ) : (
+              <Switch
+                value={safetyMode}
+                onValueChange={handleSafetyModeToggle}
+                trackColor={{ false: '#E0E0E2', true: '#E01111' }}
+                thumbColor="#fff"
+              />
+            )}
+          </View>
+        </View>
+
         {/* Main Location Toggle */}
         <View style={styles.section}>
           <SettingToggle

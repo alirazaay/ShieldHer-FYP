@@ -1,5 +1,9 @@
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import * as Location from 'expo-location';
+import { requestLocationPermission } from './location';
+
+let activeTrackingSub = null;
 
 /**
  * Subscribe to real-time location updates for a single user
@@ -220,4 +224,73 @@ export function getMarkerColor(index) {
   ];
 
   return colors[index % colors.length];
+}
+
+/**
+ * Start tracking user location persistently (Singleton pattern)
+ * and update Firestore every 10 seconds.
+ * @param {string} userId - Firebase user ID
+ * @returns {Promise<void>} 
+ */
+export async function startLocationTracking(userId) {
+  console.log('[locationListener] startLocationTracking start', { userId });
+  if (!userId) {
+    throw new Error('User ID is required to start location tracking');
+  }
+
+  // Prevent multiple listeners
+  if (activeTrackingSub) {
+    console.log('[locationListener] Location tracking is already active');
+    return;
+  }
+
+  try {
+    const permissionResult = await requestLocationPermission();
+    if (!permissionResult.granted) {
+      const error = new Error('Location permission denied');
+      error.code = 'location/permission-denied';
+      throw error;
+    }
+
+    activeTrackingSub = await Location.watchPositionAsync(
+      {
+        accuracy: Location.Accuracy.High,
+        timeInterval: 10000, // 10 seconds
+        distanceInterval: 0,
+      },
+      async (location) => {
+        try {
+          const { latitude, longitude, accuracy } = location.coords;
+          const userLocationRef = doc(db, 'users', userId);
+          await updateDoc(userLocationRef, {
+            location: {
+              latitude,
+              longitude,
+              accuracy: accuracy || null,
+              timestamp: serverTimestamp(),
+            },
+          });
+        } catch (err) {
+          console.error('[locationListener] Error pushing coords to Firestore:', err);
+        }
+      }
+    );
+    console.log('[locationListener] Location tracking fully engaged');
+  } catch (error) {
+    console.error('[locationListener] startLocationTracking error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Stop the singleton location tracking loop
+ * @returns {void}
+ */
+export function stopLocationTracking() {
+  console.log('[locationListener] stopLocationTracking invoked');
+  if (activeTrackingSub) {
+    activeTrackingSub.remove();
+    activeTrackingSub = null;
+    console.log('[locationListener] Location tracking ceased');
+  }
 }

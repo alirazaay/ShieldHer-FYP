@@ -188,3 +188,31 @@ export async function checkLocationPermission() {
     return false;
   }
 }
+
+/**
+ * Fetch the current foreground location of the device once
+ * @returns {Promise<{latitude: number, longitude: number, accuracy: number} | null>}
+ */
+export async function getCurrentLocation() {
+  console.log('[location] getCurrentLocation start');
+  try {
+    const permissionResult = await requestLocationPermission();
+    if (!permissionResult.granted) {
+      console.warn('[location] Cannot fetch current location without permissions');
+      return null;
+    }
+
+    const { coords } = await Location.getCurrentPositionAsync({
+      accuracy: Location.Accuracy.Balanced,
+    });
+    
+    return {
+      latitude: coords.latitude,
+      longitude: coords.longitude,
+      accuracy: coords.accuracy,
+    };
+  } catch (error) {
+    console.error('[location] getCurrentLocation error:', error);
+    return null;
+  }
+}

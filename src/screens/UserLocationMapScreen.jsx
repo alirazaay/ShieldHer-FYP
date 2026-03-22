@@ -6,6 +6,8 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { auth } from '../config/firebase';
 import { subscribeToUserLocation, getLocationErrorMessage, formatLocationTimestamp } from '../services/locationListener';
 import { fetchUserProfile } from '../services/profile';
+import { calculateDistance } from '../utils/distance';
+import { getCurrentLocation } from '../services/location';
 
 const UserLocationMapScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
@@ -16,6 +18,8 @@ const UserLocationMapScreen = ({ navigation, route }) => {
   const [userName, setUserName] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [guardianLocation, setGuardianLocation] = useState(null);
+  const [guardianLocLoading, setGuardianLocLoading] = useState(true);
 
   // Map reference for animations
   const mapRef = useRef(null);
@@ -31,6 +35,11 @@ const UserLocationMapScreen = ({ navigation, route }) => {
         // Fetch user profile to get name
         const profile = await fetchUserProfile(userId);
         setUserName(profile.fullName || 'User');
+
+        // Fetch local guardian's location for distance calculations
+        const gLocation = await getCurrentLocation();
+        setGuardianLocation(gLocation);
+        setGuardianLocLoading(false);
 
         // Subscribe to real-time location updates
         const unsubscribe = subscribeToUserLocation(
@@ -115,6 +124,16 @@ const UserLocationMapScreen = ({ navigation, route }) => {
   // Available location
   const hasLocation = userLocation?.latitude && userLocation?.longitude;
 
+  // Calculate distance
+  const distance = hasLocation && guardianLocation
+    ? calculateDistance(
+        guardianLocation.latitude,
+        guardianLocation.longitude,
+        userLocation.latitude,
+        userLocation.longitude
+      )
+    : null;
+
   return (
     <SafeAreaView style={[styles.safe, { paddingTop: insets.top }]}>
       {/* Header */}
@@ -178,6 +197,17 @@ const UserLocationMapScreen = ({ navigation, route }) => {
       {/* Location Info Footer */}
       {hasLocation && (
         <View style={styles.footer}>
+          <View style={styles.infoRow}>
+            <MaterialCommunityIcons name="map-marker-distance" size={16} color="#4F2CF5" />
+            <Text style={styles.infoLabel}>Distance:</Text>
+            {guardianLocLoading ? (
+              <Text style={styles.infoValue}>Calculating...</Text>
+            ) : distance !== null ? (
+              <Text style={[styles.infoValue, { fontWeight: 'bold' }]}>{distance} km from you</Text>
+            ) : (
+              <Text style={[styles.infoValue, { color: '#EF4444' }]}>Distance unavailable</Text>
+            )}
+          </View>
           <View style={styles.infoRow}>
             <MaterialCommunityIcons name="map-marker" size={16} color="#4F2CF5" />
             <Text style={styles.infoLabel}>Coordinates:</Text>

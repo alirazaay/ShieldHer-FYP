@@ -51,7 +51,7 @@ async function sendExpoPushNotifications(tokens, title, body, data = {}) {
     sound: 'default',
     priority: 'high',
     badge: 1,
-    channelId: 'sos-alerts', // matches Android channel created in notifications.js
+    channelId: 'emergency-alerts', // Upgraded to critical emergency alerts channel
   }));
 
   console.log(`[sendExpoPushNotifications] Sending ${messages.length} notifications...`);

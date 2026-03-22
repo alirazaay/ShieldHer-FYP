@@ -28,11 +28,11 @@ import { auth } from './src/config/firebase';
 import { useEffect, useRef } from 'react';
 import { checkFirebaseConnection } from './src/utils/checkFirebaseConnection';
 import {
-  initializeNotifications,
+  registerForPushNotifications,
   setupForegroundNotificationHandler,
   setupTokenRefreshListener,
-  getNotificationNavTarget,
-} from './src/services/notifications';
+  handleNotificationNavigation,
+} from './src/services/notificationService';
 
 enableScreens();
 
@@ -68,12 +68,12 @@ export default function App() {
       if (user) {
         console.log('[App] User authenticated, initializing notifications for:', user.uid);
 
-        // 1. Request permission + get token + store in Firestore
-        const result = await initializeNotifications(user.uid);
-        if (result.success) {
+        // 1. Request permission + get token + set emergency channel + store in Firestore
+        const token = await registerForPushNotifications(user.uid);
+        if (token) {
           console.log('[App] Notifications initialized successfully');
         } else {
-          console.warn('[App] Notification initialization warning:', result.message);
+          console.warn('[App] Notification initialization warning or denied');
         }
 
         // 2. Set up foreground notification display handler
@@ -111,7 +111,7 @@ export default function App() {
       (response) => {
         console.log('[App] Notification tapped:', response.notification.request.content.data);
 
-        const navTarget = getNotificationNavTarget(response);
+        const navTarget = handleNotificationNavigation(response);
         if (navTarget && navigationRef.isReady()) {
           console.log('[App] Navigating to:', navTarget.screen, navTarget.params);
           navigationRef.navigate(navTarget.screen, navTarget.params);
@@ -123,7 +123,7 @@ export default function App() {
     // by checking if there's a pending notification response on startup.
     Notifications.getLastNotificationResponseAsync().then((response) => {
       if (!response) return;
-      const navTarget = getNotificationNavTarget(response);
+      const navTarget = handleNotificationNavigation(response);
       if (navTarget && navigationRef.isReady()) {
         console.log('[App] Navigating from launch notification:', navTarget.screen, navTarget.params);
         // Small delay to ensure Navigator is mounted

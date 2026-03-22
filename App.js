@@ -15,6 +15,7 @@ import AlertHistoryScreen from './src/screens/AlertHistoryScreen';
 import AlertTimelineScreen from './src/screens/AlertTimelineScreen';
 import SOSCountdownScreen from './src/screens/SOSCountdownScreen';
 import AlertActiveScreen from './src/screens/AlertActiveScreen';
+import OfflineBanner from './src/components/OfflineBanner';
 
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -143,28 +144,32 @@ export default function App() {
   }, []);
 
   return (
-    // Pass navigationRef so we can navigate from notification handlers
-    <NavigationContainer ref={navigationRef}>
-      <Stack.Navigator initialRouteName="Home" screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="Home" component={Home} />
-        <Stack.Screen name="Login" component={Login} />
-        <Stack.Screen name="SignUp" component={SignUp} />
-        <Stack.Screen name="ForgotPass" component={ForgotPass} />
-        <Stack.Screen name="Dashboard" component={Dashboard} />
-        <Stack.Screen name="GuardianDashboard" component={GuardianDashboard} />
-        <Stack.Screen name="LogoutPopup" component={LogoutPopup} />
-        <Stack.Screen name="Profile" component={ProfileScreen} />
-        <Stack.Screen name="ChangePassword" component={ChangePassword} />
-        <Stack.Screen name="NotificationSettings" component={NotificationSettings} />
-        <Stack.Screen name="LocationSettings" component={LocationSettings} />
-        <Stack.Screen name="UserLocationMap" component={UserLocationMapScreen} />
-        <Stack.Screen name="GroupLocationMap" component={GroupLocationMapScreen} />
-        <Stack.Screen name="AlertHistory" component={AlertHistoryScreen} />
-        <Stack.Screen name="AlertTimeline" component={AlertTimelineScreen} />
-        <Stack.Screen name="SOSCountdownScreen" component={SOSCountdownScreen} />
-        <Stack.Screen name="AlertActiveScreen" component={AlertActiveScreen} />
-      </Stack.Navigator>
-    </NavigationContainer>
+    // Wrap entire app stack to easily render fixed absolute views across all flows securely
+    <View style={{ flex: 1 }}>
+      <OfflineBanner />
+      {/* Pass navigationRef so we can navigate from notification handlers */}
+      <NavigationContainer ref={navigationRef}>
+        <Stack.Navigator initialRouteName="Home" screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="Home" component={Home} />
+          <Stack.Screen name="Login" component={Login} />
+          <Stack.Screen name="SignUp" component={SignUp} />
+          <Stack.Screen name="ForgotPass" component={ForgotPass} />
+          <Stack.Screen name="Dashboard" component={Dashboard} />
+          <Stack.Screen name="GuardianDashboard" component={GuardianDashboard} />
+          <Stack.Screen name="LogoutPopup" component={LogoutPopup} />
+          <Stack.Screen name="Profile" component={ProfileScreen} />
+          <Stack.Screen name="ChangePassword" component={ChangePassword} />
+          <Stack.Screen name="NotificationSettings" component={NotificationSettings} />
+          <Stack.Screen name="LocationSettings" component={LocationSettings} />
+          <Stack.Screen name="UserLocationMap" component={UserLocationMapScreen} />
+          <Stack.Screen name="GroupLocationMap" component={GroupLocationMapScreen} />
+          <Stack.Screen name="AlertHistory" component={AlertHistoryScreen} />
+          <Stack.Screen name="AlertTimeline" component={AlertTimelineScreen} />
+          <Stack.Screen name="SOSCountdownScreen" component={SOSCountdownScreen} />
+          <Stack.Screen name="AlertActiveScreen" component={AlertActiveScreen} />
+        </Stack.Navigator>
+      </NavigationContainer>
+    </View>
   );
 }
 

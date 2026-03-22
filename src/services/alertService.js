@@ -9,6 +9,7 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import { handleAppError } from '../utils/errorHandler';
 
 /**
  * Fetch user's current location from Firestore
@@ -28,7 +29,7 @@ export async function fetchUserLocation(userId) {
 
     return locationSnap.data();
   } catch (error) {
-    console.error('[alertService] fetchUserLocation error:', error);
+    handleAppError(error, 'Alert Service - Fetching Location');
     throw error;
   }
 }
@@ -71,7 +72,7 @@ export async function checkActiveAlert(userId) {
 
     return hasRecentAlert;
   } catch (error) {
-    console.error('[alertService] checkActiveAlert error:', error);
+    handleAppError(error, 'Alert Service - Checking Active Alerts');
     // If there's an error checking, allow the alert to proceed (fail open)
     return false;
   }
@@ -122,7 +123,7 @@ export async function createAlert(userId, latitude, longitude, accuracy = null) 
 
     return newAlertRef.id;
   } catch (error) {
-    console.error('[alertService] createAlert error:', error);
+    handleAppError(error, 'Alert Service - Creating SOS Alert');
     throw error;
   }
 }

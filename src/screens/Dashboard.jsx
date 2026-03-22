@@ -5,7 +5,6 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import LogoutPopup from './LogoutPopup';
 import { signOutUser } from '../services/auth';
 import { auth } from '../config/firebase';
-import { auth } from '../config/firebase';
 import { requestLocationPermission, getLocationErrorMessage } from '../services/location';
 import { checkActiveAlert, fetchUserLocation, createAlert, getAlertErrorMessage } from '../services/alertService';
 import { getSafetyModeState, getVoiceSOSState } from '../services/profile';

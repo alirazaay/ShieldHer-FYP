@@ -1,0 +1,104 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ==========================================
+    // HELPER FUNCTIONS
+    // ==========================================
+    
+    // Check if the user is signed in
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Check if the current user owns the user profile
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Check if the current user is listed in the profile owner's guardians array
+    // Requires reading the target user's document for the `guardians` list
+    function isGuardian(userId) {
+      let isAuth = isAuthenticated();
+      let userDoc = get(/databases/$(database)/documents/users/$(userId));
+      return isAuth && (request.auth.uid in userDoc.data.guardians);
+    }
+
+    // ==========================================
+    // COLLECTION RULES
+    // ==========================================
+
+    // 1. Users Collection
+    match /users/{userId} {
+      // User can read their own profile; connected guardians can also read their profile/location
+      allow read: if isOwner(userId) || isGuardian(userId);
+      // Only the profile owner has write capabilities
+      allow write: if isOwner(userId);
+      
+      // Default fallback for any subcollections to ensure they are locked to the owner
+      match /{subcollection=**} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+
+    // 2. Alerts Collection
+    match /alerts/{alertId} {
+      // Helper to determine if the author/reader of the alert is the owner
+      function isAlertOwner() {
+        return request.auth.uid == resource.data.userId;
+      }
+      
+      // Helper to determine if the reader is a guardian linked to the alert owner
+      function isAlertGuardian() {
+        return request.auth.uid in get(/databases/$(database)/documents/users/$(resource.data.userId)).data.guardians;
+      }
+
+      // Read: The alert owner or their linked guardians
+      allow read: if isAuthenticated() && (isAlertOwner() || isAlertGuardian());
+      
+      // Create: Only the owner can create a new alert natively tracking them
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      
+      // Update/Delete: Only the owner can mutate the live alert state securely
+      allow update, delete: if isAuthenticated() && isAlertOwner();
+
+      // 3. Alert Events Subcollection 
+      match /events/{eventId} {
+        function getParentAlertOwnerId() {
+          return get(/databases/$(database)/documents/alerts/$(alertId)).data.userId;
+        }
+
+        // Only the owner of the parent alert or their guardian can read the historical events
+        allow read: if isAuthenticated() && (
+          request.auth.uid == getParentAlertOwnerId() || 
+          request.auth.uid in get(/databases/$(database)/documents/users/$(getParentAlertOwnerId())).data.guardians
+        );
+
+        // System writes bypass rules entirely (e.g., Firebase Cloud Functions Admin SDK). 
+        // Thus, manual client writes into events are explicitly barred for security.
+        allow write: if false; 
+      }
+    }
+
+    // 4. Guardian Invites Collection
+    match /guardianInvites/{inviteId} {
+      // The sender of the invite creates it
+      allow create: if isAuthenticated() && request.resource.data.senderId == request.auth.uid;
+      
+      // The receiver and the sender can query or observe the invite document
+      allow read: if isAuthenticated() && (
+        resource.data.senderId == request.auth.uid || 
+        resource.data.receiverId == request.auth.uid
+      );
+      
+      // Only the receiver can modify it to "accept" or "decline" 
+      allow update: if isAuthenticated() && resource.data.receiverId == request.auth.uid;
+      
+      // Both the sender (canceling) and the receiver (rejecting) can prune the invite
+      allow delete: if isAuthenticated() && (
+        resource.data.senderId == request.auth.uid || 
+        resource.data.receiverId == request.auth.uid
+      );
+    }
+  }
+}

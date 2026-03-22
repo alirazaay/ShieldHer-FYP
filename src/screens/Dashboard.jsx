@@ -8,8 +8,9 @@ import { auth } from '../config/firebase';
 import { auth } from '../config/firebase';
 import { requestLocationPermission, getLocationErrorMessage } from '../services/location';
 import { checkActiveAlert, fetchUserLocation, createAlert, getAlertErrorMessage } from '../services/alertService';
-import { getSafetyModeState } from '../services/profile';
+import { getSafetyModeState, getVoiceSOSState } from '../services/profile';
 import { startLocationTracking, stopLocationTracking } from '../services/locationListener';
+import { startVoiceListener, stopVoiceListener } from '../services/voiceSOSService';
 
 const Dashboard = ({ navigation }) => {
   const insets = useSafeAreaInsets();
@@ -42,8 +43,17 @@ const Dashboard = ({ navigation }) => {
           await startLocationTracking(currentUser.uid);
           setLocationTracking(true);
           console.log('[Dashboard] Safety Mode ON: Location tracking started');
+          
+          // Check Voice SOS permissions
+          const isVoiceEnabled = await getVoiceSOSState(currentUser.uid);
+          if (isVoiceEnabled) {
+            await startVoiceListener(currentUser.uid);
+          } else {
+            stopVoiceListener();
+          }
         } else {
           stopLocationTracking();
+          stopVoiceListener();
           setLocationTracking(false);
           console.log('[Dashboard] Safety Mode OFF: Location tracking bypassed');
         }
@@ -57,8 +67,9 @@ const Dashboard = ({ navigation }) => {
 
     return () => {
       stopLocationTracking();
+      stopVoiceListener();
       setLocationTracking(false);
-      console.log('[Dashboard] Dashboard unmounted: Location tracking stopped natively');
+      console.log('[Dashboard] Dashboard unmounted: Native location and mic monitoring stopped');
     };
   }, [navigation]);
 

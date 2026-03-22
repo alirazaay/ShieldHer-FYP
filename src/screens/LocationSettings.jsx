@@ -12,8 +12,14 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { auth } from '../config/firebase';
-import PrimaryButton from '../components/PrimaryButton';
-import { updateUserProfile, getSafetyModeState, toggleSafetyMode, getErrorMessage } from '../services/profile';
+import {
+  updateUserProfile,
+  getSafetyModeState,
+  toggleSafetyMode,
+  getVoiceSOSState,
+  toggleVoiceSOS,
+  getErrorMessage
+} from '../services/profile';
 import { requestLocationPermission } from '../services/location';
 import { startLocationTracking, stopLocationTracking } from '../services/locationListener';
 
@@ -32,15 +38,21 @@ const LocationSettingsScreen = ({ navigation }) => {
   const [safetyMode, setSafetyMode] = useState(false);
   const [safetyModeLoading, setSafetyModeLoading] = useState(true);
 
+  const [voiceSOSMode, setVoiceSOSMode] = useState(false);
+  const [voiceSOSLoading, setVoiceSOSLoading] = useState(true);
+
   // Load Safety Mode on mount
   React.useEffect(() => {
     const initSafety = async () => {
       const user = auth.currentUser;
       if (user) {
         const smState = await getSafetyModeState(user.uid);
+        const voiceState = await getVoiceSOSState(user.uid);
         setSafetyMode(smState);
+        setVoiceSOSMode(voiceState);
       }
       setSafetyModeLoading(false);
+      setVoiceSOSLoading(false);
     };
     initSafety();
   }, []);
@@ -77,6 +89,30 @@ const LocationSettingsScreen = ({ navigation }) => {
       Alert.alert('Error', 'Failed to toggle Safety Mode.');
     } finally {
       setSafetyModeLoading(false);
+    }
+  };
+
+  const handleVoiceSOSToggle = async (newValue) => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    try {
+      setVoiceSOSLoading(true);
+
+      if (newValue) {
+        // We will start Voice Listener in the background service logic separately 
+        // using the Dashboard hook, or directly via voiceSOSService here.
+        await toggleVoiceSOS(user.uid, true);
+        setVoiceSOSMode(true);
+      } else {
+        await toggleVoiceSOS(user.uid, false);
+        setVoiceSOSMode(false);
+      }
+    } catch (err) {
+      console.error('[LocationSettings] Error toggling Voice SOS:', err);
+      Alert.alert('Error', 'Failed to toggle Voice SOS Mode.');
+    } finally {
+      setVoiceSOSLoading(false);
     }
   };
 
@@ -199,6 +235,31 @@ const LocationSettingsScreen = ({ navigation }) => {
               />
             )}
           </View>
+          
+          {/* Nested Voice SOS Option available only when Safety Mode is active */}
+          {safetyMode && (
+            <View style={[styles.settingRow, { marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#E0E0E2' }]}>
+              <View style={styles.settingLeft}>
+                <MaterialCommunityIcons name="microphone" size={22} color={voiceSOSMode ? "#4F2CF5" : "#9AA0A6"} />
+                <View style={styles.settingText}>
+                  <Text style={styles.settingLabel}>Enable Voice SOS Detection</Text>
+                  <Text style={styles.settingDescription}>
+                    Continuously listen for triggers like "Help Me" or "Emergency" to automatically launch alerts.
+                  </Text>
+                </View>
+              </View>
+              {voiceSOSLoading ? (
+                <ActivityIndicator size="small" color="#4F2CF5" />
+              ) : (
+                <Switch
+                  value={voiceSOSMode}
+                  onValueChange={handleVoiceSOSToggle}
+                  trackColor={{ false: '#E0E0E2', true: '#4F2CF5' }}
+                  thumbColor="#fff"
+                />
+              )}
+            </View>
+          )}
         </View>
 
         {/* Main Location Toggle */}

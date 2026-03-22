@@ -346,3 +346,45 @@ export async function toggleSafetyMode(uid, isEnabled) {
     throw error;
   }
 }
+
+/**
+ * Fetch the current state of Voice SOS
+ * @param {string} uid - Firebase user ID
+ * @returns {Promise<boolean>} Current voice mode state (true/false)
+ */
+export async function getVoiceSOSState(uid) {
+  try {
+    if (!uid) return false;
+    const userSnap = await getDoc(doc(db, 'users', uid));
+    if (userSnap.exists()) {
+      return !!userSnap.data()?.voiceSOSEnabled;
+    }
+    return false;
+  } catch (error) {
+    console.error('[profile] getVoiceSOSState error:', error);
+    return false;
+  }
+}
+
+/**
+ * Toggle the user's Voice SOS feature natively
+ * @param {string} uid - Firebase user ID
+ * @param {boolean} isEnabled - Toggle state
+ * @returns {Promise<void>} 
+ */
+export async function toggleVoiceSOS(uid, isEnabled) {
+  try {
+    if (!uid) throw new Error('User ID is required');
+
+    const userDocRef = doc(db, 'users', uid);
+    await updateDoc(userDocRef, {
+      voiceSOSEnabled: isEnabled,
+      updatedAt: serverTimestamp(),
+    });
+
+    console.log(`[profile] Voice SOS set to: ${isEnabled}`);
+  } catch (error) {
+    console.error('[profile] toggleVoiceSOS error:', error);
+    throw error;
+  }
+}

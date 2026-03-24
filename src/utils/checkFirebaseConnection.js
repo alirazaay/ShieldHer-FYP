@@ -8,7 +8,8 @@ export async function checkFirebaseConnection() {
     console.warn('[check] enableNetwork skipped/failed:', e?.code || e?.message || e);
   }
   try {
-    const pingRef = doc(db, '__ping__', 'connect');
+    // Use a non-reserved collection name for connectivity check
+    const pingRef = doc(db, '_connectivity_check', 'ping');
     const snap = await getDoc(pingRef);
     console.log('[check] Firestore connectivity ok. Doc exists:', snap.exists());
   } catch (e) {

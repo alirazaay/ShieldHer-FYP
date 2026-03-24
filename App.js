@@ -20,6 +20,8 @@ import OfflineBanner from './src/components/OfflineBanner';
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { enableScreens } from 'react-native-screens';
+import { View } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { getApps } from 'firebase/app';
 import { onAuthStateChanged } from 'firebase/auth';
 import * as Notifications from 'expo-notifications';
@@ -144,32 +146,35 @@ export default function App() {
   }, []);
 
   return (
-    // Wrap entire app stack to easily render fixed absolute views across all flows securely
-    <View style={{ flex: 1 }}>
-      <OfflineBanner />
-      {/* Pass navigationRef so we can navigate from notification handlers */}
-      <NavigationContainer ref={navigationRef}>
-        <Stack.Navigator initialRouteName="Home" screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="Home" component={Home} />
-          <Stack.Screen name="Login" component={Login} />
-          <Stack.Screen name="SignUp" component={SignUp} />
-          <Stack.Screen name="ForgotPass" component={ForgotPass} />
-          <Stack.Screen name="Dashboard" component={Dashboard} />
-          <Stack.Screen name="GuardianDashboard" component={GuardianDashboard} />
-          <Stack.Screen name="LogoutPopup" component={LogoutPopup} />
-          <Stack.Screen name="Profile" component={ProfileScreen} />
-          <Stack.Screen name="ChangePassword" component={ChangePassword} />
-          <Stack.Screen name="NotificationSettings" component={NotificationSettings} />
-          <Stack.Screen name="LocationSettings" component={LocationSettings} />
-          <Stack.Screen name="UserLocationMap" component={UserLocationMapScreen} />
-          <Stack.Screen name="GroupLocationMap" component={GroupLocationMapScreen} />
-          <Stack.Screen name="AlertHistory" component={AlertHistoryScreen} />
-          <Stack.Screen name="AlertTimeline" component={AlertTimelineScreen} />
-          <Stack.Screen name="SOSCountdownScreen" component={SOSCountdownScreen} />
-          <Stack.Screen name="AlertActiveScreen" component={AlertActiveScreen} />
-        </Stack.Navigator>
-      </NavigationContainer>
-    </View>
+    // Wrap with SafeAreaProvider so all screens/components using safe area hooks work
+    <SafeAreaProvider>
+      {/* Wrap entire app stack to easily render fixed absolute views across all flows securely */}
+      <View style={{ flex: 1 }}>
+        <OfflineBanner />
+        {/* Pass navigationRef so we can navigate from notification handlers */}
+        <NavigationContainer ref={navigationRef}>
+          <Stack.Navigator initialRouteName="Home" screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="Home" component={Home} />
+            <Stack.Screen name="Login" component={Login} />
+            <Stack.Screen name="SignUp" component={SignUp} />
+            <Stack.Screen name="ForgotPass" component={ForgotPass} />
+            <Stack.Screen name="Dashboard" component={Dashboard} />
+            <Stack.Screen name="GuardianDashboard" component={GuardianDashboard} />
+            <Stack.Screen name="LogoutPopup" component={LogoutPopup} />
+            <Stack.Screen name="Profile" component={ProfileScreen} />
+            <Stack.Screen name="ChangePassword" component={ChangePassword} />
+            <Stack.Screen name="NotificationSettings" component={NotificationSettings} />
+            <Stack.Screen name="LocationSettings" component={LocationSettings} />
+            <Stack.Screen name="UserLocationMap" component={UserLocationMapScreen} />
+            <Stack.Screen name="GroupLocationMap" component={GroupLocationMapScreen} />
+            <Stack.Screen name="AlertHistory" component={AlertHistoryScreen} />
+            <Stack.Screen name="AlertTimeline" component={AlertTimelineScreen} />
+            <Stack.Screen name="SOSCountdownScreen" component={SOSCountdownScreen} />
+            <Stack.Screen name="AlertActiveScreen" component={AlertActiveScreen} />
+          </Stack.Navigator>
+        </NavigationContainer>
+      </View>
+    </SafeAreaProvider>
   );
 }
 

@@ -334,7 +334,7 @@ const Dashboard = ({ navigation }) => {
         <Animated.View style={[styles.modalBackdrop, { opacity }]}> 
           <Animated.View style={[styles.modalCardWrap, { transform: [{ scale }] }] }>
             <SafeAreaView>
-              <LogoutPopup asModal onCancel={closeLogout} onConfirm={async () => { try { await signOutUser(); } catch (e) {} closeLogout(); navigation?.replace?.('Login'); }} />
+              <LogoutPopup asModal onCancel={closeLogout} onConfirm={async () => { try { await signOutUser(); } catch (e) { console.error('[Dashboard] Logout failed:', e); } closeLogout(); navigation?.replace?.('Login'); }} />
             </SafeAreaView>
           </Animated.View>
         </Animated.View>

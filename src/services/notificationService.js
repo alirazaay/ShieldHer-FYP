@@ -3,7 +3,15 @@ import * as Device from 'expo-device';
 import * as Haptics from 'expo-haptics';
 import { Platform } from 'react-native';
 import { doc, updateDoc } from 'firebase/firestore';
+import Constants from 'expo-constants';
 import { db } from '../config/firebase';
+import logger from '../utils/logger';
+
+const TAG = '[notificationService]';
+
+// Get Expo project ID from config
+const expoConfig = Constants.expoConfig?.extra || Constants.manifest?.extra || {};
+const EXPO_PROJECT_ID = expoConfig.expoProjectId;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Foreground Banner Behavior
@@ -32,7 +40,7 @@ export async function configureNotificationChannel() {
       lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
       bypassDnd: true, // Allow emergency alerts through Do Not Disturb
     });
-    console.log('[notificationService] Android emergency notification channel configured');
+    logger.info(TAG, 'Android emergency notification channel configured');
   }
 }
 
@@ -42,7 +50,7 @@ export async function configureNotificationChannel() {
 export async function registerForPushNotifications(userId) {
   try {
     if (!Device.isDevice) {
-      console.warn('[notificationService] Emulators do not support push notifications.');
+      logger.warn(TAG, 'Emulators do not support push notifications.');
       return false;
     }
 
@@ -58,29 +66,29 @@ export async function registerForPushNotifications(userId) {
           allowAlert: true,
           allowBadge: true,
           allowSound: true,
-          allowCriticalAlerts: true, // Try to allow critical alerts on iOS mapping
+          allowCriticalAlerts: true,
         },
       });
       finalStatus = status;
     }
 
     if (finalStatus !== 'granted') {
-      console.warn('[notificationService] Notification permission not granted');
+      logger.warn(TAG, 'Notification permission not granted');
       return false;
     }
 
-    // Get the Expo Push Token. Note: Using current proj ID or fall back.
+    // Get the Expo Push Token using project ID from config
     let tokenData;
     try {
       tokenData = await Notifications.getExpoPushTokenAsync({
-        projectId: '60d17df5-f61e-4c96-951f-ebd84c5c8f16',
+        projectId: EXPO_PROJECT_ID,
       });
     } catch (err) {
       tokenData = await Notifications.getExpoPushTokenAsync();
     }
 
     const token = tokenData.data;
-    console.log('[notificationService] Got push token:', token);
+    logger.info(TAG, 'Got push token:', token?.slice(0, 30) + '...');
 
     // Save token to Firestore
     if (userId && token) {
@@ -90,12 +98,12 @@ export async function registerForPushNotifications(userId) {
         fcmTokenUpdatedAt: new Date().toISOString(),
         platform: Platform.OS,
       });
-      console.log('[notificationService] Token securely stored in Firestore');
+      logger.info(TAG, 'Token securely stored in Firestore');
     }
 
     return token;
   } catch (error) {
-    console.error('[notificationService] registerForPushNotifications error:', error);
+    logger.error(TAG, 'registerForPushNotifications error:', error);
     return false;
   }
 }
@@ -113,9 +121,9 @@ export function setupTokenRefreshListener(userId) {
         fcmToken: newToken.data,
         fcmTokenUpdatedAt: new Date().toISOString(),
       });
-      console.log('[notificationService] Push token dynamically updated');
+      logger.info(TAG, 'Push token dynamically updated');
     } catch (err) {
-      console.error('[notificationService] Failed to update refreshed token:', err);
+      logger.error(TAG, 'Failed to update refreshed token:', err);
     }
   });
 
@@ -127,7 +135,7 @@ export function setupTokenRefreshListener(userId) {
 // ─────────────────────────────────────────────────────────────────────────────
 export function setupForegroundNotificationHandler() {
   const sub = Notifications.addNotificationReceivedListener((notification) => {
-    console.log('[notificationService] Foreground alert received');
+    logger.debug(TAG, 'Foreground alert received');
     // Vibrate heavily if the user receives an alert while looking at the app
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
   });
@@ -144,8 +152,8 @@ export function handleNotificationNavigation(response) {
 
     // Use UserLocationMapScreen specifically when an emergency alert is tapped
     // Fall back to original screen extraction logic if something else is sent
-    const targetScreen = data.alertType === 'SOS' ? 'UserLocationMap' : (data.screen || null);
-    
+    const targetScreen = data.alertType === 'SOS' ? 'UserLocationMap' : data.screen || null;
+
     if (targetScreen) {
       return {
         screen: targetScreen,
@@ -157,7 +165,7 @@ export function handleNotificationNavigation(response) {
     }
     return null;
   } catch (err) {
-    console.error('[notificationService] handleNotificationNavigation error:', err);
+    logger.error(TAG, 'handleNotificationNavigation error:', err);
     return null;
   }
 }

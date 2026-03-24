@@ -20,7 +20,7 @@ const LogoutPopup = ({ navigation, onCancel, onConfirm, asModal = false }) => {
     return (
       <View style={styles.card}>
         <Text style={styles.title}>Confirm Logout</Text>
-        <Text style={styles.message}>Are you sure you want to log out{"\n"}of your SheildHer session?</Text>
+        <Text style={styles.message}>Are you sure you want to log out{"\n"}of your ShieldHer session?</Text>
 
         <View style={styles.actionsRow}>
           <TouchableOpacity activeOpacity={0.9} onPress={handleCancel} style={styles.cancelBtn}>
@@ -39,7 +39,7 @@ const LogoutPopup = ({ navigation, onCancel, onConfirm, asModal = false }) => {
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.card}>
           <Text style={styles.title}>Confirm Logout</Text>
-          <Text style={styles.message}>Are you sure you want to log out{"\n"}of your SheildHer session?</Text>
+          <Text style={styles.message}>Are you sure you want to log out{"\n"}of your ShieldHer session?</Text>
 
           <View style={styles.actionsRow}>
             <TouchableOpacity activeOpacity={0.9} onPress={handleCancel} style={styles.cancelBtn}>

@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "ShieldHer",
-    "slug": "MyApp",
+    "slug": "shieldher",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -14,6 +14,7 @@
     },
     "ios": {
       "supportsTablet": true,
+      "bundleIdentifier": "com.shieldher.app",
       "infoPlist": {
         "NSSpeechRecognitionUsageDescription": "Allow $(PRODUCT_NAME) to use speech recognition.",
         "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to use the microphone."
@@ -26,10 +27,9 @@
       },
       "edgeToEdgeEnabled": true,
       "permissions": [
-        "android.permission.RECORD_AUDIO",
         "android.permission.RECORD_AUDIO"
       ],
-      "package": "com.anonymous.MyApp"
+      "package": "com.shieldher.app"
     },
     "web": {
       "favicon": "./assets/favicon.png"

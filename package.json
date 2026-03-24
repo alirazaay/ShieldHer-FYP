@@ -1,20 +1,24 @@
 {
-  "name": "myapp",
+  "name": "shieldher",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "lint": "eslint . --ext .js,.jsx",
+    "lint:fix": "eslint . --ext .js,.jsx --fix",
+    "format": "prettier --write \"src/**/*.{js,jsx}\" \"App.js\"",
+    "format:check": "prettier --check \"src/**/*.{js,jsx}\" \"App.js\""
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@react-native-community/netinfo": "11.4.1",
     "@react-navigation/native": "^6.1.18",
     "@react-navigation/native-stack": "^6.11.0",
-    "@urql/exchange-retry": "^2.0.0",
     "expo": "~54.0.33",
+    "expo-constants": "~18.0.13",
     "expo-dev-client": "~6.0.20",
     "expo-device": "~8.0.10",
     "expo-haptics": "~15.0.8",
@@ -27,8 +31,17 @@
     "react-native": "0.81.5",
     "react-native-maps": "1.20.1",
     "react-native-safe-area-context": "~5.6.0",
-    "react-native-screens": "~4.16.0",
-    "wonka": "^6.3.5"
+    "react-native-screens": "~4.16.0"
   },
-  "private": true
+  "private": true,
+  "devDependencies": {
+    "dotenv": "^17.3.1",
+    "eslint": "^9.39.4",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.5",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-native": "^5.0.0",
+    "prettier": "^3.8.1"
+  }
 }

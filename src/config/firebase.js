@@ -1,42 +1,57 @@
-// firebaseSetup.js – ShieldHer Expo compatible
+// firebase.js – ShieldHer Expo compatible
+// Firebase configuration loaded from environment variables via app.config.js
+
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { initializeAuth, getReactNativePersistence } from 'firebase/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { initializeFirestore, enableIndexedDbPersistence, setLogLevel, enableNetwork } from 'firebase/firestore';
+import {
+  initializeFirestore,
+  enableIndexedDbPersistence,
+  setLogLevel,
+  enableNetwork,
+} from 'firebase/firestore';
+import Constants from 'expo-constants';
+import logger from '../utils/logger';
 
-// TODO: Replace with your real Firebase project credentials
+const TAG = '[firebase]';
+
+// Get Firebase config from environment variables (via app.config.js -> extra)
+const expoConfig = Constants.expoConfig?.extra || Constants.manifest?.extra || {};
+
 const firebaseConfig = {
-  apiKey: "AIzaSyBUPwigW1t_gz0TDojrFWCaQYIAab9Y7cg",
-  authDomain: "shieldher-fyp.firebaseapp.com",
-  projectId: "shieldher-fyp",
-  storageBucket: "shieldher-fyp.firebasestorage.app",
-  messagingSenderId: "711481799503",
-  appId: "1:711481799503:web:887290a05427acff3ccb3a",
-  measurementId: "G-HQE3L7PDQS"
+  apiKey: expoConfig.firebaseApiKey,
+  authDomain: expoConfig.firebaseAuthDomain,
+  projectId: expoConfig.firebaseProjectId,
+  storageBucket: expoConfig.firebaseStorageBucket,
+  messagingSenderId: expoConfig.firebaseMessagingSenderId,
+  appId: expoConfig.firebaseAppId,
+  measurementId: expoConfig.firebaseMeasurementId,
 };
 
-// Debug: before init
-try {
-  const existing = getApps();
-  console.log('[firebase] Existing apps before init:', existing.map(a => a.name));
-} catch (e) {
-  console.warn('[firebase] getApps() failed before init:', e);
+// Validate that Firebase config is properly loaded
+const isConfigValid = firebaseConfig.apiKey && firebaseConfig.projectId;
+if (!isConfigValid) {
+  logger.error(
+    TAG,
+    'Firebase configuration is missing! Ensure .env file exists and app.config.js is properly set up.'
+  );
 }
 
 // Use existing app if already initialized (prevents hot reload issues)
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-console.log('[firebase] Firebase initialized:', app.name);
+logger.info(TAG, 'Firebase initialized:', app.name);
 
-// Initialize Firestore with long polling (Expo/React Native)
+// Initialize Firestore with long polling (required for Expo/React Native)
 const db = initializeFirestore(app, {
   experimentalForceLongPolling: true,
   useFetchStreams: false,
 });
-console.log('[firebase] Firestore initialized with long polling');
+logger.info(TAG, 'Firestore initialized with long polling');
 
 // Optional: IndexedDB persistence (will fail on RN/Expo – safe to ignore)
 enableIndexedDbPersistence(db).catch((err) => {
-  console.warn('[firebase] Persistence error (expected on RN):', err?.code || err?.message || err);
+  // This is expected to fail on React Native - IndexedDB is not available
+  logger.debug(TAG, 'Persistence error (expected on RN):', err?.code || err?.message || err);
 });
 
 // Initialize Firebase Auth with AsyncStorage persistence
@@ -45,13 +60,17 @@ export const auth = initializeAuth(app, {
 });
 
 // Ensure network is enabled
-enableNetwork(db).catch((err) => console.warn('[firebase] enableNetwork failed:', err?.code || err?.message || err));
+enableNetwork(db).catch((err) => {
+  logger.warn(TAG, 'enableNetwork failed:', err?.code || err?.message || err);
+});
 
-// Optional: debug logging in dev
-try {
-  if (typeof __DEV__ !== 'undefined' && __DEV__) {
-    setLogLevel('debug');
+// Enable debug logging only in development
+if (__DEV__) {
+  try {
+    setLogLevel('warn'); // Use 'warn' instead of 'debug' to reduce noise
+  } catch (error) {
+    logger.warn(TAG, 'Failed to set log level:', error);
   }
-} catch {}
+}
 
 export { app, db };

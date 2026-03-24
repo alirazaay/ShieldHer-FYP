@@ -21,6 +21,7 @@ import { NavigationContainer, createNavigationContainerRef } from '@react-naviga
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { enableScreens } from 'react-native-screens';
 import { View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { getApps } from 'firebase/app';
 import { onAuthStateChanged } from 'firebase/auth';

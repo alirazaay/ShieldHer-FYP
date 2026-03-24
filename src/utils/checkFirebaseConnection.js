@@ -13,6 +13,12 @@ export async function checkFirebaseConnection() {
     const snap = await getDoc(pingRef);
     console.log('[check] Firestore connectivity ok. Doc exists:', snap.exists());
   } catch (e) {
-    console.error('[check] Firestore connectivity error:', e);
+    // Permission errors here are expected when rules deny this doc to anonymous users,
+    // so log as a warning instead of an app-level error.
+    if (e?.code === 'permission-denied') {
+      console.warn('[check] Firestore connectivity limited by security rules:', e?.message || e);
+    } else {
+      console.error('[check] Firestore connectivity error:', e);
+    }
   }
 }

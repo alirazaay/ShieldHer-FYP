@@ -19,7 +19,7 @@ import { auth, db } from '../config/firebase';
 import {
   checkActiveAlert,
   fetchUserLocation,
-  createAlert,
+  dispatchSOSAlert,
   getAlertErrorMessage,
 } from '../services/alertService';
 import { getSafetyModeState, getVoiceSOSState } from '../services/profile';
@@ -180,19 +180,20 @@ const Dashboard = ({ navigation }) => {
       // Fetch user's current location
       const location = await fetchUserLocation(currentUser.uid);
 
-      // Create the SOS alert
-      const alertId = await createAlert(
-        currentUser.uid,
-        location.latitude,
-        location.longitude,
-        location.accuracy
-      );
+      const result = await dispatchSOSAlert(currentUser.uid, location);
 
-      setSosMessage({
-        message: 'Emergency alert sent to your guardians!',
-        type: 'success',
-      });
-      console.log('[Dashboard] SOS alert created:', alertId);
+      if (result.success) {
+        setSosMessage({
+          message: result.statusMessage || 'Emergency alert sent',
+          type: result.deliveryStatus === 'pending_retry' ? 'warning' : 'success',
+        });
+        console.log('[Dashboard] SOS dispatch result:', result.method, result.alertId);
+      } else {
+        setSosError({
+          message: result.error || 'Failed to send alert. Please try again.',
+          type: 'error',
+        });
+      }
     } catch (error) {
       console.error('[Dashboard] SOS alert error:', error);
       setSosError({
@@ -281,20 +282,32 @@ const Dashboard = ({ navigation }) => {
             <MaterialCommunityIcons
               name={
                 sosMessage
-                  ? 'check-circle'
+                  ? sosMessage.type === 'warning'
+                    ? 'timer-sand'
+                    : 'check-circle'
                   : sosError?.type === 'error'
                     ? 'alert-circle'
                     : 'information'
               }
               size={16}
-              color={sosMessage ? '#10B981' : sosError?.type === 'error' ? '#EF4444' : '#F59E0B'}
+              color={
+                sosMessage
+                  ? sosMessage.type === 'warning'
+                    ? '#F59E0B'
+                    : '#10B981'
+                  : sosError?.type === 'error'
+                    ? '#EF4444'
+                    : '#F59E0B'
+              }
             />
             <Text
               style={[
                 styles.errorToastText,
                 {
                   color: sosMessage
-                    ? '#10B981'
+                    ? sosMessage.type === 'warning'
+                      ? '#F59E0B'
+                      : '#10B981'
                     : sosError?.type === 'error'
                       ? '#EF4444'
                       : '#F59E0B',

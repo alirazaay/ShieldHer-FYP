@@ -38,7 +38,11 @@ import {
   setupTokenRefreshListener,
   handleNotificationNavigation,
 } from './src/services/notificationService';
-import { prepareOfflineFallback } from './src/services/alertService';
+import {
+  prepareOfflineFallback,
+  initializeSOSDeliverySystem,
+  shutdownSOSDeliverySystem,
+} from './src/services/alertService';
 
 enableScreens();
 
@@ -92,6 +96,13 @@ export default function App() {
           console.warn('[App] Offline fallback preparation warning:', cacheErr);
         }
 
+        // 1c. Start guaranteed SOS delivery queue + connectivity-aware retry worker
+        try {
+          await initializeSOSDeliverySystem();
+        } catch (queueErr) {
+          console.warn('[App] SOS retry system initialization warning:', queueErr);
+        }
+
         // 2. Set up foreground notification display handler
         if (cleanupForegroundHandler.current) cleanupForegroundHandler.current();
         cleanupForegroundHandler.current = setupForegroundNotificationHandler();
@@ -110,6 +121,7 @@ export default function App() {
           cleanupTokenRefresh.current();
           cleanupTokenRefresh.current = null;
         }
+        shutdownSOSDeliverySystem();
       }
     });
 

@@ -12,14 +12,123 @@ import { db } from '../config/firebase';
 import { handleAppError } from '../utils/errorHandler';
 import logger from '../utils/logger';
 import { isOnline } from './networkService';
+import { createTimelineEvent } from './alertHistoryService';
 import {
   sendOfflineEmergencySMS,
   cacheGuardiansForOffline,
   getSMSErrorMessage,
 } from './smsService';
 import { fetchGuardians, fetchUserProfile } from './profile';
+import {
+  enqueuePendingAlert,
+  initializeAlertRetryQueue,
+  retryPendingAlertsNow,
+  shutdownAlertRetryQueue,
+} from './alertRetryQueue';
 
 const TAG = '[alertService]';
+let retryQueueReady = false;
+
+function buildAlertPayload(userId, location) {
+  return {
+    userId,
+    alertType: 'SOS',
+    latitude: location.latitude,
+    longitude: location.longitude,
+    accuracy: location.accuracy || null,
+    timestamp: serverTimestamp(),
+    status: 'active',
+    createdAt: serverTimestamp(),
+  };
+}
+
+async function createTriggeredTimelineEventIdempotent(alertId, actorId, metadata = {}) {
+  const eventRef = doc(db, 'alerts', alertId, 'events', 'event_triggered');
+  await setDoc(
+    eventRef,
+    {
+      type: 'triggered',
+      actorId,
+      timestamp: serverTimestamp(),
+      metadata,
+    },
+    { merge: true }
+  );
+}
+
+async function sendAlertToFirestore({ alertId, userId, location }) {
+  const alertRef = doc(db, 'alerts', alertId);
+  const existing = await getDoc(alertRef);
+
+  if (existing.exists()) {
+    logger.info(TAG, `Alert already exists, reusing idempotent alert: ${alertId}`);
+    return { alertId, created: false };
+  }
+
+  const alertData = buildAlertPayload(userId, location);
+  await setDoc(alertRef, alertData);
+
+  await createTriggeredTimelineEventIdempotent(alertId, userId, {
+    latitude: location.latitude,
+    longitude: location.longitude,
+    accuracy: location.accuracy || null,
+  });
+
+  return { alertId, created: true };
+}
+
+async function triggerSMSBackup(alertItem) {
+  const location = alertItem?.location;
+  if (!alertItem?.userId || !location?.latitude || !location?.longitude) {
+    logger.error(TAG, 'SMS backup skipped due to incomplete alert data', { alertId: alertItem?.alertId });
+    return;
+  }
+
+  const userName = alertItem.userName || null;
+  const smsResult = await sendOfflineEmergencySMS(alertItem.userId, location, userName);
+
+  if (smsResult.sent > 0) {
+    logger.warn(TAG, 'SMS fallback triggered after max retries', {
+      alertId: alertItem.alertId,
+      sent: smsResult.sent,
+      usedCache: smsResult.usedCache,
+    });
+    return;
+  }
+
+  logger.error(TAG, 'SMS fallback failed after max retries', {
+    alertId: alertItem.alertId,
+    error: getSMSErrorMessage(smsResult),
+  });
+}
+
+async function ensureRetryQueueInitialized() {
+  if (retryQueueReady) return;
+
+  await initializeAlertRetryQueue({
+    onSendAlert: async (item) => {
+      await sendAlertToFirestore({
+        alertId: item.alertId,
+        userId: item.userId,
+        location: item.location,
+      });
+    },
+    onMaxRetriesReached: async (item) => {
+      await triggerSMSBackup(item);
+    },
+  });
+
+  retryQueueReady = true;
+}
+
+export async function initializeSOSDeliverySystem() {
+  await ensureRetryQueueInitialized();
+}
+
+export function shutdownSOSDeliverySystem() {
+  retryQueueReady = false;
+  shutdownAlertRetryQueue();
+}
 
 /**
  * Fetch user's current location from Firestore
@@ -98,50 +207,40 @@ export async function checkActiveAlert(userId) {
   }
 }
 
-import { createTimelineEvent } from './alertHistoryService';
-
 /**
  * Create a new SOS alert in Firestore
  * @param {string} userId - Firebase user ID
  * @param {number} latitude - User's latitude
  * @param {number} longitude - User's longitude
  * @param {number} accuracy - GPS accuracy (optional)
+ * @param {Object} options - Optional values { alertId }
  * @returns {Promise<string>} Alert document ID
  */
-export async function createAlert(userId, latitude, longitude, accuracy = null) {
+export async function createAlert(userId, latitude, longitude, accuracy = null, options = {}) {
   try {
     if (!userId) throw new Error('User ID is required');
     if (latitude === undefined || longitude === undefined) {
       throw new Error('Location coordinates are required');
     }
 
-    // Create alert document
-    const alertsCollectionRef = collection(db, 'alerts');
-    const newAlertRef = doc(alertsCollectionRef);
+    const alertId = options.alertId || doc(collection(db, 'alerts')).id;
+    const location = { latitude, longitude, accuracy };
+    const writeResult = await sendAlertToFirestore({ alertId, userId, location });
 
-    const alertData = {
-      userId,
-      alertType: 'SOS',
-      latitude,
-      longitude,
-      accuracy: accuracy || null,
-      timestamp: serverTimestamp(),
-      status: 'active',
-      createdAt: serverTimestamp(),
-    };
+    if (writeResult.created) {
+      console.log('[alertService] SOS alert created successfully:', alertId);
+    }
 
-    await setDoc(newAlertRef, alertData);
+    // Keep existing timeline helper compatibility for legacy flow when explicitly requested.
+    if (options.createLegacyTimelineHook) {
+      await createTimelineEvent(alertId, 'triggered', userId, {
+        latitude,
+        longitude,
+        accuracy,
+      });
+    }
 
-    console.log('[alertService] SOS alert created successfully:', newAlertRef.id);
-
-    // [Timeline hook] Record the trigger event in the alert's subcollection
-    await createTimelineEvent(newAlertRef.id, 'triggered', userId, {
-      latitude,
-      longitude,
-      accuracy,
-    });
-
-    return newAlertRef.id;
+    return alertId;
   } catch (error) {
     handleAppError(error, 'Alert Service - Creating SOS Alert');
     throw error;
@@ -200,10 +299,12 @@ export function getAlertErrorMessage(error) {
 export async function dispatchSOSAlert(userId, location) {
   const result = {
     success: false,
-    method: null, // 'firestore' or 'sms'
+    method: null, // 'firestore' | 'retry_queue' | 'sms'
     alertId: null,
     smsResult: null,
     error: null,
+    statusMessage: null,
+    deliveryStatus: null,
   };
 
   try {
@@ -214,6 +315,11 @@ export async function dispatchSOSAlert(userId, location) {
     if (!location || !location.latitude || !location.longitude) {
       throw new Error('Location coordinates are required');
     }
+
+    await ensureRetryQueueInitialized();
+
+    const alertId = doc(collection(db, 'alerts')).id;
+    result.alertId = alertId;
 
     // Check connectivity
     const deviceOnline = await isOnline();
@@ -226,15 +332,11 @@ export async function dispatchSOSAlert(userId, location) {
       result.method = 'firestore';
 
       try {
-        const alertId = await createAlert(
-          userId,
-          location.latitude,
-          location.longitude,
-          location.accuracy
-        );
+        await sendAlertToFirestore({ alertId, userId, location });
 
         result.success = true;
-        result.alertId = alertId;
+        result.deliveryStatus = 'sent';
+        result.statusMessage = 'Emergency alert sent';
         logger.info(TAG, `SOS alert created via Firestore: ${alertId}`);
 
         // Proactively cache guardians for future offline scenarios
@@ -247,43 +349,68 @@ export async function dispatchSOSAlert(userId, location) {
 
         return result;
       } catch (firestoreError) {
-        // Firestore write failed - may be a transient network issue
-        // Fall through to SMS fallback
-        logger.warn(TAG, 'Firestore alert failed, falling back to SMS:', firestoreError.message);
+        logger.warn(TAG, 'Firestore write failed, queueing for retry:', {
+          alertId,
+          error: firestoreError?.message,
+        });
       }
     }
 
-    // ─────────────────────────────────────────────────────────────────────
-    // OFFLINE PATH (or Firestore failure): Use SMS Fallback
-    // ─────────────────────────────────────────────────────────────────────
-    result.method = 'sms';
-    logger.info(TAG, 'Initiating SMS fallback for SOS alert');
-
-    // Fetch user name for personalized message
+    // Queue failed/offline alert for guaranteed retry delivery.
     let userName = null;
     try {
       const profile = await fetchUserProfile(userId);
       userName = profile?.name || profile?.displayName || null;
     } catch {
-      logger.debug(TAG, 'Could not fetch user profile for SMS');
+      logger.debug(TAG, 'Could not fetch user profile for retry queue metadata');
     }
 
-    // Send SMS to all guardians
-    const smsResult = await sendOfflineEmergencySMS(userId, location, userName);
-    result.smsResult = smsResult;
+    try {
+      await enqueuePendingAlert({
+        alertId,
+        userId,
+        location,
+        timestamp: Date.now(),
+        retries: 0,
+        status: 'pending_retry',
+        userName,
+        nextRetryAt: Date.now(),
+      });
 
-    if (smsResult.sent > 0) {
+      // Trigger immediate attempt if connectivity just returned while dispatching.
+      await retryPendingAlertsNow('post-enqueue');
+
       result.success = true;
-      logger.info(TAG, `SMS fallback succeeded: ${smsResult.sent} message(s) sent`);
-    } else {
-      result.error = getSMSErrorMessage(smsResult);
-      logger.error(TAG, 'SMS fallback failed:', result.error);
+      result.method = 'retry_queue';
+      result.deliveryStatus = 'pending_retry';
+      result.statusMessage = 'Network unstable - retrying';
+
+      logger.warn(TAG, 'SOS queued for retry delivery', { alertId, userId });
+    } catch (queueError) {
+      logger.error(TAG, 'Failed to enqueue SOS retry item, triggering SMS backup immediately', {
+        alertId,
+        error: queueError?.message,
+      });
+
+      const smsResult = await sendOfflineEmergencySMS(userId, location, userName);
+      result.smsResult = smsResult;
+      result.method = 'sms';
+      result.deliveryStatus = 'sms_backup_prepared';
+      result.statusMessage = 'Offline backup message prepared';
+
+      if (smsResult.sent > 0) {
+        result.success = true;
+      } else {
+        result.success = false;
+        result.error = getSMSErrorMessage(smsResult);
+      }
     }
 
     return result;
   } catch (error) {
     logger.error(TAG, 'dispatchSOSAlert fatal error:', error);
     result.error = error.message;
+    result.deliveryStatus = 'failed';
     handleAppError(error, 'Alert Service - SOS Dispatch');
     return result;
   }

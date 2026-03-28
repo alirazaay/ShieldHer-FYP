@@ -69,13 +69,13 @@ const SOSCountdownScreen = ({ navigation }) => {
 
       if (result.success) {
         // Success – Navigate to active alert screen
-        // Note: For SMS-only alerts, the screen may show different info
         navigation.replace('AlertActiveScreen', {
           alertId: result.alertId,
-          method: result.method, // 'firestore' or 'sms'
+          method: result.method,
+          deliveryStatus: result.deliveryStatus,
+          statusMessage: result.statusMessage,
         });
       } else {
-        // Both Firestore and SMS failed
         setErrorMsg(result.error || 'Failed to send alert. Please try again.');
         setIsProcessing(false);
       }

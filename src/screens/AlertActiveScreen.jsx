@@ -19,6 +19,15 @@ const AlertActiveScreen = ({ navigation, route }) => {
   const [cancelError, setCancelError] = useState(null);
 
   const alertId = route?.params?.alertId || null;
+  const deliveryStatus = route?.params?.deliveryStatus || 'sent';
+  const statusMessage = route?.params?.statusMessage || 'Emergency alert sent';
+
+  const statusStyle =
+    deliveryStatus === 'pending_retry'
+      ? styles.deliveryInfoWarning
+      : deliveryStatus === 'sms_backup_prepared'
+        ? styles.deliveryInfoNeutral
+        : styles.deliveryInfoSuccess;
 
   const handleCancelEmergency = () => {
     if (!alertId) {
@@ -69,7 +78,13 @@ const AlertActiveScreen = ({ navigation, route }) => {
           <MaterialCommunityIcons name="broadcast" size={80} color="#fff" />
         </View>
         <Text style={styles.title}>SOS ACTIVE</Text>
-        <Text style={styles.subtitle}>Your guardians have been notified of your location.</Text>
+        <Text style={styles.subtitle}>Your emergency signal is being delivered.</Text>
+        <View style={[styles.deliveryInfoCard, statusStyle]}>
+          <Text style={styles.deliveryInfoText}>{statusMessage}</Text>
+        </View>
+        {deliveryStatus === 'pending_retry' ? (
+          <Text style={styles.retryHint}>Offline backup message prepared</Text>
+        ) : null}
         {cancelError ? <Text style={styles.errorText}>{cancelError}</Text> : null}
       </View>
 
@@ -134,6 +149,34 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 26,
     opacity: 0.9,
+  },
+  deliveryInfoCard: {
+    marginTop: 16,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+  },
+  deliveryInfoSuccess: {
+    backgroundColor: 'rgba(16, 185, 129, 0.25)',
+  },
+  deliveryInfoWarning: {
+    backgroundColor: 'rgba(245, 158, 11, 0.25)',
+  },
+  deliveryInfoNeutral: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  deliveryInfoText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  retryHint: {
+    marginTop: 8,
+    color: '#fff',
+    fontSize: 12,
+    opacity: 0.9,
+    textAlign: 'center',
   },
   errorText: {
     marginTop: 16,

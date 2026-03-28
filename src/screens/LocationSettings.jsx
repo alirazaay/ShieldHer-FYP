@@ -259,8 +259,8 @@ const LocationSettingsScreen = ({ navigation }) => {
                 <View style={styles.settingText}>
                   <Text style={styles.settingLabel}>Enable Voice SOS Detection</Text>
                   <Text style={styles.settingDescription}>
-                    Continuously listen for triggers like &quot;Help Me&quot; or &quot;Emergency&quot; to automatically
-                    launch alerts.
+                    Continuously listen for triggers like &quot;Help Me&quot; or
+                    &quot;Emergency&quot; to automatically launch alerts.
                   </Text>
                 </View>
               </View>

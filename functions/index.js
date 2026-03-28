@@ -162,17 +162,26 @@ exports.onAlertCreated = onDocumentCreated(
     }
 
     // ── Fetch each guardian's FCM token from their user document ─────────────
-    // Guardians are stored by ID — their tokens are at users/{guardianId}.fcmToken
+    // For guardians added via invite flow: doc ID = guardian's UID (can fetch token)
+    // For guardians added manually: doc ID = random ID (no token available)
     const tokenFetchPromises = guardians.map(async (guardian) => {
       if (!guardian.id) {
         console.warn('[onAlertCreated] Guardian has no ID, skipping');
         return null;
       }
 
+      // Skip non-registered guardians (manual additions without app account)
+      // They have random doc IDs and won't have FCM tokens anyway
+      if (guardian.isRegisteredUser === false) {
+        console.log(`[onAlertCreated] Guardian ${guardian.name || guardian.id} is not a registered user, skipping notification`);
+        return null;
+      }
+
       try {
+        // Guardian doc ID should be the guardian's UID for registered users
         const guardianDoc = await db.collection('users').doc(guardian.id).get();
         if (!guardianDoc.exists) {
-          console.warn(`[onAlertCreated] Guardian user doc not found: ${guardian.id}`);
+          console.warn(`[onAlertCreated] Guardian user doc not found: ${guardian.id} (may be a manual addition)`);
           return null;
         }
 

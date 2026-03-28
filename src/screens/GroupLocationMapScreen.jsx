@@ -166,7 +166,8 @@ const GroupLocationMapScreen = ({ navigation }) => {
           <MaterialCommunityIcons name="account-multiple-outline" size={64} color="#9AA0A6" />
           <Text style={styles.emptyTitle}>No Connected Users</Text>
           <Text style={styles.emptySubtitle}>
-            You haven&apos;t connected with any users yet. Accept user invites to see their locations.
+            You haven&apos;t connected with any users yet. Accept user invites to see their
+            locations.
           </Text>
         </View>
       </SafeAreaView>

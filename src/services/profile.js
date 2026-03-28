@@ -111,11 +111,18 @@ export async function updateUserProfile(uid, updates) {
 
 /**
  * Add a new guardian to user's guardians subcollection
+ *
+ * NOTE: For push notifications to work, the guardian must be a registered user
+ * and their UID must be used as the document ID. Use the invite flow for this.
+ * Manual adds (without guardianUid) are for external contacts who don't have
+ * the app - they won't receive in-app notifications.
+ *
  * @param {string} userId - Firebase user ID (profile owner)
  * @param {Object} guardianData - Guardian information {name, phone, email, relationship}
+ * @param {string} [guardianUid] - Optional: Guardian's Firebase UID (use for registered users)
  * @returns {Promise<string>} New guardian document ID
  */
-export async function addGuardian(userId, guardianData) {
+export async function addGuardian(userId, guardianData, guardianUid = null) {
   try {
     if (!userId) throw new Error('User ID is required');
     if (!guardianData.name || !guardianData.phone || !guardianData.email) {
@@ -135,26 +142,37 @@ export async function addGuardian(userId, guardianData) {
 
     // Check for duplicates (prevent adding same email twice)
     const guardiansCollectionRef = collection(db, 'users', userId, 'guardians');
-    const duplicateQuery = query(guardiansCollectionRef, where('email', '==', guardianData.email));
+    const duplicateQuery = query(
+      guardiansCollectionRef,
+      where('email', '==', guardianData.email.toLowerCase())
+    );
     const duplicateSnap = await getDocs(duplicateQuery);
 
     if (!duplicateSnap.empty) {
       throw new Error('A guardian with this email already exists');
     }
 
-    // Create new guardian document
-    const newGuardianRef = doc(guardiansCollectionRef);
+    // Create guardian document
+    // If guardianUid is provided, use it as doc ID (enables push notifications)
+    // Otherwise, use auto-generated ID (for external contacts without app)
+    const guardianDocRef = guardianUid
+      ? doc(db, 'users', userId, 'guardians', guardianUid)
+      : doc(guardiansCollectionRef);
+
     const guardianWithMetadata = {
       ...guardianData,
+      email: guardianData.email.toLowerCase(),
       userId: userId,
       linkedAt: serverTimestamp(),
       status: 'active',
+      // Flag to indicate if this guardian has a registered account
+      isRegisteredUser: !!guardianUid,
     };
 
-    await setDoc(newGuardianRef, guardianWithMetadata);
+    await setDoc(guardianDocRef, guardianWithMetadata);
 
-    console.log('[profile] Guardian added successfully:', newGuardianRef.id);
-    return newGuardianRef.id;
+    console.log('[profile] Guardian added successfully:', guardianDocRef.id);
+    return guardianDocRef.id;
   } catch (error) {
     console.error('[profile] addGuardian error:', error);
     throw error;

@@ -55,8 +55,8 @@ const ForgotPass = ({ navigation }) => {
                 <Text style={styles.headlineAccent}>Forgot</Text> Your Password?
               </Text>
               <Text style={styles.description}>
-                Enter the email associated with your account, and we&apos;ll send you a link to reset
-                your password.Account Email Address
+                Enter the email associated with your account, and we&apos;ll send you a link to
+                reset your password.Account Email Address
               </Text>
 
               <View style={styles.inputBlock}>

@@ -1,27 +1,27 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
+
     // ==========================================
     // HELPER FUNCTIONS
     // ==========================================
-    
+
     // Check if the user is signed in
     function isAuthenticated() {
       return request.auth != null;
     }
-    
+
     // Check if the current user owns the user profile
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
-    
-    // Check if the current user is listed in the profile owner's guardians array
-    // Requires reading the target user's document for the `guardians` list
-    function isGuardian(userId) {
-      let isAuth = isAuthenticated();
-      let userDoc = get(/databases/$(database)/documents/users/$(userId));
-      return isAuth && (request.auth.uid in userDoc.data.guardians);
+
+    // Check if the current user is a guardian of the specified user
+    // Uses subcollection: users/{userId}/guardians/{guardianId}
+    // The guardian document ID must match the guardian's auth UID
+    function isGuardianOf(userId) {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/users/$(userId)/guardians/$(request.auth.uid));
     }
 
     // ==========================================
@@ -30,74 +30,110 @@ service cloud.firestore {
 
     // 1. Users Collection
     match /users/{userId} {
-      // User can read their own profile; connected guardians can also read their profile/location
-      allow read: if isOwner(userId) || isGuardian(userId);
+      // User can read their own profile; connected guardians can also read
+      allow read: if isOwner(userId) || isGuardianOf(userId);
       // Only the profile owner has write capabilities
       allow write: if isOwner(userId);
-      
-      // Default fallback for any subcollections to ensure they are locked to the owner
-      match /{subcollection=**} {
+
+      // 1a. Guardians Subcollection
+      // Stores guardians linked to this user
+      match /guardians/{guardianId} {
+        // Owner can read/write their guardians list
         allow read, write: if isOwner(userId);
+        // Guardian can read their own guardian relationship
+        allow read: if isAuthenticated() && request.auth.uid == guardianId;
+      }
+
+      // 1b. Connected Users Subcollection (for guardians)
+      // Stores users that a guardian is connected to
+      match /connectedUsers/{connectedUserId} {
+        // Owner (guardian) can read their connected users
+        allow read, write: if isOwner(userId);
+        // The connected user can also read this relationship
+        allow read: if isAuthenticated() && request.auth.uid == connectedUserId;
+      }
+
+      // 1c. Location Subcollection (if used)
+      match /location/{locationId} {
+        // Owner can read/write their location
+        allow read, write: if isOwner(userId);
+        // Guardians can read location
+        allow read: if isGuardianOf(userId);
       }
     }
 
     // 2. Alerts Collection
     match /alerts/{alertId} {
-      // Helper to determine if the author/reader of the alert is the owner
+      // Helper to determine if the current user is the alert owner
       function isAlertOwner() {
         return request.auth.uid == resource.data.userId;
       }
-      
-      // Helper to determine if the reader is a guardian linked to the alert owner
+
+      // Helper to determine if the current user is a guardian of the alert owner
       function isAlertGuardian() {
-        return request.auth.uid in get(/databases/$(database)/documents/users/$(resource.data.userId)).data.guardians;
+        return exists(/databases/$(database)/documents/users/$(resource.data.userId)/guardians/$(request.auth.uid));
       }
 
       // Read: The alert owner or their linked guardians
       allow read: if isAuthenticated() && (isAlertOwner() || isAlertGuardian());
-      
-      // Create: Only the owner can create a new alert natively tracking them
-      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
-      
-      // Update/Delete: Only the owner can mutate the live alert state securely
-      allow update, delete: if isAuthenticated() && isAlertOwner();
 
-      // 3. Alert Events Subcollection 
+      // Create: Only the owner can create a new alert (userId must match auth)
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+
+      // Update: Owner OR guardians can update alerts (respond/resolve)
+      allow update: if isAuthenticated() && (isAlertOwner() || isAlertGuardian());
+
+      // Delete: Only the owner can delete their alerts
+      allow delete: if isAuthenticated() && isAlertOwner();
+
+      // 3. Alert Events Subcollection (Timeline)
       match /events/{eventId} {
         function getParentAlertOwnerId() {
           return get(/databases/$(database)/documents/alerts/$(alertId)).data.userId;
         }
 
-        // Only the owner of the parent alert or their guardian can read the historical events
-        allow read: if isAuthenticated() && (
-          request.auth.uid == getParentAlertOwnerId() || 
-          request.auth.uid in get(/databases/$(database)/documents/users/$(getParentAlertOwnerId())).data.guardians
-        );
+        function isTimelineAuthorized() {
+          let ownerId = getParentAlertOwnerId();
+          // Owner of the alert
+          let isOwner = request.auth.uid == ownerId;
+          // Guardian of the alert owner
+          let isGuardian = exists(/databases/$(database)/documents/users/$(ownerId)/guardians/$(request.auth.uid));
+          return isOwner || isGuardian;
+        }
 
-        // System writes bypass rules entirely (e.g., Firebase Cloud Functions Admin SDK). 
-        // Thus, manual client writes into events are explicitly barred for security.
-        allow write: if false; 
+        // Read: Owner or guardians can read timeline events
+        allow read: if isAuthenticated() && isTimelineAuthorized();
+
+        // Write: Owner or guardians can create timeline events
+        // (Cloud Functions Admin SDK bypasses these rules anyway)
+        allow create: if isAuthenticated() && isTimelineAuthorized();
+
+        // Update/Delete: Only owner can modify existing events
+        allow update, delete: if isAuthenticated() && request.auth.uid == getParentAlertOwnerId();
       }
     }
 
     // 4. Guardian Invites Collection
     match /guardianInvites/{inviteId} {
-      // The sender of the invite creates it
-      allow create: if isAuthenticated() && request.resource.data.senderId == request.auth.uid;
-      
+      // The sender of the invite creates it (userId is the sender)
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+
       // The receiver and the sender can query or observe the invite document
+      // Match by userId (sender) or guardianEmail (receiver's email)
       allow read: if isAuthenticated() && (
-        resource.data.senderId == request.auth.uid || 
-        resource.data.receiverId == request.auth.uid
+        resource.data.userId == request.auth.uid ||
+        resource.data.guardianEmail == request.auth.token.email
       );
-      
-      // Only the receiver can modify it to "accept" or "decline" 
-      allow update: if isAuthenticated() && resource.data.receiverId == request.auth.uid;
-      
-      // Both the sender (canceling) and the receiver (rejecting) can prune the invite
+
+      // The receiver can modify it to "accept" or "decline"
+      // Match by guardianEmail since receiverId may not be set initially
+      allow update: if isAuthenticated() &&
+        resource.data.guardianEmail == request.auth.token.email;
+
+      // Both the sender and receiver can delete the invite
       allow delete: if isAuthenticated() && (
-        resource.data.senderId == request.auth.uid || 
-        resource.data.receiverId == request.auth.uid
+        resource.data.userId == request.auth.uid ||
+        resource.data.guardianEmail == request.auth.token.email
       );
     }
   }

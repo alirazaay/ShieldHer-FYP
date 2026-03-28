@@ -13,6 +13,7 @@ import { handleAppError } from '../utils/errorHandler';
 
 /**
  * Fetch user's current location from Firestore
+ * Reads from the user document's location field (users/{uid}.location)
  * @param {string} userId - Firebase user ID
  * @returns {Promise<Object>} Location object {latitude, longitude, ...}
  */
@@ -20,14 +21,22 @@ export async function fetchUserLocation(userId) {
   try {
     if (!userId) throw new Error('User ID is required');
 
-    const locationDocRef = doc(db, 'users', userId, 'location', 'current');
-    const locationSnap = await getDoc(locationDocRef);
+    // Read location from user document field (not subcollection)
+    const userDocRef = doc(db, 'users', userId);
+    const userSnap = await getDoc(userDocRef);
 
-    if (!locationSnap.exists()) {
+    if (!userSnap.exists()) {
+      throw new Error('User document not found');
+    }
+
+    const userData = userSnap.data();
+    const location = userData?.location;
+
+    if (!location || !location.latitude || !location.longitude) {
       throw new Error('User location not available');
     }
 
-    return locationSnap.data();
+    return location;
   } catch (error) {
     handleAppError(error, 'Alert Service - Fetching Location');
     throw error;

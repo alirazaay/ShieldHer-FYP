@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
-  Text, StyleSheet,
+  Text,
+  StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
   ScrollView,
@@ -165,7 +166,7 @@ const GroupLocationMapScreen = ({ navigation }) => {
           <MaterialCommunityIcons name="account-multiple-outline" size={64} color="#9AA0A6" />
           <Text style={styles.emptyTitle}>No Connected Users</Text>
           <Text style={styles.emptySubtitle}>
-            You haven't connected with any users yet. Accept user invites to see their locations.
+            You haven&apos;t connected with any users yet. Accept user invites to see their locations.
           </Text>
         </View>
       </SafeAreaView>
@@ -200,9 +201,7 @@ const GroupLocationMapScreen = ({ navigation }) => {
       {error && (
         <View style={[styles.errorToast, styles.errorToastError]}>
           <MaterialCommunityIcons name="alert-circle" size={16} color="#EF4444" />
-          <Text style={[styles.errorToastText, { color: '#EF4444' }]}>
-            {error.message}
-          </Text>
+          <Text style={[styles.errorToastText, { color: '#EF4444' }]}>{error.message}</Text>
         </View>
       )}
 
@@ -261,10 +260,7 @@ const GroupLocationMapScreen = ({ navigation }) => {
                   <TouchableOpacity
                     key={user.id}
                     onPress={() => navigation.push('UserLocationMap', { userId: user.id })}
-                    style={[
-                      styles.userBadge,
-                      !hasLocation && styles.userBadgeInactive,
-                    ]}
+                    style={[styles.userBadge, !hasLocation && styles.userBadgeInactive]}
                     activeOpacity={0.8}
                   >
                     <View

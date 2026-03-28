@@ -1,5 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  ActivityIndicator,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { auth } from '../config/firebase';
@@ -29,8 +36,8 @@ const AlertHistoryScreen = ({ navigation, route }) => {
         if (isGuardian) {
           const users = await getConnectedUsers(currentUser.uid);
           setConnectedUsers(users);
-          uidsForQuery = users.map(u => u.id);
-          
+          uidsForQuery = users.map((u) => u.id);
+
           if (uidsForQuery.length === 0) {
             setLoading(false);
             return; // No connected users, history will be empty
@@ -63,9 +70,9 @@ const AlertHistoryScreen = ({ navigation, route }) => {
     };
 
     const cleanupPromise = fetchHistory();
-    
+
     return () => {
-      cleanupPromise.then(cleanup => {
+      cleanupPromise.then((cleanup) => {
         if (typeof cleanup === 'function') cleanup();
       });
     };
@@ -74,7 +81,7 @@ const AlertHistoryScreen = ({ navigation, route }) => {
   const renderAlertItem = ({ item }) => {
     const isResolved = item.status === 'resolved';
     const isResponding = item.status === 'responding';
-    
+
     let statusColor = '#EF4444';
     let statusIcon = 'alert-decagram';
     let statusText = 'ACTIVE';
@@ -92,24 +99,24 @@ const AlertHistoryScreen = ({ navigation, route }) => {
     // Determine whose alert this is
     let alertName = 'You';
     if (isGuardian) {
-      const u = connectedUsers.find(u => u.id === item.userId);
+      const u = connectedUsers.find((u) => u.id === item.userId);
       alertName = u ? u.name : 'Unknown User';
     }
 
     return (
-      <TouchableOpacity 
+      <TouchableOpacity
         style={[styles.alertCard, { borderLeftColor: statusColor }]}
         activeOpacity={0.7}
         onPress={() => navigation.push('AlertTimeline', { alertId: item.id, alertName })}
       >
         <View style={styles.cardHeader}>
-          <Text style={styles.alertName}>{alertName}'s Emergency</Text>
+          <Text style={styles.alertName}>{alertName}&apos;s Emergency</Text>
           <View style={[styles.statusBadge, { backgroundColor: statusColor }]}>
             <MaterialCommunityIcons name={statusIcon} size={12} color="#fff" />
             <Text style={styles.statusText}>{statusText}</Text>
           </View>
         </View>
-        
+
         <View style={styles.cardBody}>
           <View style={styles.infoRow}>
             <MaterialCommunityIcons name="clock-outline" size={16} color="#6B7280" />
@@ -119,13 +126,19 @@ const AlertHistoryScreen = ({ navigation, route }) => {
             <View style={styles.infoRow}>
               <MaterialCommunityIcons name="account-hard-hat" size={16} color="#6B7280" />
               <Text style={styles.infoText}>
-                {item.status === 'resolved' ? 'Resolved' : 'Responded'} at {formatAlertTime(item.status === 'resolved' ? item.resolvedAt : item.respondedAt)}
+                {item.status === 'resolved' ? 'Resolved' : 'Responded'} at{' '}
+                {formatAlertTime(item.status === 'resolved' ? item.resolvedAt : item.respondedAt)}
               </Text>
             </View>
           )}
         </View>
-        
-        <MaterialCommunityIcons name="chevron-right" size={24} color="#9CA3AF" style={styles.chevron} />
+
+        <MaterialCommunityIcons
+          name="chevron-right"
+          size={24}
+          color="#9CA3AF"
+          style={styles.chevron}
+        />
       </TouchableOpacity>
     );
   };
@@ -151,7 +164,7 @@ const AlertHistoryScreen = ({ navigation, route }) => {
         <View style={styles.centerContainer}>
           <MaterialCommunityIcons name="alert-circle-outline" size={48} color="#EF4444" />
           <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.retryButton}
             onPress={() => navigation.replace('AlertHistory', { isGuardian })}
           >
@@ -163,8 +176,8 @@ const AlertHistoryScreen = ({ navigation, route }) => {
           <MaterialCommunityIcons name="history" size={64} color="#9CA3AF" />
           <Text style={styles.emptyTitle}>No Alert History</Text>
           <Text style={styles.emptySubtitle}>
-            {isGuardian 
-              ? "Your connected users haven't triggered any alerts." 
+            {isGuardian
+              ? "Your connected users haven't triggered any alerts."
               : "You haven't triggered any SOS alerts yet."}
           </Text>
         </View>

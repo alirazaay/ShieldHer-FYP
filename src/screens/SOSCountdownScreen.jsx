@@ -1,10 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ActivityIndicator } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  SafeAreaView,
+  ActivityIndicator,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { auth } from '../config/firebase';
-import { checkActiveAlert, fetchUserLocation, createAlert, getAlertErrorMessage } from '../services/alertService';
+import {
+  checkActiveAlert,
+  fetchUserLocation,
+  createAlert,
+  getAlertErrorMessage,
+} from '../services/alertService';
 
 const SOSCountdownScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
@@ -15,7 +27,7 @@ const SOSCountdownScreen = ({ navigation }) => {
   useEffect(() => {
     // Small vibration to alert the user the countdown has started
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    
+
     // Start countdown timer
     const timer = setInterval(() => {
       setCountdown((prev) => {
@@ -41,7 +53,7 @@ const SOSCountdownScreen = ({ navigation }) => {
     try {
       setIsProcessing(true);
       setErrorMsg(null);
-      
+
       const currentUser = auth.currentUser;
       if (!currentUser) {
         navigation.replace('Login');
@@ -60,16 +72,10 @@ const SOSCountdownScreen = ({ navigation }) => {
       const location = await fetchUserLocation(currentUser.uid);
 
       // Create the SOS alert
-      await createAlert(
-        currentUser.uid,
-        location.latitude,
-        location.longitude,
-        location.accuracy
-      );
+      await createAlert(currentUser.uid, location.latitude, location.longitude, location.accuracy);
 
       // Success – Navigate to active alert screen
       navigation.replace('AlertActiveScreen');
-
     } catch (error) {
       console.error('[SOSCountdown] Alert error:', error);
       setErrorMsg(getAlertErrorMessage(error));
@@ -101,10 +107,8 @@ const SOSCountdownScreen = ({ navigation }) => {
             <View style={styles.countdownContainer}>
               <Text style={styles.countdownText}>{countdown}</Text>
             </View>
-            <Text style={styles.warningText}>
-              SOS will be sent in {countdown} seconds
-            </Text>
-            
+            <Text style={styles.warningText}>SOS will be sent in {countdown} seconds</Text>
+
             {errorMsg && (
               <View style={styles.errorContainer}>
                 <MaterialCommunityIcons name="alert-circle" size={20} color="#EF4444" />
@@ -116,8 +120,8 @@ const SOSCountdownScreen = ({ navigation }) => {
       </View>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + 20 }]}>
-        <TouchableOpacity 
-          style={styles.cancelButton} 
+        <TouchableOpacity
+          style={styles.cancelButton}
           onPress={handleCancel}
           disabled={isProcessing}
         >

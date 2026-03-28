@@ -13,13 +13,11 @@ const AlertActiveScreen = ({ navigation }) => {
           <MaterialCommunityIcons name="broadcast" size={80} color="#fff" />
         </View>
         <Text style={styles.title}>SOS ACTIVE</Text>
-        <Text style={styles.subtitle}>
-          Your guardians have been notified of your location.
-        </Text>
+        <Text style={styles.subtitle}>Your guardians have been notified of your location.</Text>
       </View>
 
-      <TouchableOpacity 
-        style={styles.returnButton} 
+      <TouchableOpacity
+        style={styles.returnButton}
         onPress={() => navigation.navigate('Dashboard')}
       >
         <Text style={styles.returnButtonText}>Return to Dashboard</Text>

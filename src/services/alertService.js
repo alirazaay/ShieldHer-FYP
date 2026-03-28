@@ -65,7 +65,8 @@ export async function checkActiveAlert(userId) {
       const alertTimestamp = alertData.timestamp?.toMillis?.() || alertData.timestamp || 0;
       const timeSinceAlert = now - alertTimestamp;
 
-      if (timeSinceAlert < 30000) { // 30 seconds in milliseconds
+      if (timeSinceAlert < 30000) {
+        // 30 seconds in milliseconds
         hasRecentAlert = true;
       }
     });
@@ -137,7 +138,7 @@ export function getAlertErrorMessage(error) {
   const errorCodeMap = {
     'permission-denied': 'You do not have permission to create alerts',
     'not-found': 'User location data not found',
-    'unavailable': 'Service unavailable. Please try again later.',
+    unavailable: 'Service unavailable. Please try again later.',
     'network-request-failed': 'Network connection failed. Check your internet.',
   };
 

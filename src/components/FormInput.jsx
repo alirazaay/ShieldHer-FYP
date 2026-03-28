@@ -18,7 +18,7 @@ const FormInput = ({
   return (
     <View style={[styles.wrapper, containerStyle]}>
       {label ? <Text style={[styles.label, labelStyle]}>{label}</Text> : null}
-  <View style={[styles.inputOuter, outerStyle]}>
+      <View style={[styles.inputOuter, outerStyle]}>
         <TextInput
           style={[styles.input, inputStyle]}
           placeholder={placeholder}

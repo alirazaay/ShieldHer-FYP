@@ -1,22 +1,47 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { SafeAreaView, View, Text, StyleSheet, FlatList, ActivityIndicator, ScrollView, TouchableOpacity } from 'react-native';
+import {
+  SafeAreaView,
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  ActivityIndicator,
+  ScrollView,
+  TouchableOpacity,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { auth } from '../config/firebase';
 import GuardianInviteItem from '../components/GuardianInviteItem';
 import ConnectedUserItem from '../components/ConnectedUserItem';
-import { fetchPendingInvites, acceptInvite, rejectInvite, getInviteErrorMessage } from '../services/guardianInvites';
-import { requestLocationPermission, startLocationTracking, stopLocationTracking, getLocationErrorMessage } from '../services/location';
+import {
+  fetchPendingInvites,
+  acceptInvite,
+  rejectInvite,
+  getInviteErrorMessage,
+} from '../services/guardianInvites';
+import {
+  requestLocationPermission,
+  startLocationTracking,
+  stopLocationTracking,
+  getLocationErrorMessage,
+} from '../services/location';
 import { getConnectedUsers } from '../services/profile';
 import { subscribeToUserLocation } from '../services/locationListener';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { subscribeToAlerts, respondToAlert, resolveAlert, getAlertLifecycleErrorMessage, formatAlertTime } from '../services/alertLifecycleService';
+import {
+  subscribeToAlerts,
+  respondToAlert,
+  resolveAlert,
+  getAlertLifecycleErrorMessage,
+  formatAlertTime,
+} from '../services/alertLifecycleService';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Sub-component: Alert Card
 // ─────────────────────────────────────────────────────────────────────────────
 const AlertCard = ({ alert, connectedUsers, currentUserId, onRespond, onResolve, loading }) => {
-  const user = connectedUsers.find(u => u.id === alert.userId);
+  const user = connectedUsers.find((u) => u.id === alert.userId);
   const userName = user ? user.name : 'Unknown User';
   const timeStr = formatAlertTime(alert.timestamp);
 
@@ -66,7 +91,8 @@ const AlertCard = ({ alert, connectedUsers, currentUserId, onRespond, onResolve,
         </Text>
         {responderText && (
           <Text style={styles.alertResponder}>
-            <MaterialCommunityIcons name="account-hard-hat" size={14} color="#6B7280" /> {responderText}
+            <MaterialCommunityIcons name="account-hard-hat" size={14} color="#6B7280" />{' '}
+            {responderText}
           </Text>
         )}
       </View>
@@ -89,11 +115,17 @@ const AlertCard = ({ alert, connectedUsers, currentUserId, onRespond, onResolve,
 
           {(isActive || isResponding) && (
             <TouchableOpacity
-              style={[styles.alertButton, styles.alertButtonResolve, isActive && styles.alertButtonSecondary]}
+              style={[
+                styles.alertButton,
+                styles.alertButtonResolve,
+                isActive && styles.alertButtonSecondary,
+              ]}
               onPress={() => onResolve(alert.id)}
               disabled={isCardLoading}
             >
-              <Text style={[styles.alertButtonText, isActive && styles.alertButtonTextSecondary]}>Mark as Resolved</Text>
+              <Text style={[styles.alertButtonText, isActive && styles.alertButtonTextSecondary]}>
+                Mark as Resolved
+              </Text>
             </TouchableOpacity>
           )}
         </View>
@@ -177,7 +209,11 @@ const GuardianDashboard = ({ navigation }) => {
             }));
           },
           (err) => {
-            console.error('[GuardianDashboard] Location subscription error for user:', user.id, err);
+            console.error(
+              '[GuardianDashboard] Location subscription error for user:',
+              user.id,
+              err
+            );
           }
         );
 
@@ -196,13 +232,13 @@ const GuardianDashboard = ({ navigation }) => {
   useEffect(() => {
     if (connectedUsers.length === 0) return;
 
-    const userIds = connectedUsers.map(u => u.id);
+    const userIds = connectedUsers.map((u) => u.id);
     const unsubscribe = subscribeToAlerts(
       userIds,
       (alerts) => {
-        setActiveAlerts(alerts.filter(a => a.status === 'active' || !a.status));
-        setRespondingAlerts(alerts.filter(a => a.status === 'responding'));
-        setResolvedAlerts(alerts.filter(a => a.status === 'resolved'));
+        setActiveAlerts(alerts.filter((a) => a.status === 'active' || !a.status));
+        setRespondingAlerts(alerts.filter((a) => a.status === 'responding'));
+        setResolvedAlerts(alerts.filter((a) => a.status === 'resolved'));
       },
       (err) => {
         console.error('[GuardianDashboard] Alerts subscription error:', err);
@@ -350,7 +386,6 @@ const GuardianDashboard = ({ navigation }) => {
   return (
     <SafeAreaView style={[styles.safe, { paddingTop: insets.top }]}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        
         {/* Error Toast - General */}
         {error && (
           <View
@@ -405,7 +440,7 @@ const GuardianDashboard = ({ navigation }) => {
             <Text style={styles.title}>Guardian Dashboard</Text>
             <Text style={styles.subtitle}>Protecting your connected users</Text>
           </View>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.historyButton}
             onPress={() => navigation.push('AlertHistory', { isGuardian: true })}
           >
@@ -414,12 +449,12 @@ const GuardianDashboard = ({ navigation }) => {
         </View>
 
         {/* ── ALERTS SECTION ──────────────────────────────────────────────────────── */}
-        
+
         {/* Active Alerts */}
         {activeAlerts.length > 0 && (
           <View style={styles.alertSection}>
             <Text style={styles.alertSectionTitleActive}>🚨 Active Emergencies</Text>
-            {activeAlerts.map(alert => (
+            {activeAlerts.map((alert) => (
               <AlertCard
                 key={alert.id}
                 alert={alert}
@@ -437,7 +472,7 @@ const GuardianDashboard = ({ navigation }) => {
         {respondingAlerts.length > 0 && (
           <View style={styles.alertSection}>
             <Text style={styles.alertSectionTitleResponding}>🛡️ Responding</Text>
-            {respondingAlerts.map(alert => (
+            {respondingAlerts.map((alert) => (
               <AlertCard
                 key={alert.id}
                 alert={alert}
@@ -455,17 +490,21 @@ const GuardianDashboard = ({ navigation }) => {
         {resolvedAlerts.length > 0 && (
           <View style={styles.alertSection}>
             <Text style={styles.alertSectionTitleResolved}>✅ Recently Resolved</Text>
-            {resolvedAlerts.slice(0, 3).map(alert => ( // Show only the 3 most recent
-              <AlertCard
-                key={alert.id}
-                alert={alert}
-                connectedUsers={connectedUsers}
-                currentUserId={auth.currentUser?.uid}
-                onRespond={null}
-                onResolve={null}
-                loading={false}
-              />
-            ))}
+            {resolvedAlerts.slice(0, 3).map(
+              (
+                alert // Show only the 3 most recent
+              ) => (
+                <AlertCard
+                  key={alert.id}
+                  alert={alert}
+                  connectedUsers={connectedUsers}
+                  currentUserId={auth.currentUser?.uid}
+                  onRespond={null}
+                  onResolve={null}
+                  loading={false}
+                />
+              )
+            )}
           </View>
         )}
 
@@ -493,10 +532,17 @@ const GuardianDashboard = ({ navigation }) => {
                   >
                     <View style={styles.userQuickAvatar}>
                       <Text style={styles.userQuickAvatarText}>
-                        {user.name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)}
+                        {user.name
+                          .split(' ')
+                          .map((n) => n[0])
+                          .join('')
+                          .toUpperCase()
+                          .slice(0, 2)}
                       </Text>
                     </View>
-                    <Text style={styles.userQuickName} numberOfLines={1}>{user.name}</Text>
+                    <Text style={styles.userQuickName} numberOfLines={1}>
+                      {user.name}
+                    </Text>
                     {userLocations[user.id] && (
                       <View style={styles.userQuickStatus}>
                         <View style={styles.userQuickStatusDot} />
@@ -561,7 +607,6 @@ const GuardianDashboard = ({ navigation }) => {
         {loading && !pendingInvites.length && !connectedUsers.length && (
           <ActivityIndicator style={{ marginTop: 40 }} size="large" color="#4F2CF5" />
         )}
-
       </ScrollView>
     </SafeAreaView>
   );
@@ -622,7 +667,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     flex: 1,
   },
-  
+
   // ALERTS UI
   alertSection: {
     marginHorizontal: 16,

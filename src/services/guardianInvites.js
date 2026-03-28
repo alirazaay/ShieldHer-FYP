@@ -297,7 +297,7 @@ export function getInviteErrorMessage(error) {
     'not-found': 'Invite or profile not found',
     'permission-denied': 'You do not have permission to perform this action',
     'network-request-failed': 'Network connection failed. Please try again.',
-    'unavailable': 'Service unavailable. Please try again later.',
+    unavailable: 'Service unavailable. Please try again later.',
   };
 
   const code = error.code || error.message;

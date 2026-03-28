@@ -12,7 +12,7 @@ export default function OfflineBanner() {
       // If we are definitely NOT online, show our offline banner marker
       setIsOffline(!isOnline);
     });
-    
+
     // Cleanup active listener heavily to escape leaks
     return () => unsubscribe();
   }, []);
@@ -21,11 +21,18 @@ export default function OfflineBanner() {
   if (!isOffline) return null;
 
   return (
-    <View style={[
-      styles.container,
-      { paddingTop: Math.max(insets.top, Platform.OS === 'android' ? StatusBar.currentHeight || 20 : 20) }
-    ]}>
-      <Text style={styles.text}>You're offline. Some features may not work.</Text>
+    <View
+      style={[
+        styles.container,
+        {
+          paddingTop: Math.max(
+            insets.top,
+            Platform.OS === 'android' ? StatusBar.currentHeight || 20 : 20
+          ),
+        },
+      ]}
+    >
+      <Text style={styles.text}>You&apos;re offline. Some features may not work.</Text>
     </View>
   );
 }

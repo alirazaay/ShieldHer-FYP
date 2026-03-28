@@ -4,7 +4,11 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import MapView, { Marker } from 'react-native-maps';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { auth } from '../config/firebase';
-import { subscribeToUserLocation, getLocationErrorMessage, formatLocationTimestamp } from '../services/locationListener';
+import {
+  subscribeToUserLocation,
+  getLocationErrorMessage,
+  formatLocationTimestamp,
+} from '../services/locationListener';
 import { fetchUserProfile } from '../services/profile';
 import { calculateDistance } from '../utils/distance';
 import { getCurrentLocation } from '../services/location';
@@ -125,14 +129,15 @@ const UserLocationMapScreen = ({ navigation, route }) => {
   const hasLocation = userLocation?.latitude && userLocation?.longitude;
 
   // Calculate distance
-  const distance = hasLocation && guardianLocation
-    ? calculateDistance(
-        guardianLocation.latitude,
-        guardianLocation.longitude,
-        userLocation.latitude,
-        userLocation.longitude
-      )
-    : null;
+  const distance =
+    hasLocation && guardianLocation
+      ? calculateDistance(
+          guardianLocation.latitude,
+          guardianLocation.longitude,
+          userLocation.latitude,
+          userLocation.longitude
+        )
+      : null;
 
   return (
     <SafeAreaView style={[styles.safe, { paddingTop: insets.top }]}>
@@ -153,9 +158,7 @@ const UserLocationMapScreen = ({ navigation, route }) => {
       {error && (
         <View style={[styles.errorToast, styles.errorToastError]}>
           <MaterialCommunityIcons name="alert-circle" size={16} color="#EF4444" />
-          <Text style={[styles.errorToastText, { color: '#EF4444' }]}>
-            {error.message}
-          </Text>
+          <Text style={[styles.errorToastText, { color: '#EF4444' }]}>{error.message}</Text>
         </View>
       )}
 
@@ -189,7 +192,7 @@ const UserLocationMapScreen = ({ navigation, route }) => {
           <MaterialCommunityIcons name="map-search" size={64} color="#9AA0A6" />
           <Text style={styles.noLocationTitle}>Location Not Available</Text>
           <Text style={styles.noLocationSubtitle}>
-            {userName}'s location hasn't been shared yet
+            {userName}&apos;s location hasn&apos;t been shared yet
           </Text>
         </View>
       )}

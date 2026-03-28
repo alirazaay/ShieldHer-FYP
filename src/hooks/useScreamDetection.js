@@ -6,19 +6,16 @@ const emitter = new NativeEventEmitter(ScreamDetection);
 
 export const useScreamDetection = ({ onScreamDetected, enabled = false }) => {
   const confidenceListener = useRef(null);
-  const alertListener      = useRef(null);
-  const isListening        = useRef(false);
+  const alertListener = useRef(null);
+  const isListening = useRef(false);
 
   const requestMicPermission = async () => {
     if (Platform.OS !== 'android') return true;
-    const granted = await PermissionsAndroid.request(
-      PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
-      {
-        title:   'ShieldHer Microphone Permission',
-        message: 'ShieldHer needs mic access to detect screams and trigger SOS.',
-        buttonPositive: 'Allow',
-      }
-    );
+    const granted = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO, {
+      title: 'ShieldHer Microphone Permission',
+      message: 'ShieldHer needs mic access to detect screams and trigger SOS.',
+      buttonPositive: 'Allow',
+    });
     return granted === PermissionsAndroid.RESULTS.GRANTED;
   };
 
@@ -32,22 +29,16 @@ export const useScreamDetection = ({ onScreamDetected, enabled = false }) => {
     }
 
     // Listen for every confidence update (optional — for UI display)
-    confidenceListener.current = emitter.addListener(
-      'onScreamConfidence',
-      (data) => {
-        // data = { confidence: 0.92, isScream: true }
-        // Use this to show a live confidence indicator in UI if needed
-      }
-    );
+    confidenceListener.current = emitter.addListener('onScreamConfidence', (data) => {
+      // data = { confidence: 0.92, isScream: true }
+      // Use this to show a live confidence indicator in UI if needed
+    });
 
     // Listen for scream alert (this triggers SOS)
-    alertListener.current = emitter.addListener(
-      'onScreamDetected',
-      (data) => {
-        console.warn('[ScreamDetection] 🚨 Scream detected:', data.confidence);
-        if (onScreamDetected) onScreamDetected(data);
-      }
-    );
+    alertListener.current = emitter.addListener('onScreamDetected', (data) => {
+      console.warn('[ScreamDetection] 🚨 Scream detected:', data.confidence);
+      if (onScreamDetected) onScreamDetected(data);
+    });
 
     await ScreamDetection.startListening();
     isListening.current = true;
@@ -70,7 +61,9 @@ export const useScreamDetection = ({ onScreamDetected, enabled = false }) => {
     } else {
       stop();
     }
-    return () => { stop(); };
+    return () => {
+      stop();
+    };
   }, [enabled, start, stop]);
 
   return { start, stop };

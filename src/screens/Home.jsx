@@ -6,17 +6,15 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  Switch
+  Switch,
 } from 'react-native';
 
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useScreamDetection } from '../hooks/useScreamDetection';
-
-import firestore from '@react-native-firebase/firestore';
-import auth from '@react-native-firebase/auth';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { auth, db } from '../config/firebase';
 
 const Home = ({ navigation }) => {
-
   const [autoSosEnabled, setAutoSosEnabled] = useState(false);
 
   const handleGetStarted = () => {
@@ -27,20 +25,20 @@ const Home = ({ navigation }) => {
 
   const handleScreamDetected = async (data) => {
     try {
-      const user = auth().currentUser;
+      const user = auth.currentUser;
       if (!user) return;
 
-      await firestore().collection('sos_alerts').add({
+      const alertsRef = collection(db, 'sos_alerts');
+      await addDoc(alertsRef, {
         userId: user.uid,
         type: 'auto_scream',
         confidence: data.confidence,
-        timestamp: firestore.FieldValue.serverTimestamp(),
+        timestamp: serverTimestamp(),
         location: null,
         status: 'active',
       });
 
-      console.log('🚨 SOS alert created in Firestore');
-
+      console.log('SOS alert created in Firestore');
     } catch (err) {
       console.error('SOS trigger failed:', err);
     }
@@ -55,7 +53,6 @@ const Home = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-
         {/* Top shield icon */}
         <View style={styles.iconWrap}>
           <View style={styles.iconCircle}>
@@ -73,7 +70,8 @@ const Home = ({ navigation }) => {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Welcome to ShieldHer</Text>
           <Text style={styles.cardBody}>
-            Your AI-powered personal safety companion. Secure, immediate, and connected protection for every woman.
+            Your AI-powered personal safety companion. Secure, immediate, and connected protection
+            for every woman.
           </Text>
         </View>
 
@@ -83,7 +81,7 @@ const Home = ({ navigation }) => {
           <Switch
             value={autoSosEnabled}
             onValueChange={setAutoSosEnabled}
-            trackColor={{ false: "#ccc", true: "#0B26FF" }}
+            trackColor={{ false: '#ccc', true: '#0B26FF' }}
           />
         </View>
 
@@ -93,7 +91,6 @@ const Home = ({ navigation }) => {
             Start Protecting Today <Text style={styles.ctaArrow}>→</Text>
           </Text>
         </TouchableOpacity>
-
       </ScrollView>
     </SafeAreaView>
   );

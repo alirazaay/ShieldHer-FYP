@@ -33,10 +33,7 @@ export function subscribeToAlerts(userIds, onUpdate, onError) {
   // For FYP scale this is sufficient; for production chunk into batches of 30
   try {
     const alertsRef = collection(db, 'alerts');
-    const alertsQuery = query(
-      alertsRef,
-      where('userId', 'in', userIds)
-    );
+    const alertsQuery = query(alertsRef, where('userId', 'in', userIds));
 
     const unsubscribe = onSnapshot(
       alertsQuery,
@@ -119,7 +116,6 @@ export async function respondToAlert(alertId, guardianId) {
   }
 }
 
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Resolve an alert: sets status → "resolved", stores resolvedAt timestamp
 //
@@ -175,12 +171,13 @@ export function getAlertLifecycleErrorMessage(error) {
   if (message.includes('Alert not found')) return 'Alert no longer exists.';
   if (message.includes('already "responding"')) return 'This alert is already being responded to.';
   if (message.includes('already resolved')) return 'This alert has already been resolved.';
-  if (message.includes('Alert ID') || message.includes('Guardian ID')) return 'Authentication error. Please log in again.';
+  if (message.includes('Alert ID') || message.includes('Guardian ID'))
+    return 'Authentication error. Please log in again.';
 
   const codeMap = {
     'permission-denied': 'You do not have permission to update this alert.',
     'not-found': 'Alert not found in database.',
-    'unavailable': 'Service unavailable. Please try again.',
+    unavailable: 'Service unavailable. Please try again.',
     'network-request-failed': 'Network error. Check your connection.',
   };
 

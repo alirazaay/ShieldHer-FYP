@@ -1,12 +1,28 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { SafeAreaView, ScrollView, View, Text, StyleSheet, TouchableOpacity, Modal, Animated, ActivityIndicator, Alert } from 'react-native';
+import {
+  SafeAreaView,
+  ScrollView,
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Modal,
+  Animated,
+  ActivityIndicator,
+  Alert,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import LogoutPopup from './LogoutPopup';
 import { signOutUser } from '../services/auth';
 import { auth } from '../config/firebase';
 import { requestLocationPermission, getLocationErrorMessage } from '../services/location';
-import { checkActiveAlert, fetchUserLocation, createAlert, getAlertErrorMessage } from '../services/alertService';
+import {
+  checkActiveAlert,
+  fetchUserLocation,
+  createAlert,
+  getAlertErrorMessage,
+} from '../services/alertService';
 import { getSafetyModeState, getVoiceSOSState } from '../services/profile';
 import { startLocationTracking, stopLocationTracking } from '../services/locationListener';
 import { startVoiceListener, stopVoiceListener } from '../services/voiceSOSService';
@@ -37,12 +53,12 @@ const Dashboard = ({ navigation }) => {
 
         // Check Safety Mode status inside Firestore
         const isSafetyModeEnabled = await getSafetyModeState(currentUser.uid);
-        
+
         if (isSafetyModeEnabled) {
           await startLocationTracking(currentUser.uid);
           setLocationTracking(true);
           console.log('[Dashboard] Safety Mode ON: Location tracking started');
-          
+
           // Check Voice SOS permissions
           const isVoiceEnabled = await getVoiceSOSState(currentUser.uid);
           if (isVoiceEnabled) {
@@ -172,22 +188,47 @@ const Dashboard = ({ navigation }) => {
       {/* App bar positioned below status bar using safe area inset */}
       <View style={[styles.appBar, { paddingTop: insets.top + 6, height: 56 + insets.top + 6 }]}>
         <View style={styles.appBarLeft}>
-          <MaterialCommunityIcons name="shield-outline" size={22} color="#fff" style={{ marginRight: 8 }} />
+          <MaterialCommunityIcons
+            name="shield-outline"
+            size={22}
+            color="#fff"
+            style={{ marginRight: 8 }}
+          />
           <Text style={styles.brand}>ShieldHer</Text>
         </View>
         <View style={styles.appBarRight}>
-          <MaterialCommunityIcons name="bell-outline" size={20} color="#fff" style={{ marginRight: 16 }} />
+          <MaterialCommunityIcons
+            name="bell-outline"
+            size={20}
+            color="#fff"
+            style={{ marginRight: 16 }}
+          />
 
           {/* Location Tracking Status Indicator */}
           <View style={styles.locationStatusContainer}>
-            <View style={[styles.locationStatusDot, locationTracking ? styles.locationActive : styles.locationInactive]} />
-            {locationTracking && <ActivityIndicator size="small" color="#31D159" style={{ marginLeft: 2 }} />}
+            <View
+              style={[
+                styles.locationStatusDot,
+                locationTracking ? styles.locationActive : styles.locationInactive,
+              ]}
+            />
+            {locationTracking && (
+              <ActivityIndicator size="small" color="#31D159" style={{ marginLeft: 2 }} />
+            )}
           </View>
 
-          <TouchableOpacity onPress={() => navigation?.push('Profile')} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-            <View style={styles.avatar}><Text style={styles.avatarText}>A</Text></View>
+          <TouchableOpacity
+            onPress={() => navigation?.push('Profile')}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>A</Text>
+            </View>
           </TouchableOpacity>
-          <TouchableOpacity onPress={openLogout} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+          <TouchableOpacity
+            onPress={openLogout}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
             <Text style={styles.logout}>Logout</Text>
           </TouchableOpacity>
         </View>
@@ -199,18 +240,34 @@ const Dashboard = ({ navigation }) => {
           <View
             style={[
               styles.errorToast,
-              sosError ? (sosError.type === 'error' ? styles.errorToastError : styles.errorToastWarning) : styles.errorToastSuccess,
+              sosError
+                ? sosError.type === 'error'
+                  ? styles.errorToastError
+                  : styles.errorToastWarning
+                : styles.errorToastSuccess,
             ]}
           >
             <MaterialCommunityIcons
-              name={sosMessage ? 'check-circle' : (sosError?.type === 'error' ? 'alert-circle' : 'information')}
+              name={
+                sosMessage
+                  ? 'check-circle'
+                  : sosError?.type === 'error'
+                    ? 'alert-circle'
+                    : 'information'
+              }
               size={16}
-              color={sosMessage ? '#10B981' : (sosError?.type === 'error' ? '#EF4444' : '#F59E0B')}
+              color={sosMessage ? '#10B981' : sosError?.type === 'error' ? '#EF4444' : '#F59E0B'}
             />
             <Text
               style={[
                 styles.errorToastText,
-                { color: sosMessage ? '#10B981' : (sosError?.type === 'error' ? '#EF4444' : '#F59E0B') },
+                {
+                  color: sosMessage
+                    ? '#10B981'
+                    : sosError?.type === 'error'
+                      ? '#EF4444'
+                      : '#F59E0B',
+                },
               ]}
             >
               {sosMessage?.message || sosError?.message}
@@ -257,17 +314,29 @@ const Dashboard = ({ navigation }) => {
               <ActivityIndicator size="large" color="#fff" />
             ) : (
               <>
-                <MaterialCommunityIcons name="alert" size={20} color="#fff" style={styles.sosIcon} />
+                <MaterialCommunityIcons
+                  name="alert"
+                  size={20}
+                  color="#fff"
+                  style={styles.sosIcon}
+                />
                 <Text style={styles.sosText}>SOS</Text>
               </>
             )}
           </View>
         </TouchableOpacity>
-        <Text style={styles.warning}>Warning: Initiates contact with Guardians and Local Authorities.</Text>
+        <Text style={styles.warning}>
+          Warning: Initiates contact with Guardians and Local Authorities.
+        </Text>
 
         {/* Voice trigger button */}
         <TouchableOpacity activeOpacity={0.9} onPress={onHoldVoice} style={styles.voiceBtn}>
-          <MaterialCommunityIcons name="microphone" size={18} color="#fff" style={{ marginRight: 10 }} />
+          <MaterialCommunityIcons
+            name="microphone"
+            size={18}
+            color="#fff"
+            style={{ marginRight: 10 }}
+          />
           <Text style={styles.voiceText}>Hold to activate voice Trigger</Text>
         </TouchableOpacity>
 
@@ -292,10 +361,20 @@ const Dashboard = ({ navigation }) => {
       </ScrollView>
 
       {/* SOS Confirmation Modal */}
-      <Modal transparent visible={confirmSosVisible} animationType="fade" onRequestClose={() => setConfirmSosVisible(false)}>
+      <Modal
+        transparent
+        visible={confirmSosVisible}
+        animationType="fade"
+        onRequestClose={() => setConfirmSosVisible(false)}
+      >
         <View style={styles.modalBackdrop}>
           <View style={styles.confirmationDialog}>
-            <MaterialCommunityIcons name="alert" size={48} color="#E01111" style={{ marginBottom: 16 }} />
+            <MaterialCommunityIcons
+              name="alert"
+              size={48}
+              color="#E01111"
+              style={{ marginBottom: 16 }}
+            />
             <Text style={styles.confirmTitle}>Emergency Alert</Text>
             <Text style={styles.confirmMessage}>
               Send SOS alert to your guardians and local authorities?
@@ -331,10 +410,22 @@ const Dashboard = ({ navigation }) => {
 
       {/* Logout Modal Overlay */}
       <Modal transparent visible={logoutVisible} animationType="none" onRequestClose={closeLogout}>
-        <Animated.View style={[styles.modalBackdrop, { opacity }]}> 
-          <Animated.View style={[styles.modalCardWrap, { transform: [{ scale }] }] }>
+        <Animated.View style={[styles.modalBackdrop, { opacity }]}>
+          <Animated.View style={[styles.modalCardWrap, { transform: [{ scale }] }]}>
             <SafeAreaView>
-              <LogoutPopup asModal onCancel={closeLogout} onConfirm={async () => { try { await signOutUser(); } catch (e) { console.error('[Dashboard] Logout failed:', e); } closeLogout(); navigation?.replace?.('Login'); }} />
+              <LogoutPopup
+                asModal
+                onCancel={closeLogout}
+                onConfirm={async () => {
+                  try {
+                    await signOutUser();
+                  } catch (e) {
+                    console.error('[Dashboard] Logout failed:', e);
+                  }
+                  closeLogout();
+                  navigation?.replace?.('Login');
+                }}
+              />
             </SafeAreaView>
           </Animated.View>
         </Animated.View>
@@ -400,11 +491,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#FEE2E2',
     borderLeftWidth: 3,
     borderLeftColor: '#EF4444',
-  },
-  errorToastWarning: {
-    backgroundColor: '#FEF3C7',
-    borderLeftWidth: 3,
-    borderLeftColor: '#F59E0B',
   },
   errorToastWarning: {
     backgroundColor: '#FEF3C7',

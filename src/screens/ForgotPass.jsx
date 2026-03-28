@@ -1,5 +1,15 @@
 import React, { useState } from 'react';
-import { SafeAreaView, ScrollView, View, Text, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import {
+  SafeAreaView,
+  ScrollView,
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
+  Alert,
+} from 'react-native';
 import FormInput from '../components/FormInput';
 import PrimaryButton from '../components/PrimaryButton';
 import { resetPassword } from '../services/auth';
@@ -30,14 +40,23 @@ const ForgotPass = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
           <View style={styles.cardOuter}>
             <View style={styles.card}>
-              <Text style={styles.headline}><Text style={styles.headlineAccent}>Forgot</Text> Your Password?</Text>
+              <Text style={styles.headline}>
+                <Text style={styles.headlineAccent}>Forgot</Text> Your Password?
+              </Text>
               <Text style={styles.description}>
-                Enter the email associated with your account, and we'll send you a link to reset your password.Account
-                Email Address
+                Enter the email associated with your account, and we&apos;ll send you a link to reset
+                your password.Account Email Address
               </Text>
 
               <View style={styles.inputBlock}>
@@ -60,7 +79,12 @@ const ForgotPass = ({ navigation }) => {
               </TouchableOpacity>
 
               <View style={styles.signupWrap}>
-                <Text style={styles.signupPrompt}>Dont have an account? <Text onPress={goSignUp} style={styles.signupLink}>Sign Up</Text></Text>
+                <Text style={styles.signupPrompt}>
+                  Dont have an account?{' '}
+                  <Text onPress={goSignUp} style={styles.signupLink}>
+                    Sign Up
+                  </Text>
+                </Text>
               </View>
             </View>
           </View>

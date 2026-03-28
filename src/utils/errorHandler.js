@@ -34,27 +34,19 @@ export const handleAppError = (error, context) => {
     errorCode.includes('location/permission-denied') ||
     errorCode.includes('gps')
   ) {
-    Alert.alert(
-      'Location Required',
-      DEFAULT_ERROR_MESSAGES['location/permission-denied'],
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Open Settings', onPress: () => Linking.openSettings() },
-      ]
-    );
+    Alert.alert('Location Required', DEFAULT_ERROR_MESSAGES['location/permission-denied'], [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Open Settings', onPress: () => Linking.openSettings() },
+    ]);
     return;
   }
 
   // 3. iOS/Android Push Notifications Restrictions
   if (errorCode.includes('notification')) {
-    Alert.alert(
-      'Notifications Disabled',
-      DEFAULT_ERROR_MESSAGES['notification/denied'],
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Open Settings', onPress: () => Linking.openSettings() },
-      ]
-    );
+    Alert.alert('Notifications Disabled', DEFAULT_ERROR_MESSAGES['notification/denied'], [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Open Settings', onPress: () => Linking.openSettings() },
+    ]);
     return;
   }
 

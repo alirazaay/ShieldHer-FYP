@@ -3,94 +3,190 @@ import { handleAppError } from '../utils/errorHandler';
 import { createAlert } from './alertService';
 import { getCurrentLocation } from './location';
 
-// Module-level singleton state
-let isVoiceActive = false;
-let lastTriggerTime = 0;
-const COOLDOWN_MS = 60000; // 60 seconds
-
-const EMERGENCY_PHRASES = [
-  'help me',
-  'emergency help',
-  'shield her help',
-  'sos help'
-];
+// Configuration constants
+const CONFIG = {
+  COOLDOWN_MS: 60000, // 60 seconds between triggers
+  LANGUAGE: 'en-US',
+  EMERGENCY_PHRASES: ['help me', 'emergency help', 'shield her help', 'sos help'],
+};
 
 /**
- * Boots up the continuous native speech recognition pipeline
- * @param {string} userId - Firebase user ID to associate any alerts with
+ * VoiceSOSService - Singleton class to manage voice-based SOS detection
+ * Uses proper encapsulation to prevent state management issues
  */
-export async function startVoiceListener(userId) {
-  if (isVoiceActive) {
-    console.log('[voiceSOSService] Listener is already active.');
-    return;
+class VoiceSOSService {
+  constructor() {
+    this._isActive = false;
+    this._lastTriggerTime = 0;
+    this._currentUserId = null;
+    this._speechListener = null;
   }
 
-  try {
-    // 1. Check native Microphone Permissions
-    const permStatus = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
-    if (permStatus.status !== 'granted') {
-      const err = new Error('Microphone access is required for voice SOS detection.');
-      // Map to standard error code to leverage Linking.openSettings() in our global handler
-      err.code = 'permission-denied';
-      throw err;
+  /**
+   * Check if voice listener is currently active
+   * @returns {boolean}
+   */
+  get isActive() {
+    return this._isActive;
+  }
+
+  /**
+   * Get time since last trigger in milliseconds
+   * @returns {number}
+   */
+  get timeSinceLastTrigger() {
+    return Date.now() - this._lastTriggerTime;
+  }
+
+  /**
+   * Check if a phrase matches any emergency trigger phrases
+   * @param {string} text - Transcribed speech text
+   * @returns {boolean}
+   */
+  _isEmergencyPhrase(text) {
+    const normalizedText = (text || '').toLowerCase();
+    return CONFIG.EMERGENCY_PHRASES.some((phrase) => normalizedText.includes(phrase));
+  }
+
+  /**
+   * Check if cooldown period has elapsed
+   * @returns {boolean}
+   */
+  _canTriggerAlert() {
+    return this.timeSinceLastTrigger > CONFIG.COOLDOWN_MS;
+  }
+
+  /**
+   * Handle speech recognition results
+   * @param {Object} event - Speech recognition event with transcripts
+   */
+  async _handleSpeechResults(event) {
+    const transcripts = event.value || [];
+    const text = transcripts[0] || '';
+
+    if (!this._isEmergencyPhrase(text)) {
+      return;
     }
 
-    // 2. Attach Speech Results Observer
-    // The native hook continuously streams interim arrays of recognized text
-    ExpoSpeechRecognitionModule.addListener('onSpeechResults', async (event) => {
-      const transcripts = event.value || [];
-      const text = (transcripts[0] || '').toLowerCase();
-      
-      const isMatch = EMERGENCY_PHRASES.some(phrase => text.includes(phrase));
-      
-      if (isMatch) {
-         const now = Date.now();
-         
-         // 3. Enforce Cooldown Limit to prevent API spamming
-         if (now - lastTriggerTime > COOLDOWN_MS) { 
-            lastTriggerTime = now;
-            console.log(`[voiceSOSService] TRIGGER DETECTED: "${text}"`);
-            
-            try {
-              // Extract current hardware GPS coordinates directly to bypass active loop lag
-              const loc = await getCurrentLocation();
-              if (loc) {
-                 await createAlert(userId, loc.latitude, loc.longitude, loc.accuracy);
-                 console.log('[voiceSOSService] Voice-triggered SOS successfully dispatched!');
-              }
-            } catch (alertErr) {
-               handleAppError(alertErr, 'Voice SOS Auto-Trigger');
-            }
-         }
+    if (!this._canTriggerAlert()) {
+      console.log('[VoiceSOSService] Trigger blocked by cooldown');
+      return;
+    }
+
+    // Update last trigger time immediately to prevent race conditions
+    this._lastTriggerTime = Date.now();
+    console.log(`[VoiceSOSService] TRIGGER DETECTED: "${text}"`);
+
+    try {
+      const location = await getCurrentLocation();
+      if (location && this._currentUserId) {
+        await createAlert(
+          this._currentUserId,
+          location.latitude,
+          location.longitude,
+          location.accuracy
+        );
+        console.log('[VoiceSOSService] Voice-triggered SOS successfully dispatched!');
       }
-    });
-
-    // 3. Initiate tracking
-    await ExpoSpeechRecognitionModule.start({
-      language: 'en-US',
-      continuous: true,
-      interimResults: true, // We need rolling parts of speech immediately
-    });
-    
-    isVoiceActive = true;
-    console.log('[voiceSOSService] Voice SOS actively monitoring');
-  } catch (err) {
-    handleAppError(err, 'Voice SOS Initialization');
+    } catch (alertErr) {
+      handleAppError(alertErr, 'Voice SOS Auto-Trigger');
+    }
   }
-}
 
-/**
- * Shut down the active speech module to release system resources
- */
-export function stopVoiceListener() {
-  if (isVoiceActive) {
+  /**
+   * Start the voice SOS listener
+   * @param {string} userId - Firebase user ID to associate alerts with
+   * @returns {Promise<boolean>} - True if started successfully
+   */
+  async start(userId) {
+    if (this._isActive) {
+      console.log('[VoiceSOSService] Listener is already active.');
+      return true;
+    }
+
+    if (!userId) {
+      console.error('[VoiceSOSService] User ID is required to start listener');
+      return false;
+    }
+
+    try {
+      // Request microphone permissions
+      const permStatus = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+      if (permStatus.status !== 'granted') {
+        const err = new Error('Microphone access is required for voice SOS detection.');
+        err.code = 'permission-denied';
+        throw err;
+      }
+
+      // Store user ID for alert creation
+      this._currentUserId = userId;
+
+      // Attach speech results observer
+      this._speechListener = ExpoSpeechRecognitionModule.addListener('onSpeechResults', (event) =>
+        this._handleSpeechResults(event)
+      );
+
+      // Start speech recognition
+      await ExpoSpeechRecognitionModule.start({
+        language: CONFIG.LANGUAGE,
+        continuous: true,
+        interimResults: true,
+      });
+
+      this._isActive = true;
+      console.log('[VoiceSOSService] Voice SOS actively monitoring');
+      return true;
+    } catch (err) {
+      handleAppError(err, 'Voice SOS Initialization');
+      return false;
+    }
+  }
+
+  /**
+   * Stop the voice SOS listener and release resources
+   */
+  stop() {
+    if (!this._isActive) {
+      return;
+    }
+
     try {
       ExpoSpeechRecognitionModule.stop();
       ExpoSpeechRecognitionModule.removeAllListeners();
-      isVoiceActive = false;
-      console.log('[voiceSOSService] Voice SOS inactive');
+
+      this._isActive = false;
+      this._currentUserId = null;
+      this._speechListener = null;
+
+      console.log('[VoiceSOSService] Voice SOS inactive');
     } catch (err) {
-      console.error('[voiceSOSService] Teardown error', err);
+      console.error('[VoiceSOSService] Teardown error', err);
     }
   }
+
+  /**
+   * Reset the cooldown timer (useful for testing or manual override)
+   */
+  resetCooldown() {
+    this._lastTriggerTime = 0;
+  }
 }
+
+// Create singleton instance
+const voiceSOSService = new VoiceSOSService();
+
+// Export convenience functions that delegate to singleton
+export async function startVoiceListener(userId) {
+  return voiceSOSService.start(userId);
+}
+
+export function stopVoiceListener() {
+  return voiceSOSService.stop();
+}
+
+export function isVoiceListenerActive() {
+  return voiceSOSService.isActive;
+}
+
+// Export the service instance for advanced usage
+export default voiceSOSService;

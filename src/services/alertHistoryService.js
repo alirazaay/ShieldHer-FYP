@@ -77,11 +77,7 @@ export function subscribeToAlertHistory(userId, isGuardian, connectedUserIds, on
         orderBy('timestamp', 'desc')
       );
     } else {
-      alertsQuery = query(
-        alertsRef,
-        where('userId', '==', userId),
-        orderBy('timestamp', 'desc')
-      );
+      alertsQuery = query(alertsRef, where('userId', '==', userId), orderBy('timestamp', 'desc'));
     }
 
     const unsubscribe = onSnapshot(
@@ -94,7 +90,7 @@ export function subscribeToAlertHistory(userId, isGuardian, connectedUserIds, on
             ...docSnap.data(),
           });
         });
-        
+
         console.log(`[alertHistory] Historic alerts loaded: ${alerts.length}`);
         onUpdate(alerts);
       },

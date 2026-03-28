@@ -1,12 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  StyleSheet,
-  Switch,
-} from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Switch } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { auth } from '../config/firebase';
@@ -168,8 +161,8 @@ const NotificationSettingsScreen = ({ navigation }) => {
         <View style={styles.infoBox}>
           <MaterialCommunityIcons name="information" size={18} color="#0B26FF" />
           <Text style={styles.infoText}>
-            Your notification preferences help us communicate with you effectively while
-            respecting your privacy.
+            Your notification preferences help us communicate with you effectively while respecting
+            your privacy.
           </Text>
         </View>
 

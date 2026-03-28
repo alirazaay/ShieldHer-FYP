@@ -35,7 +35,8 @@ export async function requestLocationPermission() {
       return {
         granted: false,
         status: 'denied',
-        message: 'Location permission is required for safety features. Please enable it in Settings.',
+        message:
+          'Location permission is required for safety features. Please enable it in Settings.',
       };
     } else {
       console.warn('[location] Location permission undetermined');
@@ -84,9 +85,7 @@ export async function startLocationTracking(userId) {
     if (status !== 'granted') {
       const permissionResult = await requestLocationPermission();
       if (!permissionResult.granted) {
-        const error = new Error(
-          permissionResult.message || 'Location permission not granted'
-        );
+        const error = new Error(permissionResult.message || 'Location permission not granted');
         error.code = 'location/permission-denied';
         throw error;
       }
@@ -162,12 +161,14 @@ export async function stopLocationTracking(subscription) {
  */
 export function getLocationErrorMessage(error) {
   const errorCodeMap = {
-    'location/services-disabled': 'Location services are disabled on this device. Please enable GPS in Settings.',
-    'location/permission-denied': 'Location permission is required for safety features. Please enable it in Settings.',
+    'location/services-disabled':
+      'Location services are disabled on this device. Please enable GPS in Settings.',
+    'location/permission-denied':
+      'Location permission is required for safety features. Please enable it in Settings.',
     'location/timeout': 'Unable to get your location. Please try again.',
     'permission-denied': 'Location permission required. Please enable in Settings.',
     'network-request-failed': 'Network connection failed while updating your location.',
-    'unavailable': 'Location service unavailable. Please try again later.',
+    unavailable: 'Location service unavailable. Please try again later.',
     'validation/missing-userId': 'Invalid user ID. Please try logging in again.',
   };
 
@@ -205,7 +206,7 @@ export async function getCurrentLocation() {
     const { coords } = await Location.getCurrentPositionAsync({
       accuracy: Location.Accuracy.Balanced,
     });
-    
+
     return {
       latitude: coords.latitude,
       longitude: coords.longitude,

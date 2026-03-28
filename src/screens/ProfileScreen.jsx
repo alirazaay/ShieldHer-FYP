@@ -525,9 +525,7 @@ const ProfileScreen = ({ navigation }) => {
               <FormInput
                 label="Full Name"
                 value={unsavedChanges.fullName}
-                onChangeText={(text) =>
-                  setUnsavedChanges({ ...unsavedChanges, fullName: text })
-                }
+                onChangeText={(text) => setUnsavedChanges({ ...unsavedChanges, fullName: text })}
                 placeholder="Enter your full name"
               />
 
@@ -654,10 +652,7 @@ const ProfileScreen = ({ navigation }) => {
             )}
 
             <View style={styles.spacer} />
-            <PrimaryButton
-              title="+ Add Guardian"
-              onPress={() => setShowAddGuardianModal(true)}
-            />
+            <PrimaryButton title="+ Add Guardian" onPress={() => setShowAddGuardianModal(true)} />
 
             <View style={styles.spacer} />
             <PrimaryButton
@@ -674,7 +669,9 @@ const ProfileScreen = ({ navigation }) => {
           <SettingLink
             icon="history"
             label="View Alert History"
-            onPress={() => navigation?.push('AlertHistory', { isGuardian: userProfile.role !== 'user' })}
+            onPress={() =>
+              navigation?.push('AlertHistory', { isGuardian: userProfile.role !== 'user' })
+            }
           />
           <View style={styles.divider} />
 
@@ -740,21 +737,14 @@ const ProfileScreen = ({ navigation }) => {
             icon="email"
             label="Contact Support"
             onPress={() =>
-              Alert.alert(
-                'Contact Support',
-                'Email: support@shieldher.app\nPhone: +92 XXX XXXXXXX'
-              )
+              Alert.alert('Contact Support', 'Email: support@shieldher.app\nPhone: +92 XXX XXXXXXX')
             }
           />
         </View>
 
         {/* Logout Button */}
         <View style={[styles.section, styles.logoutSection]}>
-          <TouchableOpacity
-            onPress={handleLogout}
-            style={styles.logoutButton}
-            activeOpacity={0.8}
-          >
+          <TouchableOpacity onPress={handleLogout} style={styles.logoutButton} activeOpacity={0.8}>
             <MaterialCommunityIcons name="logout" size={20} color="#fff" />
             <Text style={styles.logoutText}>Logout</Text>
           </TouchableOpacity>

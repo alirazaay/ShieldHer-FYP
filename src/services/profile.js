@@ -135,10 +135,7 @@ export async function addGuardian(userId, guardianData) {
 
     // Check for duplicates (prevent adding same email twice)
     const guardiansCollectionRef = collection(db, 'users', userId, 'guardians');
-    const duplicateQuery = query(
-      guardiansCollectionRef,
-      where('email', '==', guardianData.email)
-    );
+    const duplicateQuery = query(guardiansCollectionRef, where('email', '==', guardianData.email));
     const duplicateSnap = await getDocs(duplicateQuery);
 
     if (!duplicateSnap.empty) {
@@ -291,7 +288,7 @@ export function getErrorMessage(error) {
     'auth/operation-not-allowed': 'This operation is not allowed',
     'permission-denied': 'You do not have permission to perform this action',
     'not-found': 'Document not found',
-    'unavailable': 'Service unavailable. Please try again later.',
+    unavailable: 'Service unavailable. Please try again later.',
     'network-request-failed': 'Network connection failed. Check your internet.',
   };
 
@@ -328,7 +325,7 @@ export async function getSafetyModeState(uid) {
  * Toggle the user's Safety Mode (continuous background tracking wrapper)
  * @param {string} uid - Firebase user ID
  * @param {boolean} isEnabled - Toggle state
- * @returns {Promise<void>} 
+ * @returns {Promise<void>}
  */
 export async function toggleSafetyMode(uid, isEnabled) {
   try {
@@ -370,7 +367,7 @@ export async function getVoiceSOSState(uid) {
  * Toggle the user's Voice SOS feature natively
  * @param {string} uid - Firebase user ID
  * @param {boolean} isEnabled - Toggle state
- * @returns {Promise<void>} 
+ * @returns {Promise<void>}
  */
 export async function toggleVoiceSOS(uid, isEnabled) {
   try {

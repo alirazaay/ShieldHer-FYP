@@ -135,7 +135,7 @@ export function getLocationErrorMessage(error) {
     'permission-denied': 'You do not have permission to access this data.',
     'not-found': 'User location data not found.',
     'network-request-failed': 'Network connection failed. Please try again.',
-    'unavailable': 'Service unavailable. Please try again later.',
+    unavailable: 'Service unavailable. Please try again later.',
     'validation/missing-userId': 'Invalid user ID.',
     'validation/invalid-userIds': 'Invalid user IDs array.',
   };
@@ -230,7 +230,7 @@ export function getMarkerColor(index) {
  * Start tracking user location persistently (Singleton pattern)
  * and update Firestore every 10 seconds.
  * @param {string} userId - Firebase user ID
- * @returns {Promise<void>} 
+ * @returns {Promise<void>}
  */
 export async function startLocationTracking(userId) {
   console.log('[locationListener] startLocationTracking start', { userId });

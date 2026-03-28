@@ -35,7 +35,7 @@ const GuardianInviteItem = ({ invite, onAccept, onReject, loading = false }) => 
           <Text style={styles.contact}>
             <MaterialCommunityIcons name="phone" size={12} color="#4B5057" /> {invite.userPhone}
           </Text>
-          {invite.message && <Text style={styles.message}>"{invite.message}"</Text>}
+          {invite.message && <Text style={styles.message}>&quot;{invite.message}&quot;</Text>}
         </View>
       </View>
 

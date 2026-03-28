@@ -18,10 +18,8 @@ export default {
       supportsTablet: true,
       bundleIdentifier: 'com.shieldher.app',
       infoPlist: {
-        NSSpeechRecognitionUsageDescription:
-          'Allow $(PRODUCT_NAME) to use speech recognition.',
-        NSMicrophoneUsageDescription:
-          'Allow $(PRODUCT_NAME) to use the microphone.',
+        NSSpeechRecognitionUsageDescription: 'Allow $(PRODUCT_NAME) to use speech recognition.',
+        NSMicrophoneUsageDescription: 'Allow $(PRODUCT_NAME) to use the microphone.',
       },
     },
     android: {

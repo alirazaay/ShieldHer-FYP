@@ -49,7 +49,11 @@ const ConnectedUserItem = ({ user, userLocation, onViewLocation, loading = false
       <TouchableOpacity
         onPress={() => onViewLocation(user.id)}
         disabled={loading}
-        style={[styles.viewButton, loading && styles.viewButtonDisabled, !hasLocation && styles.viewButtonInactive]}
+        style={[
+          styles.viewButton,
+          loading && styles.viewButtonDisabled,
+          !hasLocation && styles.viewButtonInactive,
+        ]}
         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
       >
         <MaterialCommunityIcons

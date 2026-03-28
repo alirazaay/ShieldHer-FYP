@@ -58,7 +58,10 @@ export default function App() {
   useEffect(() => {
     checkFirebaseConnection();
     try {
-      console.log('Firebase apps loaded:', getApps().map(a => a.name));
+      console.log(
+        'Firebase apps loaded:',
+        getApps().map((a) => a.name)
+      );
     } catch (e) {
       console.warn('Unable to read Firebase apps:', e);
     }
@@ -87,7 +90,6 @@ export default function App() {
         // 3. Listen for token refresh and update Firestore
         if (cleanupTokenRefresh.current) cleanupTokenRefresh.current();
         cleanupTokenRefresh.current = setupTokenRefreshListener(user.uid);
-
       } else {
         // User logged out — clean up listeners
         console.log('[App] User signed out, cleaning up notification listeners');
@@ -129,7 +131,11 @@ export default function App() {
       if (!response) return;
       const navTarget = handleNotificationNavigation(response);
       if (navTarget && navigationRef.isReady()) {
-        console.log('[App] Navigating from launch notification:', navTarget.screen, navTarget.params);
+        console.log(
+          '[App] Navigating from launch notification:',
+          navTarget.screen,
+          navTarget.params
+        );
         // Small delay to ensure Navigator is mounted
         setTimeout(() => {
           if (navigationRef.isReady()) {
@@ -178,4 +184,3 @@ export default function App() {
     </SafeAreaProvider>
   );
 }
-

@@ -12,13 +12,14 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { auth } from '../config/firebase';
+import PrimaryButton from '../components/PrimaryButton';
 import {
   updateUserProfile,
   getSafetyModeState,
   toggleSafetyMode,
   getVoiceSOSState,
   toggleVoiceSOS,
-  getErrorMessage
+  getErrorMessage,
 } from '../services/profile';
 import { requestLocationPermission } from '../services/location';
 import { startLocationTracking, stopLocationTracking } from '../services/locationListener';
@@ -34,7 +35,7 @@ const LocationSettingsScreen = ({ navigation }) => {
 
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState(null);
-  
+
   const [safetyMode, setSafetyMode] = useState(false);
   const [safetyModeLoading, setSafetyModeLoading] = useState(true);
 
@@ -100,7 +101,7 @@ const LocationSettingsScreen = ({ navigation }) => {
       setVoiceSOSLoading(true);
 
       if (newValue) {
-        // We will start Voice Listener in the background service logic separately 
+        // We will start Voice Listener in the background service logic separately
         // using the Dashboard hook, or directly via voiceSOSService here.
         await toggleVoiceSOS(user.uid, true);
         setVoiceSOSMode(true);
@@ -214,13 +215,18 @@ const LocationSettingsScreen = ({ navigation }) => {
         <View style={[styles.section, { borderColor: '#E01111', borderWidth: safetyMode ? 2 : 0 }]}>
           <View style={styles.settingRow}>
             <View style={styles.settingLeft}>
-              <MaterialCommunityIcons name="shield-check" size={24} color={safetyMode ? "#E01111" : "#9AA0A6"} />
+              <MaterialCommunityIcons
+                name="shield-check"
+                size={24}
+                color={safetyMode ? '#E01111' : '#9AA0A6'}
+              />
               <View style={styles.settingText}>
                 <Text style={styles.settingLabel}>
-                  Safety Mode: {safetyModeLoading ? '...' : (safetyMode ? 'ON' : 'OFF')}
+                  Safety Mode: {safetyModeLoading ? '...' : safetyMode ? 'ON' : 'OFF'}
                 </Text>
                 <Text style={styles.settingDescription}>
-                  When enabled, the app continuously tracks your location and allows guardians to monitor your safety.
+                  When enabled, the app continuously tracks your location and allows guardians to
+                  monitor your safety.
                 </Text>
               </View>
             </View>
@@ -235,16 +241,26 @@ const LocationSettingsScreen = ({ navigation }) => {
               />
             )}
           </View>
-          
+
           {/* Nested Voice SOS Option available only when Safety Mode is active */}
           {safetyMode && (
-            <View style={[styles.settingRow, { marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#E0E0E2' }]}>
+            <View
+              style={[
+                styles.settingRow,
+                { marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#E0E0E2' },
+              ]}
+            >
               <View style={styles.settingLeft}>
-                <MaterialCommunityIcons name="microphone" size={22} color={voiceSOSMode ? "#4F2CF5" : "#9AA0A6"} />
+                <MaterialCommunityIcons
+                  name="microphone"
+                  size={22}
+                  color={voiceSOSMode ? '#4F2CF5' : '#9AA0A6'}
+                />
                 <View style={styles.settingText}>
                   <Text style={styles.settingLabel}>Enable Voice SOS Detection</Text>
                   <Text style={styles.settingDescription}>
-                    Continuously listen for triggers like "Help Me" or "Emergency" to automatically launch alerts.
+                    Continuously listen for triggers like &quot;Help Me&quot; or &quot;Emergency&quot; to automatically
+                    launch alerts.
                   </Text>
                 </View>
               </View>
@@ -315,7 +331,8 @@ const LocationSettingsScreen = ({ navigation }) => {
         <View style={styles.infoBox}>
           <MaterialCommunityIcons name="information" size={18} color="#0B26FF" />
           <Text style={styles.infoText}>
-            Location sharing helps your guardians ensure your safety and provide support when needed.
+            Location sharing helps your guardians ensure your safety and provide support when
+            needed.
           </Text>
         </View>
 

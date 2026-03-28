@@ -1,5 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  ActivityIndicator,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { subscribeToAlertTimeline } from '../services/alertHistoryService';
@@ -23,7 +30,7 @@ const AlertTimelineScreen = ({ navigation, route }) => {
       const userDoc = await getDoc(doc(db, 'users', uid));
       if (userDoc.exists()) {
         const name = userDoc.data().fullName || userDoc.data().name || 'User';
-        setActorNames(prev => ({ ...prev, [uid]: name }));
+        setActorNames((prev) => ({ ...prev, [uid]: name }));
         return name;
       }
     } catch (err) {
@@ -87,17 +94,22 @@ const AlertTimelineScreen = ({ navigation, route }) => {
         break;
     }
 
-    const actorName = item.actorId === auth.currentUser?.uid ? 'You' : (actorNames[item.actorId] || 'Loading...');
+    const actorName =
+      item.actorId === auth.currentUser?.uid ? 'You' : actorNames[item.actorId] || 'Loading...';
 
     return (
       <View style={styles.eventRow}>
         {/* Timeline Graphic */}
         <View style={styles.timelineGraphic}>
-          <View style={[styles.timelineLine, { backgroundColor: isFirst ? 'transparent' : '#E5E7EB' }]} />
+          <View
+            style={[styles.timelineLine, { backgroundColor: isFirst ? 'transparent' : '#E5E7EB' }]}
+          />
           <View style={[styles.timelineDot, { backgroundColor: color }]}>
             <MaterialCommunityIcons name={icon} size={14} color="#fff" />
           </View>
-          <View style={[styles.timelineLine, { backgroundColor: isLast ? 'transparent' : '#E5E7EB' }]} />
+          <View
+            style={[styles.timelineLine, { backgroundColor: isLast ? 'transparent' : '#E5E7EB' }]}
+          />
         </View>
 
         {/* Event Content */}
@@ -110,7 +122,7 @@ const AlertTimelineScreen = ({ navigation, route }) => {
             <MaterialCommunityIcons name="account-circle" size={16} color="#6B7280" />
             <Text style={styles.eventActorText}>By {actorName}</Text>
           </View>
-          
+
           {/* Render extra metadata if available */}
           {item.metadata?.latitude && item.metadata?.longitude && (
             <View style={styles.metadataBadge}>
@@ -132,7 +144,7 @@ const AlertTimelineScreen = ({ navigation, route }) => {
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
           <Text style={styles.title}>Incident Timeline</Text>
-          <Text style={styles.subtitle}>{alertName}'s Emergency</Text>
+          <Text style={styles.subtitle}>{alertName}&apos;s Emergency</Text>
         </View>
         <View style={{ width: 40 }} />
       </View>
@@ -147,10 +159,7 @@ const AlertTimelineScreen = ({ navigation, route }) => {
         <View style={styles.centerContainer}>
           <MaterialCommunityIcons name="alert-circle-outline" size={48} color="#EF4444" />
           <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity 
-            style={styles.retryButton}
-            onPress={() => navigation.goBack()}
-          >
+          <TouchableOpacity style={styles.retryButton} onPress={() => navigation.goBack()}>
             <Text style={styles.retryText}>Go Back</Text>
           </TouchableOpacity>
         </View>
@@ -158,7 +167,7 @@ const AlertTimelineScreen = ({ navigation, route }) => {
         <View style={styles.centerContainer}>
           <MaterialCommunityIcons name="timeline-alert-outline" size={64} color="#9CA3AF" />
           <Text style={styles.emptyTitle}>No Timeline Events</Text>
-          <Text style={styles.emptySubtitle}>We couldn't find any events for this alert.</Text>
+          <Text style={styles.emptySubtitle}>We couldn&apos;t find any events for this alert.</Text>
         </View>
       ) : (
         <FlatList

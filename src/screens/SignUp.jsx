@@ -1,5 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { SafeAreaView, ScrollView, View, Text, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, TextInput } from 'react-native';
+import {
+  SafeAreaView,
+  ScrollView,
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
+  TextInput,
+} from 'react-native';
 import FormInput from '../components/FormInput';
 import PrimaryButton from '../components/PrimaryButton';
 import { registerUser, getAuthErrorMessage } from '../services/auth';
@@ -18,7 +28,6 @@ const SignUp = ({ navigation }) => {
   const [message, setMessage] = useState(null); // { text: string, type: 'success' | 'error' }
   const [isLoading, setIsLoading] = useState(false);
 
-
   // Configurable delay for auto-hiding messages (4 seconds)
   const MESSAGE_AUTO_HIDE_DELAY = 4000;
 
@@ -35,7 +44,7 @@ const SignUp = ({ navigation }) => {
         setMessage(null);
       }, MESSAGE_AUTO_HIDE_DELAY);
     }
-    
+
     // Cleanup function to cancel timeout when component unmounts or message changes
     return () => {
       if (timer) {
@@ -62,9 +71,7 @@ const SignUp = ({ navigation }) => {
         profile: {
           fullName,
           phone,
-          ...(role === 'user'
-            ? { emergencyPhone, emergencyEmail }
-            : { relationship }),
+          ...(role === 'user' ? { emergencyPhone, emergencyEmail } : { relationship }),
         },
       });
 
@@ -80,7 +87,6 @@ const SignUp = ({ navigation }) => {
       setTimeout(() => {
         navigation?.navigate(role === 'guardian' ? 'GuardianDashboard' : 'Dashboard');
       }, 2000);
-
     } catch (e) {
       console.error('[SignUp] Registration error:', e);
 
@@ -99,19 +105,36 @@ const SignUp = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
           <View style={styles.card}>
-            <Text style={styles.brandLine}><Text style={styles.brandAccent}>ShieldHer</Text> Sign Up</Text>
+            <Text style={styles.brandLine}>
+              <Text style={styles.brandAccent}>ShieldHer</Text> Sign Up
+            </Text>
             <Text style={styles.subtitle}>Create your security-focused account</Text>
 
             {/* Role Segmented Tabs */}
             <View style={styles.tabs}>
-              <TouchableOpacity onPress={() => setRole('user')} style={[styles.tab, role === 'user' && styles.tabActive]}>
+              <TouchableOpacity
+                onPress={() => setRole('user')}
+                style={[styles.tab, role === 'user' && styles.tabActive]}
+              >
                 <Text style={[styles.tabText, role === 'user' && styles.tabTextActive]}>User</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => setRole('guardian')} style={[styles.tab, role === 'guardian' && styles.tabActive]}>
-                <Text style={[styles.tabText, role === 'guardian' && styles.tabTextActive]}>Guardian</Text>
+              <TouchableOpacity
+                onPress={() => setRole('guardian')}
+                style={[styles.tab, role === 'guardian' && styles.tabActive]}
+              >
+                <Text style={[styles.tabText, role === 'guardian' && styles.tabTextActive]}>
+                  Guardian
+                </Text>
               </TouchableOpacity>
             </View>
 
@@ -204,36 +227,57 @@ const SignUp = ({ navigation }) => {
             </View>
 
             <View style={styles.buttonWrap}>
-              <PrimaryButton 
-                title={isLoading ? "Creating Account..." : "Create Account"} 
-                onPress={handleCreate} 
+              <PrimaryButton
+                title={isLoading ? 'Creating Account...' : 'Create Account'}
+                onPress={handleCreate}
                 disabled={isLoading}
               />
             </View>
 
             {/* Message Display */}
             {message && (
-              <View style={[
-                styles.messageContainer,
-                message.type === 'success' ? styles.messageSuccess : styles.messageError
-              ]}>
+              <View
+                style={[
+                  styles.messageContainer,
+                  message.type === 'success' ? styles.messageSuccess : styles.messageError,
+                ]}
+              >
                 {message.type === 'success' && (
-                  <MaterialCommunityIcons name="check-circle" size={24} color="#10B981" style={styles.messageIcon} />
+                  <MaterialCommunityIcons
+                    name="check-circle"
+                    size={24}
+                    color="#10B981"
+                    style={styles.messageIcon}
+                  />
                 )}
                 {message.type === 'error' && (
-                  <MaterialCommunityIcons name="alert-circle" size={24} color="#EF4444" style={styles.messageIcon} />
+                  <MaterialCommunityIcons
+                    name="alert-circle"
+                    size={24}
+                    color="#EF4444"
+                    style={styles.messageIcon}
+                  />
                 )}
-                <Text style={[
-                  styles.messageText,
-                  message.type === 'success' ? styles.messageTextSuccess : styles.messageTextError
-                ]}>
+                <Text
+                  style={[
+                    styles.messageText,
+                    message.type === 'success'
+                      ? styles.messageTextSuccess
+                      : styles.messageTextError,
+                  ]}
+                >
                   {message.text}
                 </Text>
               </View>
             )}
 
             <View style={styles.loginWrap}>
-              <Text style={styles.loginPrompt}>Already have an account? <Text onPress={goLogin} style={styles.loginLink}>Login Here</Text></Text>
+              <Text style={styles.loginPrompt}>
+                Already have an account?{' '}
+                <Text onPress={goLogin} style={styles.loginLink}>
+                  Login Here
+                </Text>
+              </Text>
             </View>
           </View>
         </ScrollView>

@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   Switch,
+  ActivityIndicator,
 } from 'react-native';
 
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -14,6 +15,9 @@ import { useScreamDetection } from '../hooks/useScreamDetection';
 import { auth } from '../config/firebase';
 import { checkActiveAlert, dispatchSOSAlert, fetchUserLocation } from '../services/alertService';
 import { getCurrentLocation } from '../services/location';
+import logger from '../utils/logger';
+
+const TAG = '[Home]';
 
 const Home = ({ navigation }) => {
   const [autoSosEnabled, setAutoSosEnabled] = useState(false);
@@ -24,8 +28,12 @@ const Home = ({ navigation }) => {
     }
   };
 
-  const handleScreamDetected = async (_data) => {
+  const [aiTriggerLoading, setAiTriggerLoading] = useState(false);
+
+  const handleScreamDetected = async (data) => {
     try {
+      setAiTriggerLoading(true);
+
       const user = auth.currentUser;
       if (!user) return;
 
@@ -44,19 +52,41 @@ const Home = ({ navigation }) => {
 
       const result = await dispatchSOSAlert(user.uid, location);
       if (result.success) {
-        console.log(`[Home] AI SOS dispatched via ${result.method}`);
+        logger.warn(TAG, 'AI SOS dispatched', {
+          method: result.method,
+          confidence: data?.confidence ?? null,
+          source: data?.source ?? 'unknown',
+        });
       } else {
-        console.error('[Home] AI SOS failed:', result.error);
+        logger.error(TAG, 'AI SOS failed', {
+          error: result.error,
+          confidence: data?.confidence ?? null,
+        });
       }
     } catch (err) {
-      console.error('SOS trigger failed:', err);
+      logger.error(TAG, 'SOS trigger failed', err);
+    } finally {
+      setAiTriggerLoading(false);
     }
   };
 
-  // 🔥 Activate AI scream detection
-  useScreamDetection({
+  // AI detection pipeline with confidence threshold + multi-frame validation
+  const {
+    detectionState,
+    cooldownState,
+    pendingAlert,
+    cancelPendingAlert,
+    allowPendingCountdown,
+  } = useScreamDetection({
     enabled: autoSosEnabled,
     onScreamDetected: handleScreamDetected,
+    config: {
+      confidenceThreshold: 0.8,
+      requiredConsecutiveFrames: 3,
+      validationWindowMs: 2000,
+      cooldownMs: 60000,
+      confirmationCountdownSec: 5,
+    },
   });
 
   return (
@@ -93,6 +123,71 @@ const Home = ({ navigation }) => {
             trackColor={{ false: '#ccc', true: '#0B26FF' }}
           />
         </View>
+
+        {autoSosEnabled && (
+          <View style={styles.aiStatusCard}>
+            <View style={styles.aiStatusRow}>
+              <Text style={styles.aiStatusLabel}>Detection Status</Text>
+              <Text style={styles.aiStatusValue}>
+                {detectionState.isListening ? 'Monitoring' : 'Initializing'}
+              </Text>
+            </View>
+
+            <View style={styles.aiStatusRow}>
+              <Text style={styles.aiStatusLabel}>Last Confidence</Text>
+              <Text style={styles.aiStatusValue}>
+                {Number(detectionState.lastConfidence || 0).toFixed(2)}
+              </Text>
+            </View>
+
+            <View style={styles.aiStatusRow}>
+              <Text style={styles.aiStatusLabel}>Consecutive Frames</Text>
+              <Text style={styles.aiStatusValue}>{detectionState.trailingConsecutive || 0}</Text>
+            </View>
+
+            {cooldownState.isCoolingDown && (
+              <View style={styles.cooldownBanner}>
+                <MaterialCommunityIcons name="timer-sand" size={14} color="#1E34FF" />
+                <Text style={styles.cooldownText}>
+                  Cooldown active: {Math.ceil((cooldownState.remainingMs || 0) / 1000)}s
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+
+        {pendingAlert.visible && (
+          <View style={styles.aiWarningCard}>
+            <View style={styles.aiWarningHeader}>
+              <MaterialCommunityIcons name="alert" size={18} color="#B91C1C" />
+              <Text style={styles.aiWarningTitle}>Possible distress detected</Text>
+            </View>
+
+            <Text style={styles.aiWarningBody}>
+              Sending emergency alert in {pendingAlert.countdownSec} seconds.
+            </Text>
+
+            <Text style={styles.aiMetaText}>
+              Confidence: {Number(pendingAlert.confidence || 0).toFixed(2)}
+            </Text>
+
+            {aiTriggerLoading ? (
+              <View style={styles.aiLoadingRow}>
+                <ActivityIndicator size="small" color="#B91C1C" />
+                <Text style={styles.aiLoadingText}>Dispatching emergency alert...</Text>
+              </View>
+            ) : (
+              <View style={styles.aiWarningActions}>
+                <TouchableOpacity style={styles.cancelAiButton} onPress={cancelPendingAlert}>
+                  <Text style={styles.cancelAiButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.allowAiButton} onPress={allowPendingCountdown}>
+                  <Text style={styles.allowAiButtonText}>Allow Countdown</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        )}
 
         {/* CTA button */}
         <TouchableOpacity activeOpacity={0.9} onPress={handleGetStarted} style={styles.cta}>
@@ -198,6 +293,133 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#111',
+  },
+
+  aiStatusCard: {
+    marginTop: 14,
+    width: '85%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    padding: 12,
+    gap: 8,
+    elevation: 2,
+  },
+
+  aiStatusRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+
+  aiStatusLabel: {
+    fontSize: 12,
+    color: '#5B6067',
+    fontWeight: '600',
+  },
+
+  aiStatusValue: {
+    fontSize: 12,
+    color: '#111318',
+    fontWeight: '800',
+  },
+
+  cooldownBanner: {
+    marginTop: 2,
+    backgroundColor: '#EEF2FF',
+    borderRadius: 8,
+    padding: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+
+  cooldownText: {
+    color: '#1E34FF',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+
+  aiWarningCard: {
+    marginTop: 14,
+    width: '85%',
+    backgroundColor: '#FEF2F2',
+    borderRadius: 10,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+
+  aiWarningHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+
+  aiWarningTitle: {
+    color: '#B91C1C',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+
+  aiWarningBody: {
+    marginTop: 8,
+    fontSize: 12,
+    color: '#7F1D1D',
+    fontWeight: '600',
+  },
+
+  aiMetaText: {
+    marginTop: 4,
+    fontSize: 11,
+    color: '#7F1D1D',
+  },
+
+  aiWarningActions: {
+    marginTop: 10,
+    flexDirection: 'row',
+    gap: 8,
+  },
+
+  cancelAiButton: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#DC2626',
+    borderRadius: 8,
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+
+  cancelAiButtonText: {
+    color: '#B91C1C',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+
+  allowAiButton: {
+    flex: 1,
+    backgroundColor: '#B91C1C',
+    borderRadius: 8,
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+
+  allowAiButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+
+  aiLoadingRow: {
+    marginTop: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+
+  aiLoadingText: {
+    color: '#B91C1C',
+    fontSize: 12,
+    fontWeight: '700',
   },
 
   cta: {

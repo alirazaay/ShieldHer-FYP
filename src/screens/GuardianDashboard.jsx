@@ -1,10 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   SafeAreaView,
   View,
   Text,
   StyleSheet,
-  FlatList,
   ActivityIndicator,
   ScrollView,
   TouchableOpacity,
@@ -145,15 +144,14 @@ const GuardianDashboard = ({ navigation }) => {
   const [error, setError] = useState(null);
 
   // Location tracking state
-  const [locationTracking, setLocationTracking] = useState(false);
   const [locationError, setLocationError] = useState(null);
-  const [locationSubscription, setLocationSubscription] = useState(null);
+  const locationTrackingSubscriptionRef = useRef(null);
 
   // Connected users state
   const [connectedUsers, setConnectedUsers] = useState([]);
   const [userLocations, setUserLocations] = useState({});
   const [loadingConnectedUsers, setLoadingConnectedUsers] = useState(false);
-  const [locationSubscriptions, setLocationSubscriptions] = useState({});
+  const userLocationSubscriptionsRef = useRef({});
 
   // Alert Lifecycle state
   const [activeAlerts, setActiveAlerts] = useState([]);
@@ -196,6 +194,10 @@ const GuardianDashboard = ({ navigation }) => {
       const users = await getConnectedUsers(currentUser.uid);
       setConnectedUsers(users);
 
+      Object.values(userLocationSubscriptionsRef.current).forEach((unsubscribe) => {
+        if (typeof unsubscribe === 'function') unsubscribe();
+      });
+
       // Subscribe to each user's location
       const newSubscriptions = {};
 
@@ -220,7 +222,7 @@ const GuardianDashboard = ({ navigation }) => {
         newSubscriptions[user.id] = unsubscribe;
       });
 
-      setLocationSubscriptions(newSubscriptions);
+      userLocationSubscriptionsRef.current = newSubscriptions;
     } catch (err) {
       console.error('[GuardianDashboard] Error loading connected users:', err);
     } finally {
@@ -299,9 +301,7 @@ const GuardianDashboard = ({ navigation }) => {
           return;
         }
 
-        const subscription = await startLocationTracking(currentUser.uid);
-        setLocationSubscription(subscription);
-        setLocationTracking(true);
+        locationTrackingSubscriptionRef.current = await startLocationTracking(currentUser.uid);
       } catch (err) {
         setLocationError({
           message: getLocationErrorMessage(err),
@@ -313,21 +313,20 @@ const GuardianDashboard = ({ navigation }) => {
     initializeLocationTracking();
 
     return () => {
-      if (locationSubscription) {
-        stopLocationTracking(locationSubscription);
-        setLocationTracking(false);
-      }
+      stopLocationTracking(locationTrackingSubscriptionRef.current);
+      locationTrackingSubscriptionRef.current = null;
     };
   }, [navigation]);
 
   // Cleanup location subscriptions
   useEffect(() => {
     return () => {
-      Object.values(locationSubscriptions).forEach((unsubscribe) => {
-        if (unsubscribe) unsubscribe();
+      Object.values(userLocationSubscriptionsRef.current).forEach((unsubscribe) => {
+        if (typeof unsubscribe === 'function') unsubscribe();
       });
+      userLocationSubscriptionsRef.current = {};
     };
-  }, [locationSubscriptions]);
+  }, []);
 
   // ── Invite Actions ───────────────────────────────────────────────────────────
   const handleAcceptInvite = async (inviteId) => {

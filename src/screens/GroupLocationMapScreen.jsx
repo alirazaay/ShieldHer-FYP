@@ -30,7 +30,7 @@ const GroupLocationMapScreen = ({ navigation }) => {
 
   // Map reference for animations
   const mapRef = useRef(null);
-  const [locationSubscription, setLocationSubscription] = useState(null);
+  const locationSubscriptionRef = useRef(null);
 
   // Initialize: fetch connected users and subscribe to their locations
   useEffect(() => {
@@ -71,7 +71,7 @@ const GroupLocationMapScreen = ({ navigation }) => {
           }
         );
 
-        setLocationSubscription(() => unsubscribe);
+        locationSubscriptionRef.current = unsubscribe;
         setLoading(false);
       } catch (err) {
         console.error('[GroupLocationMapScreen] Initialization error:', err);
@@ -84,8 +84,9 @@ const GroupLocationMapScreen = ({ navigation }) => {
 
     // Cleanup: unsubscribe from location updates when screen unmounts
     return () => {
-      if (locationSubscription) {
-        locationSubscription();
+      if (locationSubscriptionRef.current) {
+        locationSubscriptionRef.current();
+        locationSubscriptionRef.current = null;
         console.log('[GroupLocationMapScreen] Location subscriptions cleaned up');
       }
     };

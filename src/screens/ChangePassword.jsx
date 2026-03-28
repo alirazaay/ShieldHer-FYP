@@ -5,14 +5,13 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   KeyboardAvoidingView,
   Platform,
+  TextInput,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { auth } from '../config/firebase';
-import FormInput from '../components/FormInput';
 import PrimaryButton from '../components/PrimaryButton';
 import { changePassword, getErrorMessage } from '../services/profile';
 
@@ -260,9 +259,6 @@ const ChangePasswordScreen = ({ navigation }) => {
     </KeyboardAvoidingView>
   );
 };
-
-// TextInput component import (from react-native)
-import { TextInput } from 'react-native';
 
 const styles = StyleSheet.create({
   container: {

@@ -83,7 +83,7 @@ export async function registerForPushNotifications(userId) {
       tokenData = await Notifications.getExpoPushTokenAsync({
         projectId: EXPO_PROJECT_ID,
       });
-    } catch (err) {
+    } catch {
       tokenData = await Notifications.getExpoPushTokenAsync();
     }
 
@@ -134,7 +134,7 @@ export function setupTokenRefreshListener(userId) {
 // Foreground Notification Event (Haptics)
 // ─────────────────────────────────────────────────────────────────────────────
 export function setupForegroundNotificationHandler() {
-  const sub = Notifications.addNotificationReceivedListener((notification) => {
+  const sub = Notifications.addNotificationReceivedListener((_notification) => {
     logger.debug(TAG, 'Foreground alert received');
     // Vibrate heavily if the user receives an alert while looking at the app
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);

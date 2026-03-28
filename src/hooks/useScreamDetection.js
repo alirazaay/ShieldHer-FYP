@@ -29,7 +29,7 @@ export const useScreamDetection = ({ onScreamDetected, enabled = false }) => {
     }
 
     // Listen for every confidence update (optional — for UI display)
-    confidenceListener.current = emitter.addListener('onScreamConfidence', (data) => {
+    confidenceListener.current = emitter.addListener('onScreamConfidence', (_data) => {
       // data = { confidence: 0.92, isScream: true }
       // Use this to show a live confidence indicator in UI if needed
     });

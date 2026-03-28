@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -42,14 +42,7 @@ const SOSCountdownScreen = ({ navigation }) => {
     return () => clearInterval(timer);
   }, []);
 
-  // Trigger alert when countdown hits 0
-  useEffect(() => {
-    if (countdown === 0) {
-      triggerSOS();
-    }
-  }, [countdown]);
-
-  const triggerSOS = async () => {
+  const triggerSOS = useCallback(async () => {
     try {
       setIsProcessing(true);
       setErrorMsg(null);
@@ -91,7 +84,14 @@ const SOSCountdownScreen = ({ navigation }) => {
       setErrorMsg(getAlertErrorMessage(error));
       setIsProcessing(false);
     }
-  };
+  }, [navigation]);
+
+  // Trigger alert when countdown hits 0
+  useEffect(() => {
+    if (countdown === 0) {
+      triggerSOS();
+    }
+  }, [countdown, triggerSOS]);
 
   const handleCancel = () => {
     // If the timer is still going, the component unmount will clear the interval

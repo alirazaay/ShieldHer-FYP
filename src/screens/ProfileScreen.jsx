@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -76,33 +76,7 @@ const ProfileScreen = ({ navigation }) => {
   });
   const [sendingInvite, setSendingInvite] = useState(false);
 
-  // Load user profile and guardians on mount
-  useEffect(() => {
-    loadProfileData();
-  }, []);
-
-  // Auto-dismiss error messages after 4 seconds
-  useEffect(() => {
-    if (error) {
-      const timeout = setTimeout(() => setError(null), 4000);
-      return () => clearTimeout(timeout);
-    }
-  }, [error]);
-
-  // Sync unsavedChanges when entering edit mode
-  useEffect(() => {
-    if (isEditMode) {
-      setUnsavedChanges({
-        fullName: userProfile.fullName,
-        phone: userProfile.phone,
-        email: userProfile.email,
-        emergencyPhone: userProfile.emergencyPhone,
-        emergencyEmail: userProfile.emergencyEmail,
-      });
-    }
-  }, [isEditMode]);
-
-  const loadProfileData = async () => {
+  const loadProfileData = useCallback(async () => {
     try {
       setLoading(true);
       const currentUser = auth.currentUser;
@@ -132,7 +106,33 @@ const ProfileScreen = ({ navigation }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [navigation]);
+
+  // Load user profile and guardians on mount
+  useEffect(() => {
+    loadProfileData();
+  }, [loadProfileData]);
+
+  // Auto-dismiss error messages after 4 seconds
+  useEffect(() => {
+    if (error) {
+      const timeout = setTimeout(() => setError(null), 4000);
+      return () => clearTimeout(timeout);
+    }
+  }, [error]);
+
+  // Sync unsavedChanges when entering edit mode
+  useEffect(() => {
+    if (isEditMode) {
+      setUnsavedChanges({
+        fullName: userProfile.fullName,
+        phone: userProfile.phone,
+        email: userProfile.email,
+        emergencyPhone: userProfile.emergencyPhone,
+        emergencyEmail: userProfile.emergencyEmail,
+      });
+    }
+  }, [isEditMode, userProfile]);
 
   const handleSaveProfile = async () => {
     try {

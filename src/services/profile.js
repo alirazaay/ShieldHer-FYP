@@ -10,12 +10,7 @@ import {
   getDocs,
   serverTimestamp,
 } from 'firebase/firestore';
-import {
-  reauthenticateWithCredential,
-  EmailAuthProvider,
-  updatePassword,
-  updateEmail,
-} from 'firebase/auth';
+import { reauthenticateWithCredential, EmailAuthProvider, updatePassword } from 'firebase/auth';
 import { auth, db } from '../config/firebase';
 
 /**

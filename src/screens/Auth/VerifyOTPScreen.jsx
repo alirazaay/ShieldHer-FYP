@@ -51,17 +51,11 @@ const VerifyOTPScreen = ({ navigation, route }) => {
       setError('OTP has expired. Please request a new code.');
       return;
     }
-    const timer = setInterval(() => {
-      setExpiryTimer((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          return 0;
-        }
-        return prev - 1;
-      });
+    const timer = setTimeout(() => {
+      setExpiryTimer((prev) => Math.max(prev - 1, 0));
     }, 1000);
-    return () => clearInterval(timer);
-  }, []);
+    return () => clearTimeout(timer);
+  }, [expiryTimer]);
 
   const handleDigitChange = (text, index) => {
     // Only allow numeric input

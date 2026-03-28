@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -20,24 +20,32 @@ const AlertTimelineScreen = ({ navigation, route }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [actorNames, setActorNames] = useState({}); // Cache for UID -> Name lookups
+  const actorNamesRef = useRef({});
+
+  useEffect(() => {
+    actorNamesRef.current = actorNames;
+  }, [actorNames]);
 
   // Fetch actor names mapping
-  const fetchActorName = async (uid) => {
+  const fetchActorName = useCallback(async (uid) => {
     if (!uid) return 'Unknown';
-    if (actorNames[uid]) return actorNames[uid];
+    if (actorNamesRef.current[uid]) return actorNamesRef.current[uid];
 
     try {
       const userDoc = await getDoc(doc(db, 'users', uid));
       if (userDoc.exists()) {
         const name = userDoc.data().fullName || userDoc.data().name || 'User';
-        setActorNames((prev) => ({ ...prev, [uid]: name }));
+        setActorNames((prev) => {
+          if (prev[uid]) return prev;
+          return { ...prev, [uid]: name };
+        });
         return name;
       }
     } catch (err) {
       console.warn('Failed to fetch actor name:', err);
     }
     return 'User';
-  };
+  }, []);
 
   useEffect(() => {
     if (!alertId) {
@@ -51,7 +59,7 @@ const AlertTimelineScreen = ({ navigation, route }) => {
       async (timelineEvents) => {
         // Pre-fetch names for any new actors
         for (const ev of timelineEvents) {
-          if (ev.actorId && !actorNames[ev.actorId]) {
+          if (ev.actorId && !actorNamesRef.current[ev.actorId]) {
             await fetchActorName(ev.actorId);
           }
         }
@@ -66,7 +74,7 @@ const AlertTimelineScreen = ({ navigation, route }) => {
     );
 
     return () => unsubscribe();
-  }, [alertId]);
+  }, [alertId, fetchActorName]);
 
   const renderTimelineEvent = ({ item, index }) => {
     const isFirst = index === 0;

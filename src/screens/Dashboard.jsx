@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useCallback } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import {
   SafeAreaView,
   ScrollView,
@@ -9,7 +9,6 @@ import {
   Modal,
   Animated,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -17,7 +16,6 @@ import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import LogoutPopup from './LogoutPopup';
 import { signOutUser } from '../services/auth';
 import { auth, db } from '../config/firebase';
-import { requestLocationPermission, getLocationErrorMessage } from '../services/location';
 import {
   checkActiveAlert,
   fetchUserLocation,
@@ -37,7 +35,6 @@ const Dashboard = ({ navigation }) => {
   // Location tracking state
   const [locationTracking, setLocationTracking] = useState(false);
   const [locationError, setLocationError] = useState(null);
-  const [locationSubscription, setLocationSubscription] = useState(null);
 
   // SOS alert state
   const [sosLoading, setSosLoading] = useState(false);

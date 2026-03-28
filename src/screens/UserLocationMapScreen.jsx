@@ -3,7 +3,6 @@ import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'rea
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import MapView, { Marker } from 'react-native-maps';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { auth } from '../config/firebase';
 import {
   subscribeToUserLocation,
   getLocationErrorMessage,
@@ -27,7 +26,7 @@ const UserLocationMapScreen = ({ navigation, route }) => {
 
   // Map reference for animations
   const mapRef = useRef(null);
-  const [locationSubscription, setLocationSubscription] = useState(null);
+  const locationSubscriptionRef = useRef(null);
 
   // Initialize: fetch user profile and subscribe to location updates
   useEffect(() => {
@@ -73,7 +72,7 @@ const UserLocationMapScreen = ({ navigation, route }) => {
           }
         );
 
-        setLocationSubscription(() => unsubscribe);
+        locationSubscriptionRef.current = unsubscribe;
         setLoading(false);
       } catch (err) {
         console.error('[UserLocationMapScreen] Initialization error:', err);
@@ -86,8 +85,9 @@ const UserLocationMapScreen = ({ navigation, route }) => {
 
     // Cleanup: unsubscribe from location updates when screen unmounts
     return () => {
-      if (locationSubscription) {
-        locationSubscription();
+      if (locationSubscriptionRef.current) {
+        locationSubscriptionRef.current();
+        locationSubscriptionRef.current = null;
         console.log('[UserLocationMapScreen] Location subscription cleaned up');
       }
     };

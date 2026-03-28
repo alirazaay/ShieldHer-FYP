@@ -149,10 +149,25 @@ service cloud.firestore {
         resource.data.guardianEmail == request.auth.token.email
       );
 
-      // The receiver can modify it to "accept" or "decline"
-      // Match by guardianEmail since receiverId may not be set initially
+      // Receiver can only mark a pending invite as accepted.
+      // Bidirectional linking is performed by a Cloud Function.
       allow update: if isAuthenticated() &&
-        resource.data.guardianEmail == request.auth.token.email;
+        resource.data.status == 'pending' &&
+        resource.data.guardianEmail == request.auth.token.email &&
+        request.resource.data.status == 'accepted' &&
+        request.resource.data.userId == resource.data.userId &&
+        request.resource.data.userEmail == resource.data.userEmail &&
+        request.resource.data.userName == resource.data.userName &&
+        request.resource.data.userPhone == resource.data.userPhone &&
+        request.resource.data.guardianEmail == resource.data.guardianEmail &&
+        request.resource.data.acceptedByUid == request.auth.uid &&
+        request.resource.data.acceptedByEmail == request.auth.token.email &&
+        request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          'status',
+          'acceptedAt',
+          'acceptedByUid',
+          'acceptedByEmail'
+        ]);
 
       // Both the sender and receiver can delete the invite
       allow delete: if isAuthenticated() && (

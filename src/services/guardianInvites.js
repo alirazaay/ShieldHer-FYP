@@ -8,9 +8,9 @@ import {
   deleteDoc,
   getDoc,
   serverTimestamp,
-  writeBatch,
+  updateDoc,
 } from 'firebase/firestore';
-import { db, auth } from '../config/firebase';
+import { db } from '../config/firebase';
 
 /**
  * Send a guardian invite from a user to a guardian
@@ -159,8 +159,6 @@ export async function acceptInvite(inviteId, guardianId, guardianEmail) {
     throw error;
   }
 
-  const batch = writeBatch(db);
-
   try {
     // Get invite document
     const inviteDocRef = doc(db, 'guardianInvites', inviteId);
@@ -173,11 +171,6 @@ export async function acceptInvite(inviteId, guardianId, guardianEmail) {
     }
 
     const inviteData = inviteSnap.data();
-    const userId = inviteData.userId;
-    const userEmail = inviteData.userEmail;
-    const userName = inviteData.userName;
-    const userPhone = inviteData.userPhone;
-    const userProfileImage = inviteData.userProfileImage;
 
     if (inviteData.status !== 'pending') {
       const error = new Error('This invite is no longer pending');
@@ -192,52 +185,16 @@ export async function acceptInvite(inviteId, guardianId, guardianEmail) {
       throw error;
     }
 
-    // Fetch guardian profile to get their name and details
-    const guardianDocRef = doc(db, 'users', guardianId);
-    const guardianSnap = await getDoc(guardianDocRef);
-
-    if (!guardianSnap.exists()) {
-      const error = new Error('Guardian profile not found');
-      error.code = 'not-found';
-      throw error;
-    }
-
-    const guardianData = guardianSnap.data();
-    const guardianName = guardianData.fullName;
-    const guardianPhone = guardianData.phone;
-    const guardianProfileImage = guardianData.profileImage || null;
-    const relationship = guardianData.relationship || 'Guardian';
-
-    // 1. Add guardian to user's guardians subcollection (what they added manually)
-    const userGuardianRef = doc(db, 'users', userId, 'guardians', guardianId);
-    batch.set(userGuardianRef, {
-      name: guardianName,
-      phone: guardianPhone,
-      email: guardianEmail.toLowerCase(),
-      profileImage: guardianProfileImage,
-      relationship,
-      linkedAt: serverTimestamp(),
-      status: 'active',
+    // Mark invite accepted; a backend Cloud Function will perform
+    // bidirectional linking securely with Admin SDK privileges.
+    await updateDoc(inviteDocRef, {
+      status: 'accepted',
+      acceptedAt: serverTimestamp(),
+      acceptedByUid: guardianId,
+      acceptedByEmail: guardianEmail.toLowerCase(),
     });
 
-    // 2. Add user to guardian's connected users subcollection
-    const guardianUserRef = doc(db, 'users', guardianId, 'connectedUsers', userId);
-    batch.set(guardianUserRef, {
-      name: userName,
-      phone: userPhone,
-      email: userEmail.toLowerCase(),
-      profileImage: userProfileImage,
-      linkedAt: serverTimestamp(),
-      status: 'active',
-    });
-
-    // 3. Delete the invite
-    batch.delete(inviteDocRef);
-
-    // Commit all operations atomically
-    await batch.commit();
-
-    console.log('[guardianInvites] Invite accepted successfully');
+    console.log('[guardianInvites] Invite marked accepted; awaiting backend linking');
   } catch (error) {
     console.error('[guardianInvites] acceptInvite error:', error);
     throw error;

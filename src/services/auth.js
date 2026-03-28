@@ -6,6 +6,7 @@ import {
   signOut,
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { clearGuardianCache } from './smsService';
 
 /**
  * Register a new user with Firebase Auth and Firestore
@@ -91,6 +92,7 @@ export async function registerUser({ email, password, role, profile = {} }) {
     const userProfile = {
       fullName: profile.fullName.trim(),
       phone: profile.phone.trim(),
+      phoneNumber: profile.phone.trim(),
       email: email.trim(),
       role,
       createdAt: serverTimestamp(),
@@ -171,6 +173,12 @@ export async function getCurrentUserRole() {
 
 export async function signOutUser() {
   console.log('[auth] signOutUser start');
+  // Ensure offline guardian cache does not leak across accounts on shared devices.
+  try {
+    await clearGuardianCache();
+  } catch (err) {
+    console.warn('[auth] Failed to clear guardian cache during sign out:', err?.message || err);
+  }
   await signOut(auth);
   console.log('[auth] signOutUser complete');
 }

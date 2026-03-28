@@ -11,8 +11,9 @@ import {
 
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useScreamDetection } from '../hooks/useScreamDetection';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db } from '../config/firebase';
+import { auth } from '../config/firebase';
+import { checkActiveAlert, dispatchSOSAlert, fetchUserLocation } from '../services/alertService';
+import { getCurrentLocation } from '../services/location';
 
 const Home = ({ navigation }) => {
   const [autoSosEnabled, setAutoSosEnabled] = useState(false);
@@ -23,22 +24,30 @@ const Home = ({ navigation }) => {
     }
   };
 
-  const handleScreamDetected = async (data) => {
+  const handleScreamDetected = async (_data) => {
     try {
       const user = auth.currentUser;
       if (!user) return;
 
-      const alertsRef = collection(db, 'sos_alerts');
-      await addDoc(alertsRef, {
-        userId: user.uid,
-        type: 'auto_scream',
-        confidence: data.confidence,
-        timestamp: serverTimestamp(),
-        location: null,
-        status: 'active',
-      });
+      // Respect cooldown to avoid repeated auto-triggers.
+      const hasActiveAlert = await checkActiveAlert(user.uid);
+      if (hasActiveAlert) {
+        console.log('[Home] Scream trigger ignored: active alert cooldown');
+        return;
+      }
 
-      console.log('SOS alert created in Firestore');
+      // Prefer live device location; fall back to the last Firestore location.
+      let location = await getCurrentLocation();
+      if (!location) {
+        location = await fetchUserLocation(user.uid);
+      }
+
+      const result = await dispatchSOSAlert(user.uid, location);
+      if (result.success) {
+        console.log(`[Home] AI SOS dispatched via ${result.method}`);
+      } else {
+        console.error('[Home] AI SOS failed:', result.error);
+      }
     } catch (err) {
       console.error('SOS trigger failed:', err);
     }

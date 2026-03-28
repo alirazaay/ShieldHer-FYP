@@ -39,6 +39,7 @@ import {
   setupTokenRefreshListener,
   handleNotificationNavigation,
 } from './src/services/notificationService';
+import { prepareOfflineFallback } from './src/services/alertService';
 
 enableScreens();
 
@@ -83,6 +84,13 @@ export default function App() {
           console.log('[App] Notifications initialized successfully');
         } else {
           console.warn('[App] Notification initialization warning or denied');
+        }
+
+        // 1b. Prepare offline SMS fallback cache for guardians while online
+        try {
+          await prepareOfflineFallback(user.uid);
+        } catch (cacheErr) {
+          console.warn('[App] Offline fallback preparation warning:', cacheErr);
         }
 
         // 2. Set up foreground notification display handler

@@ -100,6 +100,11 @@ export async function updateUserProfile(uid, updates) {
       updatedAt: serverTimestamp(),
     };
 
+    // Keep phone schema normalized across email/OTP auth flows
+    if (updates.phone) {
+      updateData.phoneNumber = updates.phone;
+    }
+
     await updateDoc(userDocRef, updateData);
 
     console.log('[profile] User profile updated successfully');

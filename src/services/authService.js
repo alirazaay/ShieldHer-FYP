@@ -125,6 +125,7 @@ export async function verifyOTP(phoneNumber, otpCode) {
     if (!userSnap.exists()) {
       // New user – create profile
       const userProfile = {
+        phone: normalizedPhone,
         phoneNumber: normalizedPhone,
         role: 'user',
         createdAt: serverTimestamp(),
@@ -140,7 +141,11 @@ export async function verifyOTP(phoneNumber, otpCode) {
       // Existing user – update last login
       await setDoc(
         userDocRef,
-        { updatedAt: serverTimestamp(), phoneNumber: normalizedPhone },
+        {
+          updatedAt: serverTimestamp(),
+          phoneNumber: normalizedPhone,
+          phone: normalizedPhone,
+        },
         { merge: true }
       );
       logger.info(TAG, 'Existing user profile updated');

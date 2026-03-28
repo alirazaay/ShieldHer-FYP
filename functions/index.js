@@ -1,13 +1,14 @@
 /* eslint-disable max-len */
-const { onDocumentCreated } = require('firebase-functions/v2/firestore');
+const { onDocumentCreated, onDocumentUpdated } = require('firebase-functions/v2/firestore');
 const { onRequest } = require('firebase-functions/v2/https');
+const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { getAuth } = require('firebase-admin/auth');
 const axios = require('axios');
 
-// Escalation service for police dashboard
-const { scheduleEscalation } = require('./escalationService');
+// Escalation service for police workflow
+const { enqueueEscalation, processDueEscalations } = require('./escalationService');
 
 // Initialize Firebase Admin SDK
 initializeApp();
@@ -117,6 +118,20 @@ function hashPhone(phone) {
   return crypto.createHash('sha256').update(phone).digest('hex').slice(0, 20);
 }
 
+/**
+ * Hash OTP with phone-specific salt for secure-at-rest storage.
+ * @param {string} phoneHash - Hashed phone identifier
+ * @param {string} otpCode - Raw OTP code
+ * @returns {string}
+ */
+function hashOTP(phoneHash, otpCode) {
+  const crypto = require('crypto');
+  return crypto
+    .createHash('sha256')
+    .update(`${phoneHash}:${otpCode}`)
+    .digest('hex');
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // CLOUD FUNCTION: sendOTP
 // HTTP endpoint that generates an OTP, stores it in Firestore, and sends via SMS
@@ -176,7 +191,7 @@ exports.sendOTP = onRequest(
 
       await otpDocRef.set({
         phoneNumber,
-        code: otpCode,
+        codeHash: hashOTP(phoneHash, otpCode),
         expiresAt,
         attempts: 0,
         hourlyCount,
@@ -210,8 +225,10 @@ exports.sendOTP = onRequest(
           // Continue – OTP is stored, user can still verify (for dev/testing)
         }
       } else {
-        // Development mode: log OTP to console when Twilio is not configured
-        console.log(`[sendOTP] ⚠️ Twilio not configured. OTP for ${phoneNumber}: ${otpCode}`);
+        // Development mode note without logging sensitive OTP values
+        console.log(
+          `[sendOTP] ⚠️ Twilio not configured. OTP generated for ${phoneNumber.slice(0, 5)}***`
+        );
       }
 
       return res.status(200).json({
@@ -283,8 +300,23 @@ exports.verifyOTP = onRequest(
         });
       }
 
-      // Verify code
-      if (otpData.code !== code) {
+      // Verify code (secure hash compare with backward compatibility fallback)
+      let isCodeValid = false;
+      if (otpData.codeHash) {
+        const crypto = require('crypto');
+        const providedHash = hashOTP(phoneHash, code);
+        const storedHash = String(otpData.codeHash);
+        const providedBuf = Buffer.from(providedHash);
+        const storedBuf = Buffer.from(storedHash);
+        isCodeValid =
+          storedBuf.length === providedBuf.length &&
+          crypto.timingSafeEqual(storedBuf, providedBuf);
+      } else {
+        // Legacy fallback for previously stored plaintext OTP docs
+        isCodeValid = otpData.code === code;
+      }
+
+      if (!isCodeValid) {
         // Increment attempts
         await otpDocRef.update({ attempts: FieldValue.increment(1) });
         const remaining = OTP_MAX_ATTEMPTS - otpData.attempts - 1;
@@ -337,11 +369,159 @@ exports.verifyOTP = onRequest(
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
+// CLOUD FUNCTION: onGuardianInviteAccepted
+// When invite status changes to "accepted", securely creates bidirectional
+// relationships:
+// - users/{userId}/guardians/{guardianUid}
+// - users/{guardianUid}/connectedUsers/{userId}
+// Then removes the invite document.
+// ─────────────────────────────────────────────────────────────────────────────
+exports.onGuardianInviteAccepted = onDocumentUpdated(
+  {
+    document: 'guardianInvites/{inviteId}',
+    region: 'us-central1',
+  },
+  async (event) => {
+    const inviteId = event.params.inviteId;
+    const before = event.data?.before?.data();
+    const after = event.data?.after?.data();
+
+    if (!before || !after) return null;
+
+    // Only react when invite transitions to accepted
+    if (before.status === after.status || after.status !== 'accepted') {
+      return null;
+    }
+
+    const {
+      userId,
+      userEmail,
+      userName,
+      userPhone,
+      userProfileImage,
+      guardianEmail,
+      acceptedByUid,
+      acceptedByEmail,
+    } = after;
+
+    if (!userId || !guardianEmail || !acceptedByUid) {
+      console.error('[onGuardianInviteAccepted] Missing required fields for invite:', inviteId);
+      await db.collection('guardianInvites').doc(inviteId).set(
+        {
+          status: 'error',
+          errorReason: 'missing-required-fields',
+          errorAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+      return null;
+    }
+
+    // Defense-in-depth: ensure acceptedByEmail matches invite recipient email
+    if (
+      acceptedByEmail &&
+      guardianEmail.toLowerCase() !== String(acceptedByEmail).toLowerCase()
+    ) {
+      console.error('[onGuardianInviteAccepted] Email mismatch for invite:', inviteId);
+      await db.collection('guardianInvites').doc(inviteId).set(
+        {
+          status: 'error',
+          errorReason: 'accepted-email-mismatch',
+          errorAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+      return null;
+    }
+
+    const guardianRef = db.collection('users').doc(acceptedByUid);
+    const guardianSnap = await guardianRef.get();
+
+    if (!guardianSnap.exists) {
+      console.error('[onGuardianInviteAccepted] Guardian profile missing:', acceptedByUid);
+      await db.collection('guardianInvites').doc(inviteId).set(
+        {
+          status: 'error',
+          errorReason: 'guardian-profile-not-found',
+          errorAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+      return null;
+    }
+
+    const guardianData = guardianSnap.data() || {};
+    const guardianDocEmail = (guardianData.email || '').toLowerCase();
+    const inviteGuardianEmail = guardianEmail.toLowerCase();
+
+    // Validate accepted UID truly belongs to invited email
+    if (!guardianDocEmail || guardianDocEmail !== inviteGuardianEmail) {
+      console.error('[onGuardianInviteAccepted] Guardian UID/email mismatch:', {
+        inviteId,
+        acceptedByUid,
+        guardianDocEmail,
+        inviteGuardianEmail,
+      });
+      await db.collection('guardianInvites').doc(inviteId).set(
+        {
+          status: 'error',
+          errorReason: 'guardian-uid-email-mismatch',
+          errorAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+      return null;
+    }
+
+    const batch = db.batch();
+
+    // 1) Add guardian under user
+    const userGuardianRef = db.collection('users').doc(userId).collection('guardians').doc(acceptedByUid);
+    batch.set(
+      userGuardianRef,
+      {
+        name: guardianData.fullName || guardianData.name || 'Guardian',
+        phone: guardianData.phone || guardianData.phoneNumber || '',
+        email: inviteGuardianEmail,
+        profileImage: guardianData.profileImage || null,
+        relationship: guardianData.relationship || 'Guardian',
+        status: 'active',
+        isRegisteredUser: true,
+        linkedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+
+    // 2) Add user under guardian
+    const guardianUserRef = db.collection('users').doc(acceptedByUid).collection('connectedUsers').doc(userId);
+    batch.set(
+      guardianUserRef,
+      {
+        name: userName || 'User',
+        phone: userPhone || '',
+        email: (userEmail || '').toLowerCase(),
+        profileImage: userProfileImage || null,
+        status: 'active',
+        linkedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+
+    // 3) Remove invite after successful linking
+    batch.delete(db.collection('guardianInvites').doc(inviteId));
+
+    await batch.commit();
+    console.log('[onGuardianInviteAccepted] Guardian linked successfully for invite:', inviteId);
+    return null;
+  }
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
 // CLOUD FUNCTION: onAlertCreated
 // Triggers whenever a new document is created in the `alerts` Firestore collection.
 // Reads the alert, finds the user's guardians, fetches their FCM tokens,
 // and sends a push notification to each one.
-// Also triggers escalation timer for police dashboard.
+// Also queues escalation metadata for scheduled police escalation processing.
 // ─────────────────────────────────────────────────────────────────────────────
 exports.onAlertCreated = onDocumentCreated(
   {
@@ -404,6 +584,9 @@ exports.onAlertCreated = onDocumentCreated(
         ...doc.data(),
       }));
 
+      // Only notify active guardian relationships.
+      guardians = guardians.filter((guardian) => (guardian.status || 'active') === 'active');
+
       console.log(`[onAlertCreated] Found ${guardians.length} guardian(s) for user ${userId}`);
     } catch (err) {
       console.error('[onAlertCreated] Error fetching guardians:', err);
@@ -412,8 +595,8 @@ exports.onAlertCreated = onDocumentCreated(
 
     if (guardians.length === 0) {
       console.warn('[onAlertCreated] No guardians found, no notifications to send');
-      // Still schedule escalation even with no guardians
-      scheduleEscalation(alertId, alertData, db, sendExpoPushNotifications);
+      // Queue escalation even when no guardians are linked
+      await enqueueEscalation(alertId, db);
       return null;
     }
 
@@ -441,7 +624,20 @@ exports.onAlertCreated = onDocumentCreated(
           return null;
         }
 
-        const token = guardianDoc.data()?.fcmToken;
+        const guardianProfile = guardianDoc.data() || {};
+        const prefs = guardianProfile.notificationPreferences || {};
+
+        // Respect guardian-level notification opt-outs.
+        if (prefs.pushNotifications === false) {
+          console.log(`[onAlertCreated] Guardian ${guardian.id} has push notifications disabled`);
+          return null;
+        }
+        if (prefs.guardianAlerts === false) {
+          console.log(`[onAlertCreated] Guardian ${guardian.id} has guardian alerts disabled`);
+          return null;
+        }
+
+        const token = guardianProfile.fcmToken;
         if (!token) {
           console.warn(`[onAlertCreated] No FCM token for guardian ${guardian.id}`);
           return null;
@@ -463,8 +659,8 @@ exports.onAlertCreated = onDocumentCreated(
 
     if (validTokens.length === 0) {
       console.warn('[onAlertCreated] No valid FCM tokens found among guardians, aborting');
-      // Still schedule escalation
-      scheduleEscalation(alertId, alertData, db, sendExpoPushNotifications);
+      // Queue escalation regardless of push token availability
+      await enqueueEscalation(alertId, db);
       return null;
     }
 
@@ -498,16 +694,36 @@ exports.onAlertCreated = onDocumentCreated(
         `[onAlertCreated] ✅ SOS notifications sent to ${validTokens.length} guardian(s) for alert ${alertId}`
       );
 
-      // ── Schedule escalation to authorities ──────────────────────────────
-      // This runs asynchronously — Cloud Function completes while escalation waits
-      scheduleEscalation(alertId, alertData, db, sendExpoPushNotifications);
+      // Queue escalation for scheduler processing
+      await enqueueEscalation(alertId, db);
 
       return result;
     } catch (err) {
       console.error('[onAlertCreated] Error sending push notifications:', err?.message || err);
-      // Still schedule escalation
-      scheduleEscalation(alertId, alertData, db, sendExpoPushNotifications);
+      // Queue escalation even if push send fails
+      await enqueueEscalation(alertId, db);
       return null;
     }
+  }
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CLOUD FUNCTION: processEscalations
+// Runs every minute and escalates due SOS alerts (active + escalationDueAt <= now)
+// ─────────────────────────────────────────────────────────────────────────────
+exports.processEscalations = onSchedule(
+  {
+    schedule: 'every 1 minutes',
+    region: 'us-central1',
+    timeZone: 'Etc/UTC',
+  },
+  async () => {
+    try {
+      const summary = await processDueEscalations(db, sendExpoPushNotifications);
+      console.log('[processEscalations] Completed run:', summary);
+    } catch (error) {
+      console.error('[processEscalations] Run failed:', error);
+    }
+    return null;
   }
 );

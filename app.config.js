@@ -28,7 +28,7 @@ export default {
         backgroundColor: '#ffffff',
       },
       edgeToEdgeEnabled: true,
-      permissions: ['android.permission.RECORD_AUDIO'],
+      permissions: ['android.permission.RECORD_AUDIO', 'android.permission.SEND_SMS'],
       package: 'com.shieldher.app',
     },
     web: {

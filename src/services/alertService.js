@@ -10,6 +10,16 @@ import {
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { handleAppError } from '../utils/errorHandler';
+import logger from '../utils/logger';
+import { isOnline } from './networkService';
+import {
+  sendOfflineEmergencySMS,
+  cacheGuardiansForOffline,
+  getSMSErrorMessage,
+} from './smsService';
+import { fetchGuardians, fetchUserProfile } from './profile';
+
+const TAG = '[alertService]';
 
 /**
  * Fetch user's current location from Firestore
@@ -169,4 +179,133 @@ export function getAlertErrorMessage(error) {
   // Check for Firebase error codes
   const code = error.code || message;
   return errorCodeMap[code] || message || 'Failed to send alert. Please try again.';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Offline-Aware SOS Dispatch (with SMS Fallback)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Dispatch SOS alert with automatic SMS fallback when offline
+ *
+ * This is the primary entry point for triggering SOS alerts. It:
+ * 1. Checks device connectivity
+ * 2. If ONLINE: Creates Firestore alert (triggers FCM via cloud function)
+ * 3. If OFFLINE: Sends SMS to all guardians with stored phone numbers
+ *
+ * @param {string} userId - Firebase user ID
+ * @param {Object} location - Location object {latitude, longitude, accuracy}
+ * @returns {Promise<Object>} Result with alertId (if online) or smsResult (if offline)
+ */
+export async function dispatchSOSAlert(userId, location) {
+  const result = {
+    success: false,
+    method: null, // 'firestore' or 'sms'
+    alertId: null,
+    smsResult: null,
+    error: null,
+  };
+
+  try {
+    if (!userId) {
+      throw new Error('User ID is required');
+    }
+
+    if (!location || !location.latitude || !location.longitude) {
+      throw new Error('Location coordinates are required');
+    }
+
+    // Check connectivity
+    const deviceOnline = await isOnline();
+    logger.info(TAG, `SOS dispatch initiated - Online: ${deviceOnline}`);
+
+    if (deviceOnline) {
+      // ─────────────────────────────────────────────────────────────────────
+      // ONLINE PATH: Use Firestore + FCM
+      // ─────────────────────────────────────────────────────────────────────
+      result.method = 'firestore';
+
+      try {
+        const alertId = await createAlert(
+          userId,
+          location.latitude,
+          location.longitude,
+          location.accuracy
+        );
+
+        result.success = true;
+        result.alertId = alertId;
+        logger.info(TAG, `SOS alert created via Firestore: ${alertId}`);
+
+        // Proactively cache guardians for future offline scenarios
+        try {
+          const guardians = await fetchGuardians(userId);
+          await cacheGuardiansForOffline(userId, guardians);
+        } catch (cacheError) {
+          logger.warn(TAG, 'Failed to cache guardians:', cacheError.message);
+        }
+
+        return result;
+      } catch (firestoreError) {
+        // Firestore write failed - may be a transient network issue
+        // Fall through to SMS fallback
+        logger.warn(TAG, 'Firestore alert failed, falling back to SMS:', firestoreError.message);
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // OFFLINE PATH (or Firestore failure): Use SMS Fallback
+    // ─────────────────────────────────────────────────────────────────────
+    result.method = 'sms';
+    logger.info(TAG, 'Initiating SMS fallback for SOS alert');
+
+    // Fetch user name for personalized message
+    let userName = null;
+    try {
+      const profile = await fetchUserProfile(userId);
+      userName = profile?.name || profile?.displayName || null;
+    } catch {
+      logger.debug(TAG, 'Could not fetch user profile for SMS');
+    }
+
+    // Send SMS to all guardians
+    const smsResult = await sendOfflineEmergencySMS(userId, location, userName);
+    result.smsResult = smsResult;
+
+    if (smsResult.sent > 0) {
+      result.success = true;
+      logger.info(TAG, `SMS fallback succeeded: ${smsResult.sent} message(s) sent`);
+    } else {
+      result.error = getSMSErrorMessage(smsResult);
+      logger.error(TAG, 'SMS fallback failed:', result.error);
+    }
+
+    return result;
+  } catch (error) {
+    logger.error(TAG, 'dispatchSOSAlert fatal error:', error);
+    result.error = error.message;
+    handleAppError(error, 'Alert Service - SOS Dispatch');
+    return result;
+  }
+}
+
+/**
+ * Pre-cache guardians for offline SMS fallback
+ * Call this when the user logs in or when guardians are updated
+ * @param {string} userId - Firebase user ID
+ */
+export async function prepareOfflineFallback(userId) {
+  try {
+    const online = await isOnline();
+    if (!online) {
+      logger.debug(TAG, 'Skipping offline fallback prep - device offline');
+      return;
+    }
+
+    const guardians = await fetchGuardians(userId);
+    await cacheGuardiansForOffline(userId, guardians);
+    logger.info(TAG, `Offline fallback prepared: ${guardians.length} guardian(s) cached`);
+  } catch (error) {
+    logger.warn(TAG, 'prepareOfflineFallback error:', error.message);
+  }
 }

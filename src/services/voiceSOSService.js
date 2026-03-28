@@ -1,7 +1,8 @@
 import { ExpoSpeechRecognitionModule } from 'expo-speech-recognition';
 import { handleAppError } from '../utils/errorHandler';
-import { createAlert } from './alertService';
+import { dispatchSOSAlert } from './alertService';
 import { getCurrentLocation } from './location';
+import logger from '../utils/logger';
 
 // Configuration constants
 const CONFIG = {
@@ -69,24 +70,29 @@ class VoiceSOSService {
     }
 
     if (!this._canTriggerAlert()) {
-      console.log('[VoiceSOSService] Trigger blocked by cooldown');
+      logger.debug('[VoiceSOSService]', 'Trigger blocked by cooldown');
       return;
     }
 
     // Update last trigger time immediately to prevent race conditions
     this._lastTriggerTime = Date.now();
-    console.log(`[VoiceSOSService] TRIGGER DETECTED: "${text}"`);
+    logger.info('[VoiceSOSService]', `TRIGGER DETECTED: "${text}"`);
 
     try {
       const location = await getCurrentLocation();
       if (location && this._currentUserId) {
-        await createAlert(
-          this._currentUserId,
-          location.latitude,
-          location.longitude,
-          location.accuracy
-        );
-        console.log('[VoiceSOSService] Voice-triggered SOS successfully dispatched!');
+        // Use dispatchSOSAlert for offline-aware SOS with SMS fallback
+        const result = await dispatchSOSAlert(this._currentUserId, {
+          latitude: location.latitude,
+          longitude: location.longitude,
+          accuracy: location.accuracy,
+        });
+
+        if (result.success) {
+          logger.info('[VoiceSOSService]', `Voice-triggered SOS dispatched via ${result.method}!`);
+        } else {
+          logger.error('[VoiceSOSService]', 'Voice SOS failed:', result.error);
+        }
       }
     } catch (alertErr) {
       handleAppError(alertErr, 'Voice SOS Auto-Trigger');
@@ -100,12 +106,12 @@ class VoiceSOSService {
    */
   async start(userId) {
     if (this._isActive) {
-      console.log('[VoiceSOSService] Listener is already active.');
+      logger.debug('[VoiceSOSService]', 'Listener is already active.');
       return true;
     }
 
     if (!userId) {
-      console.error('[VoiceSOSService] User ID is required to start listener');
+      logger.error('[VoiceSOSService]', 'User ID is required to start listener');
       return false;
     }
 
@@ -134,7 +140,7 @@ class VoiceSOSService {
       });
 
       this._isActive = true;
-      console.log('[VoiceSOSService] Voice SOS actively monitoring');
+      logger.info('[VoiceSOSService]', 'Voice SOS actively monitoring');
       return true;
     } catch (err) {
       handleAppError(err, 'Voice SOS Initialization');
@@ -158,9 +164,9 @@ class VoiceSOSService {
       this._currentUserId = null;
       this._speechListener = null;
 
-      console.log('[VoiceSOSService] Voice SOS inactive');
+      logger.info('[VoiceSOSService]', 'Voice SOS inactive');
     } catch (err) {
-      console.error('[VoiceSOSService] Teardown error', err);
+      logger.error('[VoiceSOSService]', 'Teardown error', err);
     }
   }
 

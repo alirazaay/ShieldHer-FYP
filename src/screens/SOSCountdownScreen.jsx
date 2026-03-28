@@ -14,7 +14,7 @@ import { auth } from '../config/firebase';
 import {
   checkActiveAlert,
   fetchUserLocation,
-  createAlert,
+  dispatchSOSAlert,
   getAlertErrorMessage,
 } from '../services/alertService';
 
@@ -71,11 +71,21 @@ const SOSCountdownScreen = ({ navigation }) => {
       // Fetch user's current location
       const location = await fetchUserLocation(currentUser.uid);
 
-      // Create the SOS alert
-      await createAlert(currentUser.uid, location.latitude, location.longitude, location.accuracy);
+      // Dispatch SOS alert (handles online Firestore + offline SMS fallback)
+      const result = await dispatchSOSAlert(currentUser.uid, location);
 
-      // Success – Navigate to active alert screen
-      navigation.replace('AlertActiveScreen');
+      if (result.success) {
+        // Success – Navigate to active alert screen
+        // Note: For SMS-only alerts, the screen may show different info
+        navigation.replace('AlertActiveScreen', {
+          alertId: result.alertId,
+          method: result.method, // 'firestore' or 'sms'
+        });
+      } else {
+        // Both Firestore and SMS failed
+        setErrorMsg(result.error || 'Failed to send alert. Please try again.');
+        setIsProcessing(false);
+      }
     } catch (error) {
       console.error('[SOSCountdown] Alert error:', error);
       setErrorMsg(getAlertErrorMessage(error));

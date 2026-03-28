@@ -12,7 +12,7 @@ service cloud.firestore {
     }
 
     // Check if the current user owns the user profile
-    function isOwner(userId) {
+    function isUserOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
@@ -24,6 +24,76 @@ service cloud.firestore {
         exists(/databases/$(database)/documents/users/$(userId)/guardians/$(request.auth.uid));
     }
 
+    // Resolve canonical alert owner ID while remaining backward-compatible
+    // with older documents that store userId instead of ownerId.
+    function alertOwnerId(data) {
+      return data.ownerId != null ? data.ownerId : data.userId;
+    }
+
+    // Generic ownership helper for alert-like docs.
+    function isOwner(data) {
+      return isAuthenticated() && request.auth.uid == alertOwnerId(data);
+    }
+
+    // Guardian helper for alert-like docs.
+    function isGuardian(data) {
+      let ownerId = alertOwnerId(data);
+      return isAuthenticated() && ownerId != null &&
+        exists(/databases/$(database)/documents/users/$(ownerId)/guardians/$(request.auth.uid));
+    }
+
+    // Police/authority role helper.
+    // Supports either custom claims or role in users/{uid}.
+    function isPolice() {
+      return isAuthenticated() && (
+        request.auth.token.isPolice == true ||
+        request.auth.token.role == 'police' ||
+        request.auth.token.role == 'authority' ||
+        (
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          (
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'police' ||
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'authority'
+          )
+        )
+      );
+    }
+
+    // Reusable helper to constrain mutable fields on updates.
+    function onlyAllowedFieldsChanged(allowedKeys) {
+      return request.resource.data.diff(resource.data).changedKeys().hasOnly(allowedKeys);
+    }
+
+    // Alert create schema guard with backward compatibility:
+    // - requires owner identity (ownerId or userId)
+    // - requires createdAt and status
+    // - requires location object OR latitude+longitude pair
+    function hasRequiredAlertCreateFields() {
+      let hasOwner = (
+        request.resource.data.ownerId is string ||
+        request.resource.data.userId is string
+      );
+      let hasTimestamp = request.resource.data.createdAt != null;
+      let hasStatus = request.resource.data.status is string;
+      let hasLocationObject = request.resource.data.location is map;
+      let hasLatLng = (
+        request.resource.data.latitude is number &&
+        request.resource.data.longitude is number
+      );
+
+      return hasOwner && hasTimestamp && hasStatus && (hasLocationObject || hasLatLng);
+    }
+
+    // Escalation visibility helper for police reads.
+    function isEscalatedAlert(data) {
+      return (
+        data.escalated == true ||
+        data.escalationLevel is number && data.escalationLevel > 0 ||
+        data.escalationState == 'completed' ||
+        data.status == 'escalated'
+      );
+    }
+
     // ==========================================
     // COLLECTION RULES
     // ==========================================
@@ -31,15 +101,15 @@ service cloud.firestore {
     // 1. Users Collection
     match /users/{userId} {
       // User can read their own profile; connected guardians can also read
-      allow read: if isOwner(userId) || isGuardianOf(userId);
+      allow read: if isUserOwner(userId) || isGuardianOf(userId);
       // Only the profile owner has write capabilities
-      allow write: if isOwner(userId);
+      allow write: if isUserOwner(userId);
 
       // 1a. Guardians Subcollection
       // Stores guardians linked to this user
       match /guardians/{guardianId} {
         // Owner can read/write their guardians list
-        allow read, write: if isOwner(userId);
+        allow read, write: if isUserOwner(userId);
         // Guardian can read their own guardian relationship
         allow read: if isAuthenticated() && request.auth.uid == guardianId;
       }
@@ -48,7 +118,7 @@ service cloud.firestore {
       // Stores users that a guardian is connected to
       match /connectedUsers/{connectedUserId} {
         // Owner (guardian) can read their connected users
-        allow read, write: if isOwner(userId);
+        allow read, write: if isUserOwner(userId);
         // The connected user can also read this relationship
         allow read: if isAuthenticated() && request.auth.uid == connectedUserId;
       }
@@ -56,7 +126,7 @@ service cloud.firestore {
       // 1c. Location Subcollection (if used)
       match /location/{locationId} {
         // Owner can read/write their location
-        allow read, write: if isOwner(userId);
+        allow read, write: if isUserOwner(userId);
         // Guardians can read location
         allow read: if isGuardianOf(userId);
       }
@@ -64,32 +134,54 @@ service cloud.firestore {
 
     // 2. Alerts Collection
     match /alerts/{alertId} {
-      // Helper to determine if the current user is the alert owner
-      function isAlertOwner() {
-        return request.auth.uid == resource.data.userId;
-      }
+      // Read: owner, linked guardians, or police/authority for escalated alerts
+      allow read: if isAuthenticated() && (
+        isOwner(resource.data) ||
+        isGuardian(resource.data) ||
+        (isPolice() && isEscalatedAlert(resource.data))
+      );
 
-      // Helper to determine if the current user is a guardian of the alert owner
-      function isAlertGuardian() {
-        return exists(/databases/$(database)/documents/users/$(resource.data.userId)/guardians/$(request.auth.uid));
-      }
+      // Create: only the owner can create, with required schema fields.
+      // Supports ownerId (new) and userId (legacy client compatibility).
+      allow create: if isAuthenticated() &&
+        hasRequiredAlertCreateFields() &&
+        (
+          (request.resource.data.ownerId is string && request.resource.data.ownerId == request.auth.uid) ||
+          (request.resource.data.userId is string && request.resource.data.userId == request.auth.uid)
+        );
 
-      // Read: The alert owner or their linked guardians
-      allow read: if isAuthenticated() && (isAlertOwner() || isAlertGuardian());
+      // Update: tightly controlled mutable surface.
+      // Allowed mutable fields: status, resolvedAt, guardianResponse, escalationLevel.
+      // Immutable security-critical fields are enforced below.
+      allow update: if isAuthenticated() && (
+        (
+          isOwner(resource.data) &&
+          onlyAllowedFieldsChanged(['status', 'resolvedAt', 'guardianResponse', 'escalationLevel'])
+        ) ||
+        (
+          isGuardian(resource.data) &&
+          onlyAllowedFieldsChanged(['guardianResponse'])
+        )
+      ) &&
+      // Immutable fields (if present) must never change.
+      request.resource.data.ownerId == resource.data.ownerId &&
+      request.resource.data.userId == resource.data.userId &&
+      request.resource.data.createdAt == resource.data.createdAt &&
+      request.resource.data.location == resource.data.location &&
+      request.resource.data.latitude == resource.data.latitude &&
+      request.resource.data.longitude == resource.data.longitude &&
+      request.resource.data.accuracy == resource.data.accuracy &&
+      request.resource.data.alertType == resource.data.alertType &&
+      request.resource.data.alertId == resource.data.alertId;
 
-      // Create: Only the owner can create a new alert (userId must match auth)
-      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
-
-      // Update: Owner OR guardians can update alerts (respond/resolve)
-      allow update: if isAuthenticated() && (isAlertOwner() || isAlertGuardian());
-
-      // Delete: Only the owner can delete their alerts
-      allow delete: if isAuthenticated() && isAlertOwner();
+      // Delete: only owner
+      allow delete: if isAuthenticated() && isOwner(resource.data);
 
       // 3. Alert Events Subcollection (Timeline)
       match /events/{eventId} {
         function getParentAlertOwnerId() {
-          return get(/databases/$(database)/documents/alerts/$(alertId)).data.userId;
+          let alertData = get(/databases/$(database)/documents/alerts/$(alertId)).data;
+          return alertData.ownerId != null ? alertData.ownerId : alertData.userId;
         }
 
         function isTimelineAuthorized() {
@@ -116,7 +208,8 @@ service cloud.firestore {
       // Stores metadata for audio recordings captured during SOS alerts
       match /audioEvidence/{evidenceId} {
         function getAudioAlertOwnerId() {
-          return get(/databases/$(database)/documents/alerts/$(alertId)).data.userId;
+          let alertData = get(/databases/$(database)/documents/alerts/$(alertId)).data;
+          return alertData.ownerId != null ? alertData.ownerId : alertData.userId;
         }
 
         function isAudioAuthorized() {
@@ -186,6 +279,9 @@ service cloud.firestore {
       // Read: Guardians of the alert owner can also read
       allow read: if isAuthenticated() &&
         exists(/databases/$(database)/documents/users/$(resource.data.userId)/guardians/$(request.auth.uid));
+
+      // Read: police/authority operators can read escalated police alerts
+      allow read: if isPolice();
 
       // No client-side writes – only Cloud Functions create/update these
       allow create, update, delete: if false;

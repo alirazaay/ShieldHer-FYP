@@ -35,12 +35,28 @@ module.exports = {
   // Explicitly SKIP react-native/jest/setup.js which has Flow annotations
   setupFiles: [path.resolve(__dirname, '__tests__/setup.js')],
 
-  testMatch: ['**/__tests__/**/*.test.js'],
+  testMatch: ['**/__tests__/**/*.test.js', '**/tests/**/*.test.js'],
 
   moduleNameMapper: {
     '\\.(jpg|jpeg|png|gif|eot|otf|webp|svg|ttf|woff|woff2|mp4|webm|wav|mp3|m4a|aac|oga)$':
       '<rootDir>/__tests__/__mocks__/fileMock.js',
   },
 
-  collectCoverageFrom: ['src/**/*.{js,jsx}', '!src/**/*.test.{js,jsx}', '!**/node_modules/**'],
+  collectCoverageFrom: [
+    'src/**/*.{js,jsx}',
+    'functions/**/*.js',
+    '!src/**/*.test.{js,jsx}',
+    '!functions/**/*.test.js',
+    '!**/node_modules/**',
+  ],
+  coverageDirectory: '<rootDir>/coverage',
+  coverageReporters: ['text', 'lcov', 'json-summary'],
+  coverageThreshold: {
+    global: {
+      branches: 70,
+      functions: 70,
+      lines: 70,
+      statements: 70,
+    },
+  },
 };

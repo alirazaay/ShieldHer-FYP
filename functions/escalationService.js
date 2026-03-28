@@ -11,6 +11,13 @@
 const ESCALATION_TIMEOUT_MS = 90 * 1000; // 90 seconds
 const ESCALATION_BATCH_LIMIT = 50;
 
+function logEscalationEvent(event, payload = {}) {
+  console.log(
+    '[escalation_event]',
+    JSON.stringify({ event, timestamp: new Date().toISOString(), ...payload })
+  );
+}
+
 /**
  * Queue escalation metadata on alert document.
  * @param {string} alertId
@@ -31,6 +38,7 @@ async function enqueueEscalation(alertId, db) {
   console.log(
     `[escalation] Queued alert ${alertId}. Escalation due at ${escalationDueAt.toISOString()}`
   );
+  logEscalationEvent('ESCALATION_QUEUED', { alertId, escalationDueAt: escalationDueAt.toISOString() });
 }
 
 /**
@@ -180,6 +188,12 @@ async function escalateIfStillActive(alertId, db, sendExpoPushNotifications) {
       escalationState: 'completed',
     });
 
+    logEscalationEvent('ESCALATED_TO_POLICE', {
+      alertId,
+      userId: alertData.userId,
+      escalationState: 'completed',
+    });
+
     await notifyAuthorities(
       alertId,
       alertData,
@@ -220,6 +234,7 @@ async function notifyAuthorities(alertId, alertData, userName, db, sendExpoPushN
 
     if (authorityTokens.length === 0) {
       console.log('[escalation] No authority push tokens available');
+      logEscalationEvent('ESCALATION_NO_AUTHORITY_TOKENS', { alertId });
       return;
     }
 
@@ -243,8 +258,16 @@ async function notifyAuthorities(alertId, alertData, userName, db, sendExpoPushN
     console.log(
       `[escalation] Notifications sent to ${authorityTokens.length} authority/ies`
     );
+    logEscalationEvent('ESCALATION_AUTHORITY_NOTIFIED', {
+      alertId,
+      authoritiesNotified: authorityTokens.length,
+    });
   } catch (notifError) {
     console.error('[escalation] Error notifying authorities:', notifError);
+    logEscalationEvent('ESCALATION_NOTIFY_FAILED', {
+      alertId,
+      error: notifError?.message || String(notifError),
+    });
   }
 }
 

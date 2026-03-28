@@ -97,9 +97,21 @@ const logger = {
         logger.debug(tag, message, ...args);
     }
   },
+
+  /**
+   * Structured event logger for operational telemetry.
+   */
+  event: (level, tag, eventName, payload = {}) => {
+    const safePayload = payload && typeof payload === 'object' ? payload : { value: payload };
+    logger.log(level, tag, eventName, {
+      event: eventName,
+      timestamp: new Date().toISOString(),
+      ...safePayload,
+    });
+  },
 };
 
 export default logger;
 
 // Named exports for convenience
-export const { debug, info, warn, error, log } = logger;
+export const { debug, info, warn, error, log, event } = logger;

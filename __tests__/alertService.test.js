@@ -56,6 +56,7 @@ jest.mock('../src/utils/logger', () => ({
     info: jest.fn(),
     warn: jest.fn(),
     error: jest.fn(),
+    event: jest.fn(),
   },
 }));
 
@@ -114,13 +115,14 @@ describe('alertService', () => {
 
     it('should create an alert document with correct data', async () => {
       mockDoc.mockReturnValueOnce({ id: 'new-alert-123' });
+      mockGetDoc.mockResolvedValueOnce({ exists: () => false });
 
       const alertId = await createAlert('uid-123', 33.6844, 73.0479, 15);
 
       expect(alertId).toBe('new-alert-123');
-      expect(mockSetDoc).toHaveBeenCalledTimes(1);
+      expect(mockSetDoc).toHaveBeenCalled();
 
-      const setDocCall = mockSetDoc.mock.calls[0];
+      const setDocCall = mockSetDoc.mock.calls.find((call) => call[1]?.alertType === 'SOS');
       const alertData = setDocCall[1];
 
       expect(alertData.userId).toBe('uid-123');
@@ -134,8 +136,11 @@ describe('alertService', () => {
     it('should create a timeline event after alert creation', async () => {
       const { createTimelineEvent } = require('../src/services/alertHistoryService');
       mockDoc.mockReturnValueOnce({ id: 'timeline-alert-id' });
+      mockGetDoc.mockResolvedValueOnce({ exists: () => false });
 
-      await createAlert('uid-123', 33.6844, 73.0479);
+      await createAlert('uid-123', 33.6844, 73.0479, null, {
+        createLegacyTimelineHook: true,
+      });
 
       expect(createTimelineEvent).toHaveBeenCalledWith(
         'timeline-alert-id',

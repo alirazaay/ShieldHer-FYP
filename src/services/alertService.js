@@ -321,6 +321,12 @@ export async function dispatchSOSAlert(userId, location) {
     const alertId = doc(collection(db, 'alerts')).id;
     result.alertId = alertId;
 
+    logger.event('info', TAG, 'SOS_TRIGGERED', {
+      alertId,
+      userId,
+      hasAccuracy: location.accuracy != null,
+    });
+
     // Check connectivity
     const deviceOnline = await isOnline();
     logger.info(TAG, `SOS dispatch initiated - Online: ${deviceOnline}`);
@@ -337,6 +343,11 @@ export async function dispatchSOSAlert(userId, location) {
         result.success = true;
         result.deliveryStatus = 'sent';
         result.statusMessage = 'Emergency alert sent';
+        logger.event('info', TAG, 'SOS_DELIVERED_FIRESTORE', {
+          alertId,
+          userId,
+          method: 'firestore',
+        });
         logger.info(TAG, `SOS alert created via Firestore: ${alertId}`);
 
         // Proactively cache guardians for future offline scenarios
@@ -385,6 +396,12 @@ export async function dispatchSOSAlert(userId, location) {
       result.deliveryStatus = 'pending_retry';
       result.statusMessage = 'Network unstable - retrying';
 
+      logger.event('warn', TAG, 'SOS_QUEUED_FOR_RETRY', {
+        alertId,
+        userId,
+        retries: 0,
+      });
+
       logger.warn(TAG, 'SOS queued for retry delivery', { alertId, userId });
     } catch (queueError) {
       logger.error(TAG, 'Failed to enqueue SOS retry item, triggering SMS backup immediately', {
@@ -397,6 +414,12 @@ export async function dispatchSOSAlert(userId, location) {
       result.method = 'sms';
       result.deliveryStatus = 'sms_backup_prepared';
       result.statusMessage = 'Offline backup message prepared';
+
+      logger.event('warn', TAG, 'SOS_SMS_BACKUP_TRIGGERED', {
+        alertId,
+        userId,
+        sent: smsResult.sent || 0,
+      });
 
       if (smsResult.sent > 0) {
         result.success = true;

@@ -97,6 +97,7 @@ async function sendExpoPushNotifications(tokens, title, body, data = {}) {
 const OTP_EXPIRY_SECONDS = 300; // 5 minutes
 const OTP_MAX_ATTEMPTS = 5;     // Max verify attempts per code
 const OTP_RATE_LIMIT = 5;       // Max OTP requests per phone per hour
+const E164_REGEX = /^\+[1-9]\d{9,14}$/;
 
 /**
  * Generate a cryptographically random 6-digit OTP
@@ -106,6 +107,47 @@ function generateOTP() {
   const crypto = require('crypto');
   const num = crypto.randomInt(100000, 999999);
   return num.toString();
+}
+
+/**
+ * Normalize to an E.164-like phone format.
+ * @param {string} phone
+ * @returns {string|null}
+ */
+function normalizePhoneNumber(phone) {
+  if (typeof phone !== 'string') return null;
+
+  let normalized = phone.trim();
+  if (!normalized) return null;
+
+  normalized = normalized.replace(/[\s()-]/g, '');
+
+  if (normalized.startsWith('00')) {
+    normalized = `+${normalized.slice(2)}`;
+  }
+
+  if (!normalized.startsWith('+')) {
+    normalized = `+${normalized}`;
+  }
+
+  normalized = `+${normalized.slice(1).replace(/\D/g, '')}`;
+
+  if (!E164_REGEX.test(normalized)) {
+    return null;
+  }
+
+  return normalized;
+}
+
+/**
+ * Mask phone for server logs.
+ * @param {string} phone
+ * @returns {string}
+ */
+function maskPhone(phone) {
+  const normalized = normalizePhoneNumber(phone);
+  if (!normalized) return '***';
+  return `${normalized.slice(0, 5)}***${normalized.slice(-2)}`;
 }
 
 /**
@@ -144,16 +186,16 @@ exports.sendOTP = onRequest(
       return res.status(405).json({ code: 'method-not-allowed', message: 'Only POST is allowed' });
     }
 
-    const { phoneNumber } = req.body;
+    const normalizedPhoneNumber = normalizePhoneNumber(req.body?.phoneNumber);
 
-    if (!phoneNumber || typeof phoneNumber !== 'string' || phoneNumber.length < 10) {
+    if (!normalizedPhoneNumber) {
       return res.status(400).json({
         code: 'validation/invalid-phone',
         message: 'A valid phone number is required',
       });
     }
 
-    const phoneHash = hashPhone(phoneNumber);
+    const phoneHash = hashPhone(normalizedPhoneNumber);
     const otpDocRef = db.collection('otpCodes').doc(phoneHash);
 
     try {
@@ -190,7 +232,7 @@ exports.sendOTP = onRequest(
         : 1;
 
       await otpDocRef.set({
-        phoneNumber,
+        phoneNumber: normalizedPhoneNumber,
         codeHash: hashOTP(phoneHash, otpCode),
         expiresAt,
         attempts: 0,
@@ -216,10 +258,10 @@ exports.sendOTP = onRequest(
           await client.messages.create({
             body: `ShieldHer: Your verification code is ${otpCode}. It expires in 5 minutes. Do not share this code.`,
             from: twilioConfig.fromPhone,
-            to: phoneNumber,
+            to: normalizedPhoneNumber,
           });
 
-          console.log(`[sendOTP] SMS sent to ${phoneNumber.slice(0, 5)}***`);
+          console.log(`[sendOTP] SMS sent to ${maskPhone(normalizedPhoneNumber)}`);
         } catch (smsError) {
           console.error('[sendOTP] Twilio SMS error:', smsError.message);
           // Continue – OTP is stored, user can still verify (for dev/testing)
@@ -227,7 +269,7 @@ exports.sendOTP = onRequest(
       } else {
         // Development mode note without logging sensitive OTP values
         console.log(
-          `[sendOTP] ⚠️ Twilio not configured. OTP generated for ${phoneNumber.slice(0, 5)}***`
+          `[sendOTP] ⚠️ Twilio not configured. OTP generated for ${maskPhone(normalizedPhoneNumber)}`
         );
       }
 
@@ -257,16 +299,17 @@ exports.verifyOTP = onRequest(
       return res.status(405).json({ code: 'method-not-allowed', message: 'Only POST is allowed' });
     }
 
-    const { phoneNumber, code } = req.body;
+    const normalizedPhoneNumber = normalizePhoneNumber(req.body?.phoneNumber);
+    const code = String(req.body?.code || '').trim();
 
-    if (!phoneNumber || !code || code.length !== 6) {
+    if (!normalizedPhoneNumber || !/^\d{6}$/.test(code)) {
       return res.status(400).json({
         code: 'validation/invalid-input',
         message: 'Phone number and 6-digit code are required',
       });
     }
 
-    const phoneHash = hashPhone(phoneNumber);
+    const phoneHash = hashPhone(normalizedPhoneNumber);
     const otpDocRef = db.collection('otpCodes').doc(phoneHash);
 
     try {
@@ -292,7 +335,9 @@ exports.verifyOTP = onRequest(
       }
 
       // Check attempts
-      if (otpData.attempts >= OTP_MAX_ATTEMPTS) {
+      const attempts = Number(otpData.attempts || 0);
+
+      if (attempts >= OTP_MAX_ATTEMPTS) {
         await otpDocRef.delete();
         return res.status(400).json({
           code: 'otp/max-attempts',
@@ -319,7 +364,7 @@ exports.verifyOTP = onRequest(
       if (!isCodeValid) {
         // Increment attempts
         await otpDocRef.update({ attempts: FieldValue.increment(1) });
-        const remaining = OTP_MAX_ATTEMPTS - otpData.attempts - 1;
+        const remaining = OTP_MAX_ATTEMPTS - attempts - 1;
         return res.status(400).json({
           code: 'otp/invalid-code',
           message: `Invalid code. ${remaining} attempt(s) remaining.`,
@@ -334,13 +379,13 @@ exports.verifyOTP = onRequest(
       let isNewUser = false;
 
       try {
-        userRecord = await adminAuth.getUserByPhoneNumber(phoneNumber);
+        userRecord = await adminAuth.getUserByPhoneNumber(normalizedPhoneNumber);
         console.log(`[verifyOTP] Existing user found: ${userRecord.uid}`);
       } catch (err) {
         if (err.code === 'auth/user-not-found') {
           // Create new Firebase Auth user
           userRecord = await adminAuth.createUser({
-            phoneNumber: phoneNumber,
+            phoneNumber: normalizedPhoneNumber,
           });
           isNewUser = true;
           console.log(`[verifyOTP] New user created: ${userRecord.uid}`);

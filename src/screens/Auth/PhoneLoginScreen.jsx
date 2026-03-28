@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { sendOTP, getOTPErrorMessage } from '../../services/authService';
+import { buildPhoneNumber } from '../../utils/phone';
 
 const PhoneLoginScreen = ({ navigation }) => {
   const [countryCode, setCountryCode] = useState('+92');
@@ -20,10 +21,10 @@ const PhoneLoginScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const fullPhoneNumber = `${countryCode}${phoneNumber.replace(/^0+/, '')}`;
+  const fullPhoneNumber = buildPhoneNumber(countryCode, phoneNumber);
 
   const handleSendOTP = async () => {
-    if (!phoneNumber || phoneNumber.length < 7) {
+    if (!fullPhoneNumber) {
       setError('Please enter a valid phone number');
       return;
     }
@@ -87,7 +88,11 @@ const PhoneLoginScreen = ({ navigation }) => {
                   <TextInput
                     style={styles.countryCodeInput}
                     value={countryCode}
-                    onChangeText={setCountryCode}
+                    onChangeText={(text) => {
+                      const digits = text.replace(/\D/g, '').slice(0, 3);
+                      setCountryCode(digits ? `+${digits}` : '+');
+                      if (error) setError(null);
+                    }}
                     keyboardType="phone-pad"
                     maxLength={4}
                     placeholder="+92"

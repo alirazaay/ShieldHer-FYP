@@ -42,12 +42,30 @@ async function enqueueEscalation(alertId, db) {
 async function processDueEscalations(db, sendExpoPushNotifications) {
   const now = new Date();
 
-  const dueSnap = await db
-    .collection('alerts')
-    .where('status', '==', 'active')
-    .where('escalationDueAt', '<=', now)
-    .limit(ESCALATION_BATCH_LIMIT)
-    .get();
+  let dueSnap;
+  try {
+    // Preferred query narrows to pending escalations to reduce repeated scans.
+    dueSnap = await db
+      .collection('alerts')
+      .where('status', '==', 'active')
+      .where('escalationState', '==', 'pending')
+      .where('escalationDueAt', '<=', now)
+      .limit(ESCALATION_BATCH_LIMIT)
+      .get();
+  } catch (queryError) {
+    // Backward-compatible fallback if composite index is not yet created.
+    if (queryError.code === 9 || queryError.code === 'failed-precondition') {
+      console.warn('[escalation] Optimized query unavailable, falling back to legacy query');
+      dueSnap = await db
+        .collection('alerts')
+        .where('status', '==', 'active')
+        .where('escalationDueAt', '<=', now)
+        .limit(ESCALATION_BATCH_LIMIT)
+        .get();
+    } else {
+      throw queryError;
+    }
+  }
 
   if (dueSnap.empty) {
     console.log('[escalation] No due alerts found');
@@ -85,6 +103,14 @@ async function escalateIfStillActive(alertId, db, sendExpoPushNotifications) {
     }
 
     const alertData = alertSnap.data();
+
+    if (alertData.escalationState && alertData.escalationState !== 'pending') {
+      console.log(
+        `[escalation] Alert ${alertId} escalationState is "${alertData.escalationState}", skipping`
+      );
+      return false;
+    }
+
     if (alertData.status !== 'active') {
       console.log(
         `[escalation] Alert ${alertId} status is "${alertData.status}", skipping`

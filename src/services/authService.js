@@ -14,6 +14,7 @@ import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 import Constants from 'expo-constants';
 import logger from '../utils/logger';
+import { normalizePhoneNumber, maskPhone } from '../utils/phone';
 
 const TAG = '[authService]';
 
@@ -28,14 +29,12 @@ const FUNCTIONS_BASE_URL = `https://us-central1-${PROJECT_ID}.cloudfunctions.net
  * @returns {Promise<Object>} { success: boolean, message: string, expiresIn: number }
  */
 export async function sendOTP(phoneNumber) {
-  logger.info(TAG, 'sendOTP start', { phoneNumber: phoneNumber.slice(0, 5) + '***' });
+  const normalizedPhone = normalizePhoneNumber(phoneNumber);
+  logger.info(TAG, 'sendOTP start', { phoneNumber: maskPhone(phoneNumber) });
 
-  if (!phoneNumber || phoneNumber.length < 10) {
+  if (!normalizedPhone) {
     throw createAuthError('validation/invalid-phone', 'Please enter a valid phone number');
   }
-
-  // Normalize phone number – ensure it starts with +
-  const normalizedPhone = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`;
 
   try {
     const response = await fetch(`${FUNCTIONS_BASE_URL}/sendOTP`, {
@@ -77,13 +76,16 @@ export async function sendOTP(phoneNumber) {
  * @returns {Promise<Object>} { user, profile, isNewUser }
  */
 export async function verifyOTP(phoneNumber, otpCode) {
-  logger.info(TAG, 'verifyOTP start', { phoneNumber: phoneNumber.slice(0, 5) + '***' });
+  const normalizedPhone = normalizePhoneNumber(phoneNumber);
+  logger.info(TAG, 'verifyOTP start', { phoneNumber: maskPhone(phoneNumber) });
 
-  if (!otpCode || otpCode.length !== 6) {
-    throw createAuthError('validation/invalid-otp', 'Please enter a valid 6-digit code');
+  if (!normalizedPhone) {
+    throw createAuthError('validation/invalid-phone', 'Please enter a valid phone number');
   }
 
-  const normalizedPhone = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`;
+  if (!otpCode || !/^\d{6}$/.test(String(otpCode))) {
+    throw createAuthError('validation/invalid-otp', 'Please enter a valid 6-digit code');
+  }
 
   try {
     // Step 1: Verify OTP via Cloud Function – returns a Firebase custom token

@@ -1,6 +1,7 @@
 import {
   doc,
   collection,
+  setDoc,
   query,
   where,
   onSnapshot,
@@ -140,6 +141,9 @@ export async function resolveAlert(alertId, guardianId) {
     }
 
     const currentStatus = alertSnap.data().status;
+    if (currentStatus === 'cancelled') {
+      throw new Error('Alert has been cancelled by the user');
+    }
     if (currentStatus === 'resolved') {
       throw new Error('Alert is already resolved');
     }
@@ -161,6 +165,65 @@ export async function resolveAlert(alertId, guardianId) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Cancel an alert by the owner: sets status → "cancelled"
+//
+// @param {string} alertId  - Firestore alert document ID
+// @param {string} userId   - Firebase Auth UID of the alert owner
+// @returns {Promise<void>}
+// ─────────────────────────────────────────────────────────────────────────────
+export async function cancelAlert(alertId, userId) {
+  console.log('[alertLifecycle] cancelAlert', { alertId, userId });
+
+  if (!alertId || !userId) {
+    throw new Error('Alert ID and User ID are required');
+  }
+
+  try {
+    const alertRef = doc(db, 'alerts', alertId);
+
+    // Guard: verify alert exists and ownership
+    const alertSnap = await getDoc(alertRef);
+    if (!alertSnap.exists()) {
+      throw new Error('Alert not found');
+    }
+
+    const alertData = alertSnap.data() || {};
+    const ownerId = alertData.ownerId || alertData.userId;
+    if (!ownerId || ownerId !== userId) {
+      throw new Error('Only the alert owner can cancel this alert');
+    }
+
+    const currentStatus = alertData.status;
+    if (currentStatus === 'cancelled') {
+      throw new Error('Alert is already cancelled');
+    }
+    if (currentStatus === 'resolved') {
+      throw new Error('Resolved alerts cannot be cancelled');
+    }
+
+    await updateDoc(alertRef, {
+      status: 'cancelled',
+      cancelledAt: serverTimestamp(),
+    });
+
+    console.log('[alertLifecycle] cancelAlert: status set to cancelled');
+
+    // Audit trail: explicit cancellation event contract
+    const eventsCollectionRef = collection(db, 'alerts', alertId, 'events');
+    const cancellationEventRef = doc(eventsCollectionRef);
+    await setDoc(cancellationEventRef, {
+      type: 'alert_cancelled',
+      actor: userId,
+      actorId: userId,
+      timestamp: serverTimestamp(),
+    });
+  } catch (error) {
+    console.error('[alertLifecycle] cancelAlert error:', error);
+    throw error;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Map errors to user-friendly messages
 // @param {Error} error
 // @returns {string}
@@ -171,6 +234,10 @@ export function getAlertLifecycleErrorMessage(error) {
   if (message.includes('Alert not found')) return 'Alert no longer exists.';
   if (message.includes('already "responding"')) return 'This alert is already being responded to.';
   if (message.includes('already resolved')) return 'This alert has already been resolved.';
+  if (message.includes('already cancelled')) return 'This alert has already been cancelled.';
+  if (message.includes('cannot be cancelled')) return 'This alert can no longer be cancelled.';
+  if (message.includes('Only the alert owner can cancel')) return 'Only the alert owner can cancel this alert.';
+  if (message.includes('has been cancelled')) return 'This alert has been cancelled by the user.';
   if (message.includes('Alert ID') || message.includes('Guardian ID'))
     return 'Authentication error. Please log in again.';
 

@@ -151,18 +151,37 @@ service cloud.firestore {
         );
 
       // Update: tightly controlled mutable surface.
-      // Allowed mutable fields: status, resolvedAt, guardianResponse, escalationLevel.
+      // Allowed mutable fields preserve current lifecycle behavior while
+      // enforcing owner-only cancellation.
       // Immutable security-critical fields are enforced below.
       allow update: if isAuthenticated() && (
         (
           isOwner(resource.data) &&
-          onlyAllowedFieldsChanged(['status', 'resolvedAt', 'guardianResponse', 'escalationLevel'])
+          onlyAllowedFieldsChanged([
+            'status',
+            'respondedBy',
+            'respondedAt',
+            'resolvedBy',
+            'resolvedAt',
+            'cancelledAt',
+            'guardianResponse',
+            'escalationLevel'
+          ])
         ) ||
         (
           isGuardian(resource.data) &&
-          onlyAllowedFieldsChanged(['guardianResponse'])
+          onlyAllowedFieldsChanged([
+            'status',
+            'respondedBy',
+            'respondedAt',
+            'resolvedBy',
+            'resolvedAt',
+            'guardianResponse'
+          ])
         )
       ) &&
+      // Only the owner may transition an alert into "cancelled" state.
+      (request.resource.data.status != 'cancelled' || isOwner(resource.data)) &&
       // Immutable fields (if present) must never change.
       request.resource.data.ownerId == resource.data.ownerId &&
       request.resource.data.userId == resource.data.userId &&

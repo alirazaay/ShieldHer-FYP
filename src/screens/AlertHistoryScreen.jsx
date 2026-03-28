@@ -81,6 +81,7 @@ const AlertHistoryScreen = ({ navigation, route }) => {
   const renderAlertItem = ({ item }) => {
     const isResolved = item.status === 'resolved';
     const isResponding = item.status === 'responding';
+    const isCancelled = item.status === 'cancelled';
 
     let statusColor = '#EF4444';
     let statusIcon = 'alert-decagram';
@@ -94,6 +95,10 @@ const AlertHistoryScreen = ({ navigation, route }) => {
       statusColor = '#10B981';
       statusIcon = 'check-decagram';
       statusText = 'RESOLVED';
+    } else if (isCancelled) {
+      statusColor = '#6B7280';
+      statusIcon = 'close-octagon';
+      statusText = 'CANCELLED';
     }
 
     // Determine whose alert this is

@@ -100,6 +100,11 @@ const AlertTimelineScreen = ({ navigation, route }) => {
         color = '#10B981'; // Green
         title = 'Alert Resolved';
         break;
+      case 'alert_cancelled':
+        icon = 'close-octagon';
+        color = '#6B7280'; // Grey
+        title = 'Alert Cancelled';
+        break;
     }
 
     const actorName =

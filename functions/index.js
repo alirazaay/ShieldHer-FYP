@@ -753,6 +753,117 @@ exports.onAlertCreated = onDocumentCreated(
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
+// CLOUD FUNCTION: onAlertCancelled
+// Triggers when an alert status transitions to "cancelled" and notifies guardians.
+// ─────────────────────────────────────────────────────────────────────────────
+exports.onAlertCancelled = onDocumentUpdated(
+  {
+    document: 'alerts/{alertId}',
+    region: 'us-central1',
+  },
+  async (event) => {
+    const alertId = event.params.alertId;
+    const before = event.data?.before?.data();
+    const after = event.data?.after?.data();
+
+    if (!before || !after) return null;
+
+    // Only react when alert transitions into cancelled
+    if (before.status === after.status || after.status !== 'cancelled') {
+      return null;
+    }
+
+    const userId = after.userId || after.ownerId;
+    if (!userId) {
+      console.warn(`[onAlertCancelled] Missing owner on alert ${alertId}, skipping`);
+      return null;
+    }
+
+    // Fetch user name for notification copy
+    let userName = 'The user';
+    try {
+      const userDoc = await db.collection('users').doc(userId).get();
+      if (userDoc.exists) {
+        const userData = userDoc.data() || {};
+        userName = userData.fullName || userData.email || 'The user';
+      }
+    } catch (err) {
+      console.error('[onAlertCancelled] Failed to fetch user profile:', err);
+    }
+
+    // Fetch active guardians
+    let guardians = [];
+    try {
+      const guardiansSnap = await db
+        .collection('users')
+        .doc(userId)
+        .collection('guardians')
+        .get();
+
+      guardians = guardiansSnap.docs
+        .map((doc) => ({ id: doc.id, ...doc.data() }))
+        .filter((guardian) => (guardian.status || 'active') === 'active');
+    } catch (err) {
+      console.error('[onAlertCancelled] Error fetching guardians:', err);
+      return null;
+    }
+
+    if (guardians.length === 0) {
+      console.log(`[onAlertCancelled] No guardians to notify for alert ${alertId}`);
+      return null;
+    }
+
+    // Fetch guardian Expo tokens
+    const tokenResults = await Promise.all(
+      guardians.map(async (guardian) => {
+        if (!guardian.id || guardian.isRegisteredUser === false) {
+          return null;
+        }
+
+        try {
+          const guardianDoc = await db.collection('users').doc(guardian.id).get();
+          if (!guardianDoc.exists) return null;
+
+          const guardianProfile = guardianDoc.data() || {};
+          const prefs = guardianProfile.notificationPreferences || {};
+          if (prefs.pushNotifications === false || prefs.guardianAlerts === false) {
+            return null;
+          }
+
+          return guardianProfile.fcmToken || null;
+        } catch (err) {
+          console.error(`[onAlertCancelled] Token fetch failed for guardian ${guardian.id}:`, err);
+          return null;
+        }
+      })
+    );
+
+    const validTokens = tokenResults.filter(Boolean);
+    if (validTokens.length === 0) {
+      console.log(`[onAlertCancelled] No guardian tokens for alert ${alertId}`);
+      return null;
+    }
+
+    try {
+      return await sendExpoPushNotifications(
+        validTokens,
+        'Emergency Cancelled',
+        `${userName} has cancelled the emergency alert.`,
+        {
+          screen: 'GuardianDashboard',
+          userId,
+          alertId,
+          alertType: 'SOS_CANCELLED',
+        }
+      );
+    } catch (err) {
+      console.error('[onAlertCancelled] Notification send failed:', err);
+      return null;
+    }
+  }
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
 // CLOUD FUNCTION: processEscalations
 // Runs every minute and escalates due SOS alerts (active + escalationDueAt <= now)
 // ─────────────────────────────────────────────────────────────────────────────

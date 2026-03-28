@@ -46,6 +46,7 @@ const AlertCard = ({ alert, connectedUsers, currentUserId, onRespond, onResolve,
 
   const isResponding = alert.status === 'responding';
   const isResolved = alert.status === 'resolved';
+  const isCancelled = alert.status === 'cancelled';
 
   let statusText = 'ACTIVE SOS';
   let badgeColor = '#EF4444'; // Red
@@ -58,6 +59,10 @@ const AlertCard = ({ alert, connectedUsers, currentUserId, onRespond, onResolve,
     statusText = 'RESOLVED';
     badgeColor = '#10B981'; // Green
     iconName = 'check-decagram';
+  } else if (isCancelled) {
+    statusText = 'CANCELLED';
+    badgeColor = '#6B7280'; // Grey
+    iconName = 'close-octagon';
   }
 
   // Treat missing status as 'active' for legacy compatibility
@@ -67,6 +72,9 @@ const AlertCard = ({ alert, connectedUsers, currentUserId, onRespond, onResolve,
   let responderText = null;
   if (isResponding && alert.respondedBy) {
     responderText = respondedByMe ? 'Responded by you' : 'Responded by another guardian';
+  }
+  if (isCancelled) {
+    responderText = `Cancelled ${formatAlertTime(alert.cancelledAt || alert.updatedAt || alert.timestamp)}`;
   }
 
   const isCardLoading = loading === alert.id;
@@ -96,7 +104,7 @@ const AlertCard = ({ alert, connectedUsers, currentUserId, onRespond, onResolve,
         )}
       </View>
 
-      {!isResolved && (
+      {!isResolved && !isCancelled && (
         <View style={styles.alertActions}>
           {isActive && (
             <TouchableOpacity
@@ -157,6 +165,7 @@ const GuardianDashboard = ({ navigation }) => {
   const [activeAlerts, setActiveAlerts] = useState([]);
   const [respondingAlerts, setRespondingAlerts] = useState([]);
   const [resolvedAlerts, setResolvedAlerts] = useState([]);
+  const [cancelledAlerts, setCancelledAlerts] = useState([]);
   const [processingAlertId, setProcessingAlertId] = useState(null);
 
   const loadPendingInvites = useCallback(async () => {
@@ -241,6 +250,7 @@ const GuardianDashboard = ({ navigation }) => {
         setActiveAlerts(alerts.filter((a) => a.status === 'active' || !a.status));
         setRespondingAlerts(alerts.filter((a) => a.status === 'responding'));
         setResolvedAlerts(alerts.filter((a) => a.status === 'resolved'));
+        setCancelledAlerts(alerts.filter((a) => a.status === 'cancelled'));
       },
       (err) => {
         console.error('[GuardianDashboard] Alerts subscription error:', err);
@@ -507,6 +517,24 @@ const GuardianDashboard = ({ navigation }) => {
           </View>
         )}
 
+        {/* Cancelled Alerts (Recent) */}
+        {cancelledAlerts.length > 0 && (
+          <View style={styles.alertSection}>
+            <Text style={styles.alertSectionTitleCancelled}>🚫 Cancelled Alerts</Text>
+            {cancelledAlerts.slice(0, 3).map((alert) => (
+              <AlertCard
+                key={alert.id}
+                alert={alert}
+                connectedUsers={connectedUsers}
+                currentUserId={auth.currentUser?.uid}
+                onRespond={null}
+                onResolve={null}
+                loading={false}
+              />
+            ))}
+          </View>
+        )}
+
         {/* ── CONNECTED USERS ──────────────────────────────────────────────────────── */}
         {connectedUsers.length > 0 && (
           <View style={styles.connectedUsersSection}>
@@ -690,6 +718,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '800',
     color: '#059669', // Green
+    marginBottom: 10,
+    textTransform: 'uppercase',
+  },
+  alertSectionTitleCancelled: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#4B5563', // Slate
     marginBottom: 10,
     textTransform: 'uppercase',
   },

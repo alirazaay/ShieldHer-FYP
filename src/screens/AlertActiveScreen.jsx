@@ -1,10 +1,66 @@
-import React from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity } from 'react-native';
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  SafeAreaView,
+  TouchableOpacity,
+  Alert,
+  ActivityIndicator,
+} from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { auth } from '../config/firebase';
+import { cancelAlert, getAlertLifecycleErrorMessage } from '../services/alertLifecycleService';
 
-const AlertActiveScreen = ({ navigation }) => {
+const AlertActiveScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState(null);
+
+  const alertId = route?.params?.alertId || null;
+
+  const handleCancelEmergency = () => {
+    if (!alertId) {
+      setCancelError('This alert cannot be cancelled from the app.');
+      return;
+    }
+
+    Alert.alert(
+      'Cancel Emergency Alert',
+      'Are you safe? Cancelling will notify your guardians.',
+      [
+        { text: 'Keep Alert Active', style: 'cancel' },
+        {
+          text: 'Cancel Emergency',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const currentUser = auth.currentUser;
+              if (!currentUser) {
+                navigation.replace('Login');
+                return;
+              }
+
+              setCancelError(null);
+              setIsCancelling(true);
+              await cancelAlert(alertId, currentUser.uid);
+
+              Alert.alert(
+                'Emergency Cancelled',
+                'Your guardians have been notified that the alert was cancelled.',
+                [{ text: 'OK', onPress: () => navigation.navigate('Dashboard') }]
+              );
+            } catch (error) {
+              setCancelError(getAlertLifecycleErrorMessage(error));
+            } finally {
+              setIsCancelling(false);
+            }
+          },
+        },
+      ]
+    );
+  };
 
   return (
     <SafeAreaView style={[styles.container, { paddingTop: insets.top }]}>
@@ -14,14 +70,30 @@ const AlertActiveScreen = ({ navigation }) => {
         </View>
         <Text style={styles.title}>SOS ACTIVE</Text>
         <Text style={styles.subtitle}>Your guardians have been notified of your location.</Text>
+        {cancelError ? <Text style={styles.errorText}>{cancelError}</Text> : null}
       </View>
 
-      <TouchableOpacity
-        style={styles.returnButton}
-        onPress={() => navigation.navigate('Dashboard')}
-      >
-        <Text style={styles.returnButtonText}>Return to Dashboard</Text>
-      </TouchableOpacity>
+      <View style={styles.footerButtons}>
+        <TouchableOpacity
+          style={[styles.cancelButton, isCancelling && styles.disabledButton]}
+          onPress={handleCancelEmergency}
+          disabled={isCancelling}
+        >
+          {isCancelling ? (
+            <ActivityIndicator size="small" color="#E01111" />
+          ) : (
+            <Text style={styles.cancelButtonText}>Cancel Emergency</Text>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.returnButton, isCancelling && styles.disabledButton]}
+          onPress={() => navigation.navigate('Dashboard')}
+          disabled={isCancelling}
+        >
+          <Text style={styles.returnButtonText}>Return to Dashboard</Text>
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 };
@@ -63,16 +135,49 @@ const styles = StyleSheet.create({
     lineHeight: 26,
     opacity: 0.9,
   },
+  errorText: {
+    marginTop: 16,
+    color: '#fff',
+    fontSize: 13,
+    textAlign: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  footerButtons: {
+    width: '100%',
+    alignItems: 'center',
+    gap: 12,
+  },
+  cancelButton: {
+    backgroundColor: '#fff',
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 30,
+    minWidth: 260,
+    alignItems: 'center',
+  },
+  cancelButtonText: {
+    color: '#E01111',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
   returnButton: {
     backgroundColor: '#fff',
     paddingVertical: 16,
     paddingHorizontal: 32,
     borderRadius: 30,
+    minWidth: 260,
+    alignItems: 'center',
   },
   returnButtonText: {
     color: '#E01111',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  disabledButton: {
+    opacity: 0.7,
   },
 });
 

@@ -104,6 +104,11 @@ async function escalateIfStillActive(alertId, db, sendExpoPushNotifications) {
 
     const alertData = alertSnap.data();
 
+    if (alertData.status === 'cancelled') {
+      console.log(`[escalation] Alert ${alertId} was cancelled by user, skipping`);
+      return false;
+    }
+
     if (alertData.escalationState && alertData.escalationState !== 'pending') {
       console.log(
         `[escalation] Alert ${alertId} escalationState is "${alertData.escalationState}", skipping`

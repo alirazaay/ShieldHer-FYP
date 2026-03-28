@@ -111,6 +111,30 @@ service cloud.firestore {
         // Update/Delete: Only owner can modify existing events
         allow update, delete: if isAuthenticated() && request.auth.uid == getParentAlertOwnerId();
       }
+
+      // 3b. Audio Evidence Subcollection
+      // Stores metadata for audio recordings captured during SOS alerts
+      match /audioEvidence/{evidenceId} {
+        function getAudioAlertOwnerId() {
+          return get(/databases/$(database)/documents/alerts/$(alertId)).data.userId;
+        }
+
+        function isAudioAuthorized() {
+          let ownerId = getAudioAlertOwnerId();
+          let isOwner = request.auth.uid == ownerId;
+          let isGuardian = exists(/databases/$(database)/documents/users/$(ownerId)/guardians/$(request.auth.uid));
+          return isOwner || isGuardian;
+        }
+
+        // Only owner and guardians can read audio evidence
+        allow read: if isAuthenticated() && isAudioAuthorized();
+
+        // Only the alert owner can create audio evidence entries
+        allow create: if isAuthenticated() && request.auth.uid == getAudioAlertOwnerId();
+
+        // No update or delete from client – managed by Cloud Functions if needed
+        allow update, delete: if false;
+      }
     }
 
     // 4. Guardian Invites Collection
@@ -135,6 +159,27 @@ service cloud.firestore {
         resource.data.userId == request.auth.uid ||
         resource.data.guardianEmail == request.auth.token.email
       );
+    }
+
+    // 5. Police Alerts Collection (Escalation)
+    // Created by Cloud Functions when SOS alerts remain active past timeout
+    // Cloud Functions Admin SDK bypasses these rules for writes
+    match /policeAlerts/{policeAlertId} {
+      // Read: Alert owner can see their own escalation status
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+
+      // Read: Guardians of the alert owner can also read
+      allow read: if isAuthenticated() &&
+        exists(/databases/$(database)/documents/users/$(resource.data.userId)/guardians/$(request.auth.uid));
+
+      // No client-side writes – only Cloud Functions create/update these
+      allow create, update, delete: if false;
+    }
+
+    // 6. OTP Codes Collection (Phone Auth)
+    // Managed entirely by Cloud Functions – no client access
+    match /otpCodes/{phoneHash} {
+      allow read, write: if false;
     }
   }
 }

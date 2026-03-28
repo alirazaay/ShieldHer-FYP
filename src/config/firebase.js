@@ -1,5 +1,6 @@
 // firebase.js – ShieldHer Expo compatible
 // Firebase configuration loaded from environment variables via app.config.js
+// Exports: app, db, auth, storage
 
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { initializeAuth, getReactNativePersistence } from 'firebase/auth';
@@ -10,6 +11,7 @@ import {
   setLogLevel,
   enableNetwork,
 } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
 import Constants from 'expo-constants';
 import logger from '../utils/logger';
 
@@ -73,4 +75,8 @@ if (__DEV__) {
   }
 }
 
-export { app, db };
+// Initialize Firebase Storage for audio evidence uploads
+const storage = getStorage(app);
+logger.info(TAG, 'Firebase Storage initialized');
+
+export { app, db, storage };

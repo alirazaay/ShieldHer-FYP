@@ -13,9 +13,10 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import LogoutPopup from './LogoutPopup';
 import { signOutUser } from '../services/auth';
-import { auth } from '../config/firebase';
+import { auth, db } from '../config/firebase';
 import { requestLocationPermission, getLocationErrorMessage } from '../services/location';
 import {
   checkActiveAlert,
@@ -43,6 +44,9 @@ const Dashboard = ({ navigation }) => {
   const [sosError, setSosError] = useState(null);
   const [sosMessage, setSosMessage] = useState(null);
   const [confirmSosVisible, setConfirmSosVisible] = useState(false);
+
+  // Escalation state – tracks whether current user's alert has been escalated to authorities
+  const [escalationState, setEscalationState] = useState(null); // null | 'pending' | 'escalated'
 
   // Location tracking initialization against Safety Mode
   useEffect(() => {
@@ -87,6 +91,36 @@ const Dashboard = ({ navigation }) => {
       console.log('[Dashboard] Dashboard unmounted: Native location and mic monitoring stopped');
     };
   }, [navigation]);
+
+  // ── Escalation listener ────────────────────────────────────────────────
+  // Listens to policeAlerts collection for alerts belonging to this user
+  useEffect(() => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) return;
+
+    const policeAlertsRef = collection(db, 'policeAlerts');
+    const policeQuery = query(
+      policeAlertsRef,
+      where('userId', '==', currentUser.uid),
+      where('status', '==', 'escalated')
+    );
+
+    const unsubscribe = onSnapshot(
+      policeQuery,
+      (snapshot) => {
+        if (!snapshot.empty) {
+          setEscalationState('escalated');
+        } else {
+          setEscalationState(null);
+        }
+      },
+      (error) => {
+        console.error('[Dashboard] Escalation listener error:', error);
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
 
   // Auto-dismiss location error messages after 4 seconds
   useEffect(() => {
@@ -328,6 +362,17 @@ const Dashboard = ({ navigation }) => {
         <Text style={styles.warning}>
           Warning: Initiates contact with Guardians and Local Authorities.
         </Text>
+
+        {/* Escalation Status Banner */}
+        {escalationState === 'escalated' && (
+          <View style={styles.escalationBanner}>
+            <MaterialCommunityIcons name="police-badge" size={20} color="#fff" />
+            <View style={styles.escalationTextWrap}>
+              <Text style={styles.escalationTitle}>Authorities Notified</Text>
+              <Text style={styles.escalationSub}>Alert escalated to local authorities</Text>
+            </View>
+          </View>
+        )}
 
         {/* Voice trigger button */}
         <TouchableOpacity activeOpacity={0.9} onPress={onHoldVoice} style={styles.voiceBtn}>
@@ -576,6 +621,31 @@ const styles = StyleSheet.create({
   badgePct: { color: '#fff', fontWeight: '900', fontSize: 16 },
   badgeText: { color: '#fff', fontWeight: '900', fontSize: 16 },
   statusNote: { color: '#2D2F33', fontSize: 11 },
+
+  escalationBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#DC2626',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    marginTop: 16,
+    width: '88%',
+    gap: 12,
+  },
+  escalationTextWrap: {
+    flex: 1,
+  },
+  escalationTitle: {
+    color: '#fff',
+    fontWeight: '900',
+    fontSize: 14,
+  },
+  escalationSub: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 11,
+    marginTop: 2,
+  },
 
   modalBackdrop: {
     flex: 1,

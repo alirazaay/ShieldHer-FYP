@@ -17,6 +17,7 @@ export default [
       'web-build/',
       'functions/node_modules/',
       'functions/',
+      '__tests__/',
     ],
   },
 
@@ -98,6 +99,24 @@ export default [
 
       // Prettier integration
       'prettier/prettier': ['warn', {}, { usePrettierrc: true }],
+    },
+  },
+
+  // Test files config — add Jest globals
+  {
+    files: ['**/__tests__/**/*.js', '**/*.test.js', '**/*.spec.js'],
+    languageOptions: {
+      globals: {
+        describe: 'readonly',
+        it: 'readonly',
+        expect: 'readonly',
+        jest: 'readonly',
+        beforeEach: 'readonly',
+        afterEach: 'readonly',
+        beforeAll: 'readonly',
+        afterAll: 'readonly',
+        test: 'readonly',
+      },
     },
   },
 ];

@@ -15,6 +15,8 @@ import AlertHistoryScreen from './src/screens/AlertHistoryScreen';
 import AlertTimelineScreen from './src/screens/AlertTimelineScreen';
 import SOSCountdownScreen from './src/screens/SOSCountdownScreen';
 import AlertActiveScreen from './src/screens/AlertActiveScreen';
+import PhoneLoginScreen from './src/screens/Auth/PhoneLoginScreen';
+import VerifyOTPScreen from './src/screens/Auth/VerifyOTPScreen';
 import OfflineBanner from './src/components/OfflineBanner';
 
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
@@ -165,6 +167,8 @@ export default function App() {
             <Stack.Screen name="Login" component={Login} />
             <Stack.Screen name="SignUp" component={SignUp} />
             <Stack.Screen name="ForgotPass" component={ForgotPass} />
+            <Stack.Screen name="PhoneLogin" component={PhoneLoginScreen} />
+            <Stack.Screen name="VerifyOTP" component={VerifyOTPScreen} />
             <Stack.Screen name="Dashboard" component={Dashboard} />
             <Stack.Screen name="GuardianDashboard" component={GuardianDashboard} />
             <Stack.Screen name="LogoutPopup" component={LogoutPopup} />

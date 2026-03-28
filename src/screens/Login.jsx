@@ -20,6 +20,11 @@ import { signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
+// Phone login navigation
+const goPhoneLogin = (navigation) => {
+  if (navigation?.navigate) navigation.navigate('PhoneLogin');
+};
+
 const TAB_TYPES = {
   USER: 'USER',
   GUARDIAN: 'GUARDIAN',
@@ -169,6 +174,21 @@ const Login = ({ navigation }) => {
               )}
             </View>
 
+            {/* Phone Login Option */}
+            <TouchableOpacity
+              style={styles.phoneLoginBtn}
+              onPress={() => goPhoneLogin(navigation)}
+              activeOpacity={0.8}
+            >
+              <MaterialCommunityIcons
+                name="cellphone-key"
+                size={18}
+                color="#0B26FF"
+                style={{ marginRight: 8 }}
+              />
+              <Text style={styles.phoneLoginText}>Login with Phone Number</Text>
+            </TouchableOpacity>
+
             <View style={styles.registerWrap}>
               <Text style={styles.registerPrompt}>
                 New User?{' '}
@@ -262,6 +282,23 @@ const styles = StyleSheet.create({
   },
   registerLink: {
     color: '#0B26FF',
+  },
+  phoneLoginBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 22,
+    borderRadius: 28,
+    borderWidth: 2,
+    borderColor: '#0B26FF',
+    backgroundColor: 'transparent',
+    marginBottom: 24,
+  },
+  phoneLoginText: {
+    color: '#0B26FF',
+    fontWeight: '800',
+    fontSize: 14,
   },
   passLabel: {
     fontSize: 16,

@@ -80,7 +80,9 @@ async function sendAlertToFirestore({ alertId, userId, location }) {
 async function triggerSMSBackup(alertItem) {
   const location = alertItem?.location;
   if (!alertItem?.userId || !location?.latitude || !location?.longitude) {
-    logger.error(TAG, 'SMS backup skipped due to incomplete alert data', { alertId: alertItem?.alertId });
+    logger.error(TAG, 'SMS backup skipped due to incomplete alert data', {
+      alertId: alertItem?.alertId,
+    });
     return;
   }
 

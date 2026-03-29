@@ -25,7 +25,13 @@ import logger from '../utils/logger';
  * @throws {Error} Firebase error with code and message
  */
 export async function registerUser({ email, password, role, profile = {} }) {
-  logger.info('[auth]', 'registerUser start', { email, role, profile });
+  logger.info('[auth]', 'registerUser start', {
+    role,
+    hasEmail: !!email,
+    hasPhone: !!profile?.phone,
+    hasEmergencyFields: !!profile?.emergencyPhone || !!profile?.emergencyEmail,
+    hasRelationship: !!profile?.relationship,
+  });
 
   // Validate email format
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -147,7 +153,7 @@ export function getAuthErrorMessage(error) {
 }
 
 export async function loginUser({ email, password }) {
-  logger.info('[auth]', 'loginUser start', { email });
+  logger.info('[auth]', 'loginUser start', { hasEmail: !!email, hasPassword: !!password });
   const cred = await signInWithEmailAndPassword(auth, email, password);
   const uid = cred.user.uid;
   logger.info('[auth]', 'signed in', uid);
@@ -158,7 +164,7 @@ export async function loginUser({ email, password }) {
 }
 
 export async function resetPassword(email) {
-  logger.info('[auth]', 'resetPassword start', { email });
+  logger.info('[auth]', 'resetPassword start', { hasEmail: !!email });
   await sendPasswordResetEmail(auth, email);
   logger.info('[auth]', 'resetPassword email sent');
   return true;

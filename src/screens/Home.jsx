@@ -71,23 +71,18 @@ const Home = ({ navigation }) => {
   };
 
   // AI detection pipeline with confidence threshold + multi-frame validation
-  const {
-    detectionState,
-    cooldownState,
-    pendingAlert,
-    cancelPendingAlert,
-    allowPendingCountdown,
-  } = useScreamDetection({
-    enabled: autoSosEnabled,
-    onScreamDetected: handleScreamDetected,
-    config: {
-      confidenceThreshold: 0.8,
-      requiredConsecutiveFrames: 3,
-      validationWindowMs: 2000,
-      cooldownMs: 60000,
-      confirmationCountdownSec: 5,
-    },
-  });
+  const { detectionState, cooldownState, pendingAlert, cancelPendingAlert, allowPendingCountdown } =
+    useScreamDetection({
+      enabled: autoSosEnabled,
+      onScreamDetected: handleScreamDetected,
+      config: {
+        confidenceThreshold: 0.8,
+        requiredConsecutiveFrames: 3,
+        validationWindowMs: 2000,
+        cooldownMs: 60000,
+        confirmationCountdownSec: 5,
+      },
+    });
 
   return (
     <SafeAreaView style={styles.safe}>

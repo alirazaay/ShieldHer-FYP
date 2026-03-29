@@ -23,7 +23,9 @@ import logger from '../utils/logger';
 // @returns {Function}             - Unsubscribe function
 // ─────────────────────────────────────────────────────────────────────────────
 export function subscribeToAlerts(userIds, onUpdate, onError) {
-  logger.info('[alertLifecycle]', 'subscribeToAlerts start', { userIds });
+  logger.info('[alertLifecycle]', 'subscribeToAlerts start', {
+    userCount: Array.isArray(userIds) ? userIds.length : 0,
+  });
 
   if (!Array.isArray(userIds) || userIds.length === 0) {
     logger.warn('[alertLifecycle]', 'subscribeToAlerts: no userIds provided');
@@ -237,7 +239,8 @@ export function getAlertLifecycleErrorMessage(error) {
   if (message.includes('already resolved')) return 'This alert has already been resolved.';
   if (message.includes('already cancelled')) return 'This alert has already been cancelled.';
   if (message.includes('cannot be cancelled')) return 'This alert can no longer be cancelled.';
-  if (message.includes('Only the alert owner can cancel')) return 'Only the alert owner can cancel this alert.';
+  if (message.includes('Only the alert owner can cancel'))
+    return 'Only the alert owner can cancel this alert.';
   if (message.includes('has been cancelled')) return 'This alert has been cancelled by the user.';
   if (message.includes('Alert ID') || message.includes('Guardian ID'))
     return 'Authentication error. Please log in again.';

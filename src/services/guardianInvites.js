@@ -37,8 +37,10 @@ export async function sendGuardianInvite({
 }) {
   logger.info('[guardianInvites]', 'sendGuardianInvite start', {
     userId,
-    userEmail,
-    guardianEmail,
+    hasUserEmail: !!userEmail,
+    hasGuardianEmail: !!guardianEmail,
+    hasUserPhone: !!userPhone,
+    hasMessage: !!message,
   });
 
   // Validate required fields
@@ -109,7 +111,9 @@ export async function sendGuardianInvite({
  * @throws {Error} Firebase error
  */
 export async function fetchPendingInvites(guardianEmail) {
-  logger.info('[guardianInvites]', 'fetchPendingInvites start', { guardianEmail });
+  logger.info('[guardianInvites]', 'fetchPendingInvites start', {
+    hasGuardianEmail: !!guardianEmail,
+  });
 
   if (!guardianEmail) {
     const error = new Error('Guardian email is required');

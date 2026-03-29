@@ -11,10 +11,21 @@
 const ESCALATION_TIMEOUT_MS = 90 * 1000; // 90 seconds
 const ESCALATION_BATCH_LIMIT = 50;
 
+function safeErrorMessage(error) {
+  if (!error) return 'unknown-error';
+  return error.message || String(error);
+}
+
 function logEscalationEvent(event, payload = {}) {
+  const sanitizedPayload = {
+    ...payload,
+    userId: payload.userId ? '[redacted]' : undefined,
+    userPhone: payload.userPhone ? '[redacted]' : undefined,
+  };
+
   console.log(
     '[escalation_event]',
-    JSON.stringify({ event, timestamp: new Date().toISOString(), ...payload })
+    JSON.stringify({ event, timestamp: new Date().toISOString(), ...sanitizedPayload })
   );
 }
 
@@ -147,7 +158,7 @@ async function escalateIfStillActive(alertId, db, sendExpoPushNotifications) {
         userPhone = userData.phone || userData.phoneNumber || '';
       }
     } catch (err) {
-      console.error('[escalation] Error fetching user profile:', err);
+      console.error(`[escalation] Error fetching user profile: ${safeErrorMessage(err)}`);
     }
 
     const policeAlertData = {
@@ -204,7 +215,7 @@ async function escalateIfStillActive(alertId, db, sendExpoPushNotifications) {
 
     return true;
   } catch (error) {
-    console.error(`[escalation] Error escalating alert ${alertId}:`, error);
+    console.error(`[escalation] Error escalating alert ${alertId}: ${safeErrorMessage(error)}`);
     return false;
   }
 }
@@ -263,7 +274,7 @@ async function notifyAuthorities(alertId, alertData, userName, db, sendExpoPushN
       authoritiesNotified: authorityTokens.length,
     });
   } catch (notifError) {
-    console.error('[escalation] Error notifying authorities:', notifError);
+    console.error(`[escalation] Error notifying authorities: ${safeErrorMessage(notifError)}`);
     logEscalationEvent('ESCALATION_NOTIFY_FAILED', {
       alertId,
       error: notifError?.message || String(notifError),

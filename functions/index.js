@@ -15,6 +15,11 @@ initializeApp();
 const db = getFirestore();
 const adminAuth = getAuth();
 
+function safeErrorMessage(error) {
+  if (!error) return 'unknown-error';
+  return error.message || String(error);
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // EXPO PUSH NOTIFICATION HELPER
 // Sends push notifications through Expo's push service.
@@ -44,7 +49,9 @@ async function sendExpoPushNotifications(tokens, title, body, data = {}) {
   );
 
   if (validTokens.length === 0) {
-    console.warn('[sendExpoPushNotifications] No valid Expo push tokens found among:', tokens);
+    console.warn(
+      `[sendExpoPushNotifications] No valid Expo push tokens found (inputCount=${tokens.length})`
+    );
     return null;
   }
 
@@ -72,16 +79,16 @@ async function sendExpoPushNotifications(tokens, title, body, data = {}) {
     timeout: 10000, // 10 second timeout
   });
 
-  console.log('[sendExpoPushNotifications] Response:', JSON.stringify(response.data));
+  console.log(
+    `[sendExpoPushNotifications] Response received (ticketCount=${response?.data?.data?.length || 0})`
+  );
 
   // Log any per-ticket errors
   if (response.data && response.data.data) {
     response.data.data.forEach((ticket, idx) => {
       if (ticket.status === 'error') {
         console.error(
-          `[sendExpoPushNotifications] Token error for index ${idx}:`,
-          ticket.message,
-          ticket.details
+          `[sendExpoPushNotifications] Token error for index ${idx}: ${ticket.message || 'unknown-error'}`
         );
       }
     });
@@ -263,7 +270,7 @@ exports.sendOTP = onRequest(
 
           console.log(`[sendOTP] SMS sent to ${maskPhone(normalizedPhoneNumber)}`);
         } catch (smsError) {
-          console.error('[sendOTP] Twilio SMS error:', smsError.message);
+          console.error(`[sendOTP] Twilio SMS error: ${safeErrorMessage(smsError)}`);
           // Continue – OTP is stored, user can still verify (for dev/testing)
         }
       } else {
@@ -279,7 +286,7 @@ exports.sendOTP = onRequest(
         expiresIn: OTP_EXPIRY_SECONDS,
       });
     } catch (error) {
-      console.error('[sendOTP] Error:', error);
+      console.error(`[sendOTP] Error: ${safeErrorMessage(error)}`);
       return res.status(500).json({
         code: 'otp/send-failed',
         message: 'Failed to send verification code. Please try again.',
@@ -380,7 +387,7 @@ exports.verifyOTP = onRequest(
 
       try {
         userRecord = await adminAuth.getUserByPhoneNumber(normalizedPhoneNumber);
-        console.log(`[verifyOTP] Existing user found: ${userRecord.uid}`);
+        console.log('[verifyOTP] Existing user found');
       } catch (err) {
         if (err.code === 'auth/user-not-found') {
           // Create new Firebase Auth user
@@ -388,7 +395,7 @@ exports.verifyOTP = onRequest(
             phoneNumber: normalizedPhoneNumber,
           });
           isNewUser = true;
-          console.log(`[verifyOTP] New user created: ${userRecord.uid}`);
+          console.log('[verifyOTP] New user created');
         } else {
           throw err;
         }
@@ -404,7 +411,7 @@ exports.verifyOTP = onRequest(
         uid: userRecord.uid,
       });
     } catch (error) {
-      console.error('[verifyOTP] Error:', error);
+      console.error(`[verifyOTP] Error: ${safeErrorMessage(error)}`);
       return res.status(500).json({
         code: 'otp/verify-failed',
         message: 'Verification failed. Please try again.',
@@ -501,12 +508,7 @@ exports.onGuardianInviteAccepted = onDocumentUpdated(
 
     // Validate accepted UID truly belongs to invited email
     if (!guardianDocEmail || guardianDocEmail !== inviteGuardianEmail) {
-      console.error('[onGuardianInviteAccepted] Guardian UID/email mismatch:', {
-        inviteId,
-        acceptedByUid,
-        guardianDocEmail,
-        inviteGuardianEmail,
-      });
+      console.error('[onGuardianInviteAccepted] Guardian UID/email mismatch detected');
       await db.collection('guardianInvites').doc(inviteId).set(
         {
           status: 'error',
@@ -578,7 +580,6 @@ exports.onAlertCreated = onDocumentCreated(
     const alertData = event.data?.data();
 
     console.log(`[onAlertCreated] Triggered for alert: ${alertId}`);
-    console.log('[onAlertCreated] Alert data:', JSON.stringify(alertData));
 
     // ── Validate alert data ──────────────────────────────────────────────────
     if (!alertData) {
@@ -606,12 +607,12 @@ exports.onAlertCreated = onDocumentCreated(
       if (userDoc.exists) {
         const userData = userDoc.data();
         userName = userData.fullName || userData.email || 'A user';
-        console.log(`[onAlertCreated] Alert from user: ${userName} (${userId})`);
+        console.log('[onAlertCreated] User profile loaded for alert notification');
       } else {
-        console.warn('[onAlertCreated] User doc not found for userId:', userId);
+        console.warn('[onAlertCreated] User doc not found for alert owner');
       }
     } catch (err) {
-      console.error('[onAlertCreated] Error fetching user profile:', err);
+      console.error(`[onAlertCreated] Error fetching user profile: ${safeErrorMessage(err)}`);
       // Continue — we can still send notifications with a generic name
     }
 
@@ -632,9 +633,9 @@ exports.onAlertCreated = onDocumentCreated(
       // Only notify active guardian relationships.
       guardians = guardians.filter((guardian) => (guardian.status || 'active') === 'active');
 
-      console.log(`[onAlertCreated] Found ${guardians.length} guardian(s) for user ${userId}`);
+      console.log(`[onAlertCreated] Found ${guardians.length} active guardian(s)`);
     } catch (err) {
-      console.error('[onAlertCreated] Error fetching guardians:', err);
+      console.error(`[onAlertCreated] Error fetching guardians: ${safeErrorMessage(err)}`);
       return null;
     }
 
@@ -657,7 +658,7 @@ exports.onAlertCreated = onDocumentCreated(
       // Skip non-registered guardians (manual additions without app account)
       // They have random doc IDs and won't have FCM tokens anyway
       if (guardian.isRegisteredUser === false) {
-        console.log(`[onAlertCreated] Guardian ${guardian.name || guardian.id} is not a registered user, skipping notification`);
+        console.log('[onAlertCreated] Guardian is not a registered user, skipping notification');
         return null;
       }
 
@@ -665,7 +666,7 @@ exports.onAlertCreated = onDocumentCreated(
         // Guardian doc ID should be the guardian's UID for registered users
         const guardianDoc = await db.collection('users').doc(guardian.id).get();
         if (!guardianDoc.exists) {
-          console.warn(`[onAlertCreated] Guardian user doc not found: ${guardian.id} (may be a manual addition)`);
+          console.warn('[onAlertCreated] Guardian user doc not found (may be a manual addition)');
           return null;
         }
 
@@ -674,24 +675,24 @@ exports.onAlertCreated = onDocumentCreated(
 
         // Respect guardian-level notification opt-outs.
         if (prefs.pushNotifications === false) {
-          console.log(`[onAlertCreated] Guardian ${guardian.id} has push notifications disabled`);
+          console.log('[onAlertCreated] Guardian has push notifications disabled');
           return null;
         }
         if (prefs.guardianAlerts === false) {
-          console.log(`[onAlertCreated] Guardian ${guardian.id} has guardian alerts disabled`);
+          console.log('[onAlertCreated] Guardian has guardian alerts disabled');
           return null;
         }
 
         const token = guardianProfile.fcmToken;
         if (!token) {
-          console.warn(`[onAlertCreated] No FCM token for guardian ${guardian.id}`);
+          console.warn('[onAlertCreated] No FCM token for guardian');
           return null;
         }
 
-        console.log(`[onAlertCreated] Got token for guardian ${guardian.id}`);
+        console.log('[onAlertCreated] Collected a guardian FCM token');
         return token;
       } catch (err) {
-        console.error(`[onAlertCreated] Error fetching token for guardian ${guardian.id}:`, err);
+        console.error(`[onAlertCreated] Error fetching token for guardian: ${safeErrorMessage(err)}`);
         return null;
       }
     });
@@ -744,7 +745,7 @@ exports.onAlertCreated = onDocumentCreated(
 
       return result;
     } catch (err) {
-      console.error('[onAlertCreated] Error sending push notifications:', err?.message || err);
+      console.error(`[onAlertCreated] Error sending push notifications: ${safeErrorMessage(err)}`);
       // Queue escalation even if push send fails
       await enqueueEscalation(alertId, db);
       return null;
@@ -788,7 +789,7 @@ exports.onAlertCancelled = onDocumentUpdated(
         userName = userData.fullName || userData.email || 'The user';
       }
     } catch (err) {
-      console.error('[onAlertCancelled] Failed to fetch user profile:', err);
+      console.error(`[onAlertCancelled] Failed to fetch user profile: ${safeErrorMessage(err)}`);
     }
 
     // Fetch active guardians
@@ -804,7 +805,7 @@ exports.onAlertCancelled = onDocumentUpdated(
         .map((doc) => ({ id: doc.id, ...doc.data() }))
         .filter((guardian) => (guardian.status || 'active') === 'active');
     } catch (err) {
-      console.error('[onAlertCancelled] Error fetching guardians:', err);
+      console.error(`[onAlertCancelled] Error fetching guardians: ${safeErrorMessage(err)}`);
       return null;
     }
 
@@ -832,7 +833,7 @@ exports.onAlertCancelled = onDocumentUpdated(
 
           return guardianProfile.fcmToken || null;
         } catch (err) {
-          console.error(`[onAlertCancelled] Token fetch failed for guardian ${guardian.id}:`, err);
+          console.error(`[onAlertCancelled] Token fetch failed for guardian: ${safeErrorMessage(err)}`);
           return null;
         }
       })
@@ -857,7 +858,7 @@ exports.onAlertCancelled = onDocumentUpdated(
         }
       );
     } catch (err) {
-      console.error('[onAlertCancelled] Notification send failed:', err);
+      console.error(`[onAlertCancelled] Notification send failed: ${safeErrorMessage(err)}`);
       return null;
     }
   }
@@ -878,7 +879,7 @@ exports.processEscalations = onSchedule(
       const summary = await processDueEscalations(db, sendExpoPushNotifications);
       console.log('[processEscalations] Completed run:', summary);
     } catch (error) {
-      console.error('[processEscalations] Run failed:', error);
+      console.error(`[processEscalations] Run failed: ${safeErrorMessage(error)}`);
     }
     return null;
   }

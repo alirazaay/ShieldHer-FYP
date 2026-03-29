@@ -41,8 +41,8 @@ export function subscribeToUserLocation(userId, onLocationUpdate, onError) {
           if (location && location.latitude && location.longitude) {
             logger.info('[locationListener]', 'Location update received', {
               userId,
-              latitude: location.latitude.toFixed(4),
-              longitude: location.longitude.toFixed(4),
+              hasAccuracy: location.accuracy != null,
+              hasTimestamp: !!location.timestamp,
             });
             onLocationUpdate({
               latitude: location.latitude,

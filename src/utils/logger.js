@@ -25,12 +25,105 @@ const isDevEnv =
   (typeof __DEV__ !== 'undefined' && __DEV__) || process.env.NODE_ENV !== 'production';
 const MIN_LOG_LEVEL = isDevEnv ? LOG_LEVELS.DEBUG : LOG_LEVELS.WARN;
 
+const REDACTED = '[REDACTED]';
+const SENSITIVE_KEYS = new Set([
+  'email',
+  'useremail',
+  'guardianemail',
+  'emergencyemail',
+  'phone',
+  'phonenumber',
+  'userphone',
+  'emergencyphone',
+  'latitude',
+  'longitude',
+  'location',
+  'token',
+  'pushtoken',
+  'apikey',
+  'firebaseapikey',
+  'password',
+]);
+
+const EMAIL_REGEX = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
+const LONG_DIGIT_REGEX = /\+?\d[\d\s-]{7,}\d/g;
+
+const maskEmail = (value) => {
+  const [name = '', domain = ''] = String(value).split('@');
+  if (!name || !domain) return REDACTED;
+  const visible = name.slice(0, 2);
+  return `${visible}${'*'.repeat(Math.max(name.length - 2, 3))}@${domain}`;
+};
+
+const maskPhone = (value) => {
+  const digits = String(value).replace(/\D/g, '');
+  if (digits.length < 7) return REDACTED;
+  const tail = digits.slice(-3);
+  return `***${tail}`;
+};
+
+const sanitizeString = (value) =>
+  String(value)
+    .replace(EMAIL_REGEX, (match) => maskEmail(match))
+    .replace(LONG_DIGIT_REGEX, (match) => {
+      const digits = match.replace(/\D/g, '');
+      // Avoid redacting short numeric fragments such as date chunks.
+      return digits.length >= 10 ? maskPhone(match) : match;
+    });
+
+const sanitizeByKey = (key, value) => {
+  if (value == null) return value;
+
+  const normalizedKey = String(key || '').toLowerCase();
+  if (!SENSITIVE_KEYS.has(normalizedKey)) return value;
+
+  if (normalizedKey.includes('email')) return maskEmail(value);
+  if (normalizedKey.includes('phone')) return maskPhone(value);
+  if (normalizedKey === 'latitude' || normalizedKey === 'longitude') return REDACTED;
+  if (normalizedKey === 'location') return REDACTED;
+  return REDACTED;
+};
+
+const sanitizeValue = (value, key = '', depth = 0) => {
+  if (depth > 4) return '[Truncated]';
+  if (value == null) return value;
+
+  const redactedByKey = sanitizeByKey(key, value);
+  if (redactedByKey !== value) return redactedByKey;
+
+  if (typeof value === 'string') return sanitizeString(value);
+
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeValue(item, '', depth + 1));
+  }
+
+  if (typeof value === 'object') {
+    if (value instanceof Error) {
+      return {
+        name: value.name,
+        message: sanitizeString(value.message || ''),
+        code: value.code,
+      };
+    }
+
+    const sanitized = {};
+    Object.keys(value).forEach((objKey) => {
+      sanitized[objKey] = sanitizeValue(value[objKey], objKey, depth + 1);
+    });
+    return sanitized;
+  }
+
+  return value;
+};
+
 /**
  * Format log arguments for consistent output
  */
 const formatArgs = (tag, message, ...args) => {
   const timestamp = new Date().toISOString().split('T')[1].slice(0, 12);
-  return [`[${timestamp}]${tag}`, message, ...args];
+  const safeMessage = sanitizeValue(message);
+  const safeArgs = args.map((arg) => sanitizeValue(arg));
+  return [`[${timestamp}]${tag}`, safeMessage, ...safeArgs];
 };
 
 /**

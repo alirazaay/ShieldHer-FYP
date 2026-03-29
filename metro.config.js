@@ -12,9 +12,11 @@ config.transformer = {
   }),
 };
 
+const extraAssetExts = ['mp4', 'webm', 'wav', 'mp3', 'aac', 'm4a', 'ttf'];
+
 config.resolver = {
   ...config.resolver,
-  assetExts: ['json', 'mp4', 'webm', 'wav', 'mp3', 'aac', 'm4a'],
+  assetExts: Array.from(new Set([...(config.resolver.assetExts || []), ...extraAssetExts])),
 };
 
 module.exports = config;

@@ -43,6 +43,11 @@ const SENSITIVE_KEYS = new Set([
   'apikey',
   'firebaseapikey',
   'password',
+  'userid',
+  'guardianid',
+  'ownerid',
+  'acceptedbyuid',
+  'uid',
 ]);
 
 const EMAIL_REGEX = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
@@ -79,6 +84,7 @@ const sanitizeByKey = (key, value) => {
 
   if (normalizedKey.includes('email')) return maskEmail(value);
   if (normalizedKey.includes('phone')) return maskPhone(value);
+  if (normalizedKey.includes('id') || normalizedKey === 'uid') return REDACTED;
   if (normalizedKey === 'latitude' || normalizedKey === 'longitude') return REDACTED;
   if (normalizedKey === 'location') return REDACTED;
   return REDACTED;

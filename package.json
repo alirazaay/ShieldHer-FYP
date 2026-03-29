@@ -22,6 +22,7 @@
     "test:ci": "npm run test:unit && npm run test:integration && npm run test:functions",
     "secrets:scan": "node scripts/secret-scan.js",
     "secrets:scan:staged": "node scripts/secret-scan.js --staged",
+    "security:status": "node scripts/security-status.js",
     "hooks:install": "git config core.hooksPath .githooks",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",

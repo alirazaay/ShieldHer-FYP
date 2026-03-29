@@ -15,6 +15,7 @@
 - `npm run test:ci`
 - `npm run secrets:scan`
 - `npm run secrets:scan:staged`
+- `npm run security:status`
 - `npm run hooks:install`
 - `npm run test:coverage`
 

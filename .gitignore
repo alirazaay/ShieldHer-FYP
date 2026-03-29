@@ -37,9 +37,14 @@ yarn-error.*
 # local env files
 .env*.local
 .env
+.env.backup
 
 # temporary files
 tmpclaude-*
+
+# Android signing artifacts
+*.keystore
+release.keystore
 
 # typescript
 *.tsbuildinfo

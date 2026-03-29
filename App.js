@@ -18,6 +18,7 @@ import AlertActiveScreen from './src/screens/AlertActiveScreen';
 import PhoneLoginScreen from './src/screens/Auth/PhoneLoginScreen';
 import VerifyOTPScreen from './src/screens/Auth/VerifyOTPScreen';
 import OfflineBanner from './src/components/OfflineBanner';
+import { ErrorBoundary } from './src/components/ErrorBoundary';
 
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -43,6 +44,9 @@ import {
   initializeSOSDeliverySystem,
   shutdownSOSDeliverySystem,
 } from './src/services/alertService';
+import logger from './src/utils/logger';
+
+const TAG = '[App]';
 
 enableScreens();
 
@@ -64,12 +68,13 @@ export default function App() {
   useEffect(() => {
     checkFirebaseConnection();
     try {
-      console.log(
+      logger.info(
+        TAG,
         'Firebase apps loaded:',
         getApps().map((a) => a.name)
       );
     } catch (e) {
-      console.warn('Unable to read Firebase apps:', e);
+      logger.warn(TAG, 'Unable to read Firebase apps:', e);
     }
   }, []);
 
@@ -79,28 +84,33 @@ export default function App() {
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        console.log('[App] User authenticated, initializing notifications for:', user.uid);
+        logger.info(TAG, 'User authenticated, initializing notifications for:', user.uid);
 
         // 1. Request permission + get token + set emergency channel + store in Firestore
-        const token = await registerForPushNotifications(user.uid);
-        if (token) {
-          console.log('[App] Notifications initialized successfully');
-        } else {
-          console.warn('[App] Notification initialization warning or denied');
+        let token = null;
+        try {
+          token = await registerForPushNotifications(user.uid);
+          if (token) {
+            logger.info(TAG, 'Notifications initialized successfully');
+          } else {
+            logger.warn(TAG, 'Notification initialization warning or denied');
+          }
+        } catch (pushErr) {
+          logger.error(TAG, 'Notification initialization failed:', pushErr);
         }
 
         // 1b. Prepare offline SMS fallback cache for guardians while online
         try {
           await prepareOfflineFallback(user.uid);
         } catch (cacheErr) {
-          console.warn('[App] Offline fallback preparation warning:', cacheErr);
+          logger.warn(TAG, 'Offline fallback preparation warning:', cacheErr);
         }
 
         // 1c. Start guaranteed SOS delivery queue + connectivity-aware retry worker
         try {
           await initializeSOSDeliverySystem();
         } catch (queueErr) {
-          console.warn('[App] SOS retry system initialization warning:', queueErr);
+          logger.warn(TAG, 'SOS retry system initialization warning:', queueErr);
         }
 
         // 2. Set up foreground notification display handler
@@ -112,7 +122,7 @@ export default function App() {
         cleanupTokenRefresh.current = setupTokenRefreshListener(user.uid);
       } else {
         // User logged out — clean up listeners
-        console.log('[App] User signed out, cleaning up notification listeners');
+        logger.info(TAG, 'User signed out, cleaning up notification listeners');
         if (cleanupForegroundHandler.current) {
           cleanupForegroundHandler.current();
           cleanupForegroundHandler.current = null;
@@ -136,11 +146,11 @@ export default function App() {
   useEffect(() => {
     notifResponseListener.current = Notifications.addNotificationResponseReceivedListener(
       (response) => {
-        console.log('[App] Notification tapped:', response.notification.request.content.data);
+        logger.info(TAG, 'Notification tapped:', response.notification.request.content.data);
 
         const navTarget = handleNotificationNavigation(response);
         if (navTarget && navigationRef.isReady()) {
-          console.log('[App] Navigating to:', navTarget.screen, navTarget.params);
+          logger.info(TAG, 'Navigating to:', navTarget.screen, navTarget.params);
           navigationRef.navigate(navTarget.screen, navTarget.params);
         }
       }
@@ -152,11 +162,7 @@ export default function App() {
       if (!response) return;
       const navTarget = handleNotificationNavigation(response);
       if (navTarget && navigationRef.isReady()) {
-        console.log(
-          '[App] Navigating from launch notification:',
-          navTarget.screen,
-          navTarget.params
-        );
+        logger.info(TAG, 'Navigating from launch notification:', navTarget.screen, navTarget.params);
         // Small delay to ensure Navigator is mounted
         setTimeout(() => {
           if (navigationRef.isReady()) {
@@ -174,36 +180,38 @@ export default function App() {
   }, []);
 
   return (
-    // Wrap with SafeAreaProvider so all screens/components using safe area hooks work
-    <SafeAreaProvider>
-      {/* Wrap entire app stack to easily render fixed absolute views across all flows securely */}
-      <View style={{ flex: 1 }}>
-        <OfflineBanner />
-        {/* Pass navigationRef so we can navigate from notification handlers */}
-        <NavigationContainer ref={navigationRef}>
-          <Stack.Navigator initialRouteName="Home" screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="Home" component={Home} />
-            <Stack.Screen name="Login" component={Login} />
-            <Stack.Screen name="SignUp" component={SignUp} />
-            <Stack.Screen name="ForgotPass" component={ForgotPass} />
-            <Stack.Screen name="PhoneLogin" component={PhoneLoginScreen} />
-            <Stack.Screen name="VerifyOTP" component={VerifyOTPScreen} />
-            <Stack.Screen name="Dashboard" component={Dashboard} />
-            <Stack.Screen name="GuardianDashboard" component={GuardianDashboard} />
-            <Stack.Screen name="LogoutPopup" component={LogoutPopup} />
-            <Stack.Screen name="Profile" component={ProfileScreen} />
-            <Stack.Screen name="ChangePassword" component={ChangePassword} />
-            <Stack.Screen name="NotificationSettings" component={NotificationSettings} />
-            <Stack.Screen name="LocationSettings" component={LocationSettings} />
-            <Stack.Screen name="UserLocationMap" component={UserLocationMapScreen} />
-            <Stack.Screen name="GroupLocationMap" component={GroupLocationMapScreen} />
-            <Stack.Screen name="AlertHistory" component={AlertHistoryScreen} />
-            <Stack.Screen name="AlertTimeline" component={AlertTimelineScreen} />
-            <Stack.Screen name="SOSCountdownScreen" component={SOSCountdownScreen} />
-            <Stack.Screen name="AlertActiveScreen" component={AlertActiveScreen} />
-          </Stack.Navigator>
-        </NavigationContainer>
-      </View>
-    </SafeAreaProvider>
+    <ErrorBoundary>
+      {/* Wrap with SafeAreaProvider so all screens/components using safe area hooks work */}
+      <SafeAreaProvider>
+        {/* Wrap entire app stack to easily render fixed absolute views across all flows securely */}
+        <View style={{ flex: 1 }}>
+          <OfflineBanner />
+          {/* Pass navigationRef so we can navigate from notification handlers */}
+          <NavigationContainer ref={navigationRef}>
+            <Stack.Navigator initialRouteName="Home" screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="Home" component={Home} />
+              <Stack.Screen name="Login" component={Login} />
+              <Stack.Screen name="SignUp" component={SignUp} />
+              <Stack.Screen name="ForgotPass" component={ForgotPass} />
+              <Stack.Screen name="PhoneLogin" component={PhoneLoginScreen} />
+              <Stack.Screen name="VerifyOTP" component={VerifyOTPScreen} />
+              <Stack.Screen name="Dashboard" component={Dashboard} />
+              <Stack.Screen name="GuardianDashboard" component={GuardianDashboard} />
+              <Stack.Screen name="LogoutPopup" component={LogoutPopup} />
+              <Stack.Screen name="Profile" component={ProfileScreen} />
+              <Stack.Screen name="ChangePassword" component={ChangePassword} />
+              <Stack.Screen name="NotificationSettings" component={NotificationSettings} />
+              <Stack.Screen name="LocationSettings" component={LocationSettings} />
+              <Stack.Screen name="UserLocationMap" component={UserLocationMapScreen} />
+              <Stack.Screen name="GroupLocationMap" component={GroupLocationMapScreen} />
+              <Stack.Screen name="AlertHistory" component={AlertHistoryScreen} />
+              <Stack.Screen name="AlertTimeline" component={AlertTimelineScreen} />
+              <Stack.Screen name="SOSCountdownScreen" component={SOSCountdownScreen} />
+              <Stack.Screen name="AlertActiveScreen" component={AlertActiveScreen} />
+            </Stack.Navigator>
+          </NavigationContainer>
+        </View>
+      </SafeAreaProvider>
+    </ErrorBoundary>
   );
 }

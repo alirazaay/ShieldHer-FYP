@@ -17,7 +17,9 @@
       "bundleIdentifier": "com.shieldher.app",
       "infoPlist": {
         "NSSpeechRecognitionUsageDescription": "Allow $(PRODUCT_NAME) to use speech recognition.",
-        "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to use the microphone."
+        "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to use the microphone.",
+        "NSLocationWhenInUseUsageDescription": "Allow $(PRODUCT_NAME) to access your location for emergency alerts.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Allow $(PRODUCT_NAME) to access your location in background for safety."
       }
     },
     "android": {
@@ -27,7 +29,13 @@
       },
       "edgeToEdgeEnabled": true,
       "permissions": [
-        "android.permission.RECORD_AUDIO"
+        "android.permission.RECORD_AUDIO",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.SEND_SMS",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE"
       ],
       "package": "com.shieldher.app"
     },

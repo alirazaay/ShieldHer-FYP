@@ -33,10 +33,11 @@ const firebaseConfig = {
 // Validate that Firebase config is properly loaded
 const isConfigValid = firebaseConfig.apiKey && firebaseConfig.projectId;
 if (!isConfigValid) {
-  logger.error(
-    TAG,
-    'Firebase configuration is missing! Ensure .env file exists and app.config.js is properly set up.'
-  );
+  const errorMsg =
+    'Firebase configuration is missing! Ensure .env exists and is loaded via app.config.js. ' +
+    'Check FIREBASE_API_KEY and FIREBASE_PROJECT_ID.';
+  logger.error(TAG, errorMsg);
+  throw new Error(errorMsg);
 }
 
 // Use existing app if already initialized (prevents hot reload issues)

@@ -7,7 +7,6 @@ import { initializeAuth, getReactNativePersistence } from 'firebase/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   initializeFirestore,
-  enableIndexedDbPersistence,
   setLogLevel,
   enableNetwork,
 } from 'firebase/firestore';
@@ -50,12 +49,6 @@ const db = initializeFirestore(app, {
   useFetchStreams: false,
 });
 logger.info(TAG, 'Firestore initialized with long polling');
-
-// Optional: IndexedDB persistence (will fail on RN/Expo – safe to ignore)
-enableIndexedDbPersistence(db).catch((err) => {
-  // This is expected to fail on React Native - IndexedDB is not available
-  logger.debug(TAG, 'Persistence error (expected on RN):', err?.code || err?.message || err);
-});
 
 // Initialize Firebase Auth with AsyncStorage persistence
 export const auth = initializeAuth(app, {

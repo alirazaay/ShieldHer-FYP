@@ -24,9 +24,10 @@ const ConnectedUserItem = ({ user, userLocation, onViewLocation, loading = false
         {/* Details */}
         <View style={styles.details}>
           <Text style={styles.userName}>{user.name}</Text>
-          <Text style={styles.email}>
-            <MaterialCommunityIcons name="email" size={12} color="#4B5057" /> {user.email}
-          </Text>
+          <View style={styles.emailRow}>
+            <MaterialCommunityIcons name="email" size={12} color="#4B5057" />
+            <Text style={styles.email}>{user.email}</Text>
+          </View>
 
           {/* Location Status */}
           {hasLocation ? (
@@ -37,10 +38,10 @@ const ConnectedUserItem = ({ user, userLocation, onViewLocation, loading = false
               </Text>
             </View>
           ) : (
-            <Text style={styles.noLocation}>
-              <MaterialCommunityIcons name="map-search" size={11} color="#9AA0A6" /> Location not
-              available
-            </Text>
+            <View style={styles.noLocationRow}>
+              <MaterialCommunityIcons name="map-search" size={11} color="#9AA0A6" />
+              <Text style={styles.noLocation}>Location not available</Text>
+            </View>
           )}
         </View>
       </View>
@@ -104,6 +105,11 @@ const styles = StyleSheet.create({
   email: {
     fontSize: 12,
     color: '#4B5057',
+  },
+  emailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     marginBottom: 4,
   },
   locationStatus: {
@@ -126,6 +132,11 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#9AA0A6',
     fontStyle: 'italic',
+  },
+  noLocationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   viewButton: {
     padding: 10,

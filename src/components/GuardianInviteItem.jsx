@@ -29,12 +29,14 @@ const GuardianInviteItem = ({ invite, onAccept, onReject, loading = false }) => 
         {/* User Details */}
         <View style={styles.details}>
           <Text style={styles.userName}>{invite.userName}</Text>
-          <Text style={styles.contact}>
-            <MaterialCommunityIcons name="email" size={12} color="#4B5057" /> {invite.userEmail}
-          </Text>
-          <Text style={styles.contact}>
-            <MaterialCommunityIcons name="phone" size={12} color="#4B5057" /> {invite.userPhone}
-          </Text>
+          <View style={styles.contactRow}>
+            <MaterialCommunityIcons name="email" size={12} color="#4B5057" />
+            <Text style={styles.contact}>{invite.userEmail}</Text>
+          </View>
+          <View style={styles.contactRow}>
+            <MaterialCommunityIcons name="phone" size={12} color="#4B5057" />
+            <Text style={styles.contact}>{invite.userPhone}</Text>
+          </View>
           {invite.message && <Text style={styles.message}>&quot;{invite.message}&quot;</Text>}
         </View>
       </View>
@@ -107,10 +109,15 @@ const styles = StyleSheet.create({
     color: '#111318',
     marginBottom: 4,
   },
+  contactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 2,
+  },
   contact: {
     fontSize: 12,
     color: '#4B5057',
-    marginBottom: 2,
   },
   message: {
     fontSize: 12,

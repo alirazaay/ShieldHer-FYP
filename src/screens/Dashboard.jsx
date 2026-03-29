@@ -1,6 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
 import {
-  SafeAreaView,
   ScrollView,
   View,
   Text,
@@ -10,7 +9,7 @@ import {
   Animated,
   ActivityIndicator,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import LogoutPopup from './LogoutPopup';

@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  SafeAreaView,
   View,
   Text,
   StyleSheet,
@@ -8,7 +7,7 @@ import {
   ScrollView,
   TouchableOpacity,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { auth } from '../config/firebase';
 import GuardianInviteItem from '../components/GuardianInviteItem';
@@ -96,14 +95,15 @@ const AlertCard = ({ alert, connectedUsers, currentUserId, onRespond, onResolve,
       </View>
 
       <View style={styles.alertDetails}>
-        <Text style={styles.alertTime}>
-          <MaterialCommunityIcons name="clock-outline" size={14} color="#6B7280" /> {timeStr}
-        </Text>
+        <View style={styles.alertMetaRow}>
+          <MaterialCommunityIcons name="clock-outline" size={14} color="#6B7280" />
+          <Text style={styles.alertTime}>{timeStr}</Text>
+        </View>
         {responderText && (
-          <Text style={styles.alertResponder}>
-            <MaterialCommunityIcons name="account-hard-hat" size={14} color="#6B7280" />{' '}
-            {responderText}
-          </Text>
+          <View style={styles.alertMetaRow}>
+            <MaterialCommunityIcons name="account-hard-hat" size={14} color="#6B7280" />
+            <Text style={styles.alertResponder}>{responderText}</Text>
+          </View>
         )}
       </View>
 
@@ -771,6 +771,11 @@ const styles = StyleSheet.create({
   alertDetails: {
     marginBottom: 16,
     gap: 4,
+  },
+  alertMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   alertTime: {
     fontSize: 13,

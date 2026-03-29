@@ -5,11 +5,21 @@ import {
   serverTimestamp,
   query,
   where,
-  orderBy,
   onSnapshot,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import logger from '../utils/logger';
+
+function toMillis(value) {
+  if (!value) return 0;
+  if (typeof value.toMillis === 'function') return value.toMillis();
+  if (value instanceof Date) return value.getTime();
+  return 0;
+}
+
+function sortAlertsByTimestampDesc(alerts) {
+  return alerts.sort((a, b) => toMillis(b.timestamp) - toMillis(a.timestamp));
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Create an event in the alert's timeline
@@ -72,13 +82,9 @@ export function subscribeToAlertHistory(userId, isGuardian, connectedUserIds, on
         onUpdate([]);
         return () => {};
       }
-      alertsQuery = query(
-        alertsRef,
-        where('userId', 'in', connectedUserIds),
-        orderBy('timestamp', 'desc')
-      );
+      alertsQuery = query(alertsRef, where('userId', 'in', connectedUserIds));
     } else {
-      alertsQuery = query(alertsRef, where('userId', '==', userId), orderBy('timestamp', 'desc'));
+      alertsQuery = query(alertsRef, where('userId', '==', userId));
     }
 
     const unsubscribe = onSnapshot(
@@ -92,8 +98,10 @@ export function subscribeToAlertHistory(userId, isGuardian, connectedUserIds, on
           });
         });
 
-        logger.info('[alertHistory]', `Historic alerts loaded: ${alerts.length}`);
-        onUpdate(alerts);
+        const sortedAlerts = sortAlertsByTimestampDesc(alerts);
+
+        logger.info('[alertHistory]', `Historic alerts loaded: ${sortedAlerts.length}`);
+        onUpdate(sortedAlerts);
       },
       (error) => {
         logger.error('[alertHistory]', 'History snapshot error:', error);

@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  SafeAreaView,
   ScrollView,
   View,
   Text,
@@ -11,6 +10,7 @@ import {
   TextInput,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { verifyOTP, resendOTP, getOTPErrorMessage } from '../../services/authService';
 import logger from '../../utils/logger';

@@ -3,6 +3,19 @@ import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import logger from '../utils/logger';
 
+async function areLocationServicesEnabled() {
+  if (typeof Location.hasServicesEnabledAsync === 'function') {
+    return Location.hasServicesEnabledAsync();
+  }
+
+  if (typeof Location.hasServicesEnabled === 'function') {
+    return Location.hasServicesEnabled();
+  }
+
+  // If API shape changes, avoid hard-failing permission flows.
+  return true;
+}
+
 /**
  * Request foreground location permission from the user
  * @returns {Promise<Object>} { granted: boolean, status: string }
@@ -12,7 +25,7 @@ export async function requestLocationPermission() {
 
   try {
     // Check if location services are enabled on the device
-    const servicesEnabled = await Location.hasServicesEnabled();
+    const servicesEnabled = await areLocationServicesEnabled();
     if (!servicesEnabled) {
       logger.warn('[location]', 'Location services disabled on device');
       return {
@@ -74,7 +87,7 @@ export async function startLocationTracking(userId) {
 
   try {
     // Check if location services are enabled
-    const servicesEnabled = await Location.hasServicesEnabled();
+    const servicesEnabled = await areLocationServicesEnabled();
     if (!servicesEnabled) {
       const error = new Error('Location services are disabled on this device');
       error.code = 'location/services-disabled';

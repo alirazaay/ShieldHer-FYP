@@ -1,5 +1,6 @@
 import React from 'react';
-import { SafeAreaView, ScrollView, View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { ScrollView, View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 // A presentational popup screen to match the provided design precisely.
 // Exposes onCancel and onConfirm callbacks; if used as a full screen, the gray

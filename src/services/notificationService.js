@@ -12,6 +12,9 @@ const TAG = '[notificationService]';
 // Get Expo project ID from config
 const expoConfig = Constants.expoConfig?.extra || Constants.manifest?.extra || {};
 const EXPO_PROJECT_ID = expoConfig.expoProjectId;
+const HAS_ANDROID_GOOGLE_SERVICES = Boolean(
+  Constants.expoConfig?.android?.googleServicesFile || Constants.manifest?.android?.googleServicesFile
+);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Foreground Banner Behavior
@@ -51,6 +54,14 @@ export async function registerForPushNotifications(userId) {
   try {
     if (!Device.isDevice) {
       logger.warn(TAG, 'Emulators do not support push notifications.');
+      return false;
+    }
+
+    if (Platform.OS === 'android' && !HAS_ANDROID_GOOGLE_SERVICES) {
+      logger.warn(
+        TAG,
+        'Push token registration skipped: android.googleServicesFile is not configured. Add google-services.json and rebuild the dev client.'
+      );
       return false;
     }
 
@@ -103,6 +114,15 @@ export async function registerForPushNotifications(userId) {
 
     return token;
   } catch (error) {
+    const message = error?.message || '';
+    if (message.includes('Default FirebaseApp is not initialized in this process')) {
+      logger.warn(
+        TAG,
+        'Push registration unavailable in this build. Configure FCM credentials/google-services.json and rebuild the native app.'
+      );
+      return false;
+    }
+
     logger.error(TAG, 'registerForPushNotifications error:', error);
     return false;
   }

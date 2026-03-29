@@ -27,12 +27,14 @@ const GuardianListItem = ({ guardian, onRemove, loading = false }) => {
               {guardian.relationship}
             </Text>
           )}
-          <Text style={styles.contact}>
-            <MaterialCommunityIcons name="phone" size={12} color="#4B5057" /> {guardian.phone}
-          </Text>
-          <Text style={styles.contact}>
-            <MaterialCommunityIcons name="email" size={12} color="#4B5057" /> {guardian.email}
-          </Text>
+          <View style={styles.contactRow}>
+            <MaterialCommunityIcons name="phone" size={12} color="#4B5057" />
+            <Text style={styles.contact}>{guardian.phone}</Text>
+          </View>
+          <View style={styles.contactRow}>
+            <MaterialCommunityIcons name="email" size={12} color="#4B5057" />
+            <Text style={styles.contact}>{guardian.email}</Text>
+          </View>
         </View>
       </View>
 
@@ -97,10 +99,15 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#3D3F44',
   },
+  contactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 1,
+  },
   contact: {
     fontSize: 12,
     color: '#4B5057',
-    marginBottom: 1,
   },
   removeButton: {
     padding: 8,

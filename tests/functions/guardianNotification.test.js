@@ -139,4 +139,32 @@ describe('Cloud Function: onAlertCreated', () => {
     expect(combinedLogs).not.toContain('"userId":"u1"');
     expect(combinedLogs).not.toContain('latitude');
   });
+
+  it('sends cancellation notification without logging raw user identifiers', async () => {
+    const fns = require('../../functions/index');
+
+    await fns.onAlertCancelled({
+      params: { alertId: 'alert-cancel-1' },
+      data: {
+        before: { data: () => ({ status: 'active', userId: 'u1' }) },
+        after: { data: () => ({ status: 'cancelled', userId: 'u1' }) },
+      },
+    });
+
+    expect(mockAxiosPost).toHaveBeenCalledTimes(1);
+    const payload = mockAxiosPost.mock.calls[0][1];
+    expect(payload[0].title).toBe('Emergency Cancelled');
+
+    const combinedLogs = [
+      ...logSpy.mock.calls,
+      ...warnSpy.mock.calls,
+      ...errorSpy.mock.calls,
+    ]
+      .flat()
+      .map((entry) => String(entry))
+      .join(' ');
+
+    expect(combinedLogs).not.toContain('"userId":"u1"');
+    expect(combinedLogs).not.toContain('Alert data:');
+  });
 });

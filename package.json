@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "engines": {
-    "node": ">=20.19.0",
+    "node": ">=20.19.4",
     "npm": ">=9.0.0"
   },
   "scripts": {
@@ -30,6 +30,7 @@
     "format:check": "prettier --check \"src/**/*.{js,jsx}\" \"App.js\""
   },
   "dependencies": {
+    "@expo/vector-icons": "^15.0.3",
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@react-native-community/netinfo": "11.4.1",
     "@react-navigation/native": "^6.1.18",

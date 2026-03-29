@@ -13,10 +13,12 @@ import {
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { verifyOTP, resendOTP, getOTPErrorMessage } from '../../services/authService';
+import logger from '../../utils/logger';
 
 const OTP_LENGTH = 6;
 const RESEND_COOLDOWN = 30; // seconds
 const VERIFICATION_TIMEOUT = 300; // 5 minutes in seconds
+const TAG = '[VerifyOTP]';
 
 const VerifyOTPScreen = ({ navigation, route }) => {
   const { phoneNumber, expiresIn } = route.params || {};
@@ -120,7 +122,7 @@ const VerifyOTPScreen = ({ navigation, route }) => {
         }
       }, 800);
     } catch (err) {
-      console.error('[VerifyOTP] verify error:', err);
+      logger.error(TAG, 'verify error:', err);
       setError(getOTPErrorMessage(err));
       // Clear OTP inputs on error
       setOtpDigits(Array(OTP_LENGTH).fill(''));
@@ -141,7 +143,7 @@ const VerifyOTPScreen = ({ navigation, route }) => {
       setOtpDigits(Array(OTP_LENGTH).fill(''));
       inputRefs.current[0]?.focus();
     } catch (err) {
-      console.error('[VerifyOTP] resend error:', err);
+      logger.error(TAG, 'resend error:', err);
       setError(getOTPErrorMessage(err));
     }
   };

@@ -13,6 +13,9 @@ import { auth } from '../config/firebase';
 import { subscribeToAlertHistory } from '../services/alertHistoryService';
 import { formatAlertTime } from '../services/alertLifecycleService';
 import { getConnectedUsers } from '../services/profile';
+import logger from '../utils/logger';
+
+const TAG = '[AlertHistoryScreen]';
 
 const AlertHistoryScreen = ({ navigation, route }) => {
   const { isGuardian } = route.params || { isGuardian: false };
@@ -53,7 +56,7 @@ const AlertHistoryScreen = ({ navigation, route }) => {
             setLoading(false);
           },
           (err) => {
-            console.error('[AlertHistoryScreen] fetch history error:', err);
+            logger.error(TAG, 'fetch history error:', err);
             setError('Failed to load alert history');
             setLoading(false);
           }
@@ -63,7 +66,7 @@ const AlertHistoryScreen = ({ navigation, route }) => {
           unsubscribe();
         };
       } catch (err) {
-        console.error('[AlertHistoryScreen] setup error:', err);
+        logger.error(TAG, 'setup error:', err);
         setError('An unexpected error occurred');
         setLoading(false);
       }

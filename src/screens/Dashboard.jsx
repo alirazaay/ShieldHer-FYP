@@ -25,6 +25,9 @@ import {
 import { getSafetyModeState, getVoiceSOSState } from '../services/profile';
 import { startLocationTracking, stopLocationTracking } from '../services/locationListener';
 import { startVoiceListener, stopVoiceListener } from '../services/voiceSOSService';
+import logger from '../utils/logger';
+
+const TAG = '[Dashboard]';
 
 const Dashboard = ({ navigation }) => {
   const insets = useSafeAreaInsets();
@@ -58,7 +61,7 @@ const Dashboard = ({ navigation }) => {
         if (isSafetyModeEnabled) {
           await startLocationTracking(currentUser.uid);
           setLocationTracking(true);
-          console.log('[Dashboard] Safety Mode ON: Location tracking started');
+          logger.info(TAG, 'Safety Mode ON: Location tracking started');
 
           // Check Voice SOS permissions
           const isVoiceEnabled = await getVoiceSOSState(currentUser.uid);
@@ -71,10 +74,10 @@ const Dashboard = ({ navigation }) => {
           stopLocationTracking();
           stopVoiceListener();
           setLocationTracking(false);
-          console.log('[Dashboard] Safety Mode OFF: Location tracking bypassed');
+          logger.info(TAG, 'Safety Mode OFF: Location tracking bypassed');
         }
       } catch (error) {
-        console.error('[Dashboard] Location tracking initialization error:', error);
+        logger.error(TAG, 'Location tracking initialization error:', error);
         setLocationTracking(false);
       }
     };
@@ -85,7 +88,7 @@ const Dashboard = ({ navigation }) => {
       stopLocationTracking();
       stopVoiceListener();
       setLocationTracking(false);
-      console.log('[Dashboard] Dashboard unmounted: Native location and mic monitoring stopped');
+      logger.info(TAG, 'Dashboard unmounted: Native location and mic monitoring stopped');
     };
   }, [navigation]);
 
@@ -112,7 +115,7 @@ const Dashboard = ({ navigation }) => {
         }
       },
       (error) => {
-        console.error('[Dashboard] Escalation listener error:', error);
+        logger.error(TAG, 'Escalation listener error:', error);
       }
     );
 
@@ -173,7 +176,7 @@ const Dashboard = ({ navigation }) => {
           message: 'An alert was recently sent. Please wait before sending another.',
           type: 'warning',
         });
-        console.log('[Dashboard] SOS alert blocked by cooldown');
+        logger.info(TAG, 'SOS alert blocked by cooldown');
         return;
       }
 
@@ -187,7 +190,7 @@ const Dashboard = ({ navigation }) => {
           message: result.statusMessage || 'Emergency alert sent',
           type: result.deliveryStatus === 'pending_retry' ? 'warning' : 'success',
         });
-        console.log('[Dashboard] SOS dispatch result:', result.method, result.alertId);
+        logger.info(TAG, 'SOS dispatch result:', result.method, result.alertId);
       } else {
         setSosError({
           message: result.error || 'Failed to send alert. Please try again.',
@@ -195,7 +198,7 @@ const Dashboard = ({ navigation }) => {
         });
       }
     } catch (error) {
-      console.error('[Dashboard] SOS alert error:', error);
+      logger.error(TAG, 'SOS alert error:', error);
       setSosError({
         message: getAlertErrorMessage(error),
         type: 'error',
@@ -211,7 +214,7 @@ const Dashboard = ({ navigation }) => {
 
   const onHoldVoice = () => {
     // Placeholder: long press action hook
-    console.log('Voice trigger pressed');
+    logger.info(TAG, 'Voice trigger pressed');
   };
 
   return (
@@ -475,7 +478,7 @@ const Dashboard = ({ navigation }) => {
                   try {
                     await signOutUser();
                   } catch (e) {
-                    console.error('[Dashboard] Logout failed:', e);
+                    logger.error(TAG, 'Logout failed:', e);
                   }
                   closeLogout();
                   navigation?.replace?.('Login');

@@ -14,6 +14,9 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { auth } from '../config/firebase';
 import PrimaryButton from '../components/PrimaryButton';
 import { changePassword, getErrorMessage } from '../services/profile';
+import logger from '../utils/logger';
+
+const TAG = '[ChangePasswordScreen]';
 
 const ChangePasswordScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
@@ -86,7 +89,7 @@ const ChangePasswordScreen = ({ navigation }) => {
         navigation?.goBack();
       }, 2000);
     } catch (err) {
-      console.error('[ChangePasswordScreen] handleChangePassword error:', err);
+      logger.error(TAG, 'handleChangePassword error:', err);
       setMessage({ text: getErrorMessage(err), type: 'error' });
     } finally {
       setLoading(false);

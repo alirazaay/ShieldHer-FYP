@@ -14,6 +14,9 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { sendOTP, getOTPErrorMessage } from '../../services/authService';
 import { buildPhoneNumber } from '../../utils/phone';
+import logger from '../../utils/logger';
+
+const TAG = '[PhoneLogin]';
 
 const PhoneLoginScreen = ({ navigation }) => {
   const [countryCode, setCountryCode] = useState('+92');
@@ -42,7 +45,7 @@ const PhoneLoginScreen = ({ navigation }) => {
         });
       }
     } catch (err) {
-      console.error('[PhoneLogin] sendOTP error:', err);
+      logger.error(TAG, 'sendOTP error:', err);
       setError(getOTPErrorMessage(err));
     } finally {
       setLoading(false);

@@ -13,6 +13,9 @@ import { subscribeToAlertTimeline } from '../services/alertHistoryService';
 import { formatAlertTime } from '../services/alertLifecycleService';
 import { doc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../config/firebase';
+import logger from '../utils/logger';
+
+const TAG = '[AlertTimelineScreen]';
 
 const AlertTimelineScreen = ({ navigation, route }) => {
   const { alertId, alertName } = route.params;
@@ -42,7 +45,7 @@ const AlertTimelineScreen = ({ navigation, route }) => {
         return name;
       }
     } catch (err) {
-      console.warn('Failed to fetch actor name:', err);
+      logger.warn(TAG, 'Failed to fetch actor name:', err);
     }
     return 'User';
   }, []);
@@ -67,7 +70,7 @@ const AlertTimelineScreen = ({ navigation, route }) => {
         setLoading(false);
       },
       (err) => {
-        console.error('[AlertTimelineScreen] error:', err);
+        logger.error(TAG, 'error:', err);
         setError('Failed to load timeline');
         setLoading(false);
       }

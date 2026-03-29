@@ -18,6 +18,9 @@ import { auth, db } from '../config/firebase';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import logger from '../utils/logger';
+
+const TAG = '[Login]';
 
 // Phone login navigation
 const goPhoneLogin = (navigation) => {
@@ -43,26 +46,26 @@ const Login = ({ navigation }) => {
     }
     setLoading(true);
     try {
-      console.log('[Login] Firebase app:', auth?.app?.name);
+      logger.info(TAG, 'Firebase app:', auth?.app?.name);
       const userCred = await signInWithEmailAndPassword(auth, email.trim(), password);
       const user = userCred.user;
-      console.log('[Login] Authenticated uid:', user?.uid);
+      logger.info(TAG, 'Authenticated uid:', user?.uid);
       const docRef = doc(db, 'users', user.uid);
       const snap = await getDoc(docRef);
       if (!snap.exists()) {
         Alert.alert('Error', 'User role not found in database');
-        console.warn('[Login] Missing user doc; falling back to tab role');
+        logger.warn(TAG, 'Missing user doc; falling back to tab role');
         const fallbackRole = activeTab === TAB_TYPES.GUARDIAN ? 'guardian' : 'user';
         if (navigation?.navigate)
           navigation.navigate(fallbackRole === 'guardian' ? 'GuardianDashboard' : 'Dashboard');
         return;
       }
       const role = snap.data().role;
-      console.log('[Login] Loaded role:', role);
+      logger.info(TAG, 'Loaded role:', role);
       if (navigation?.navigate)
         navigation.navigate(role === 'guardian' ? 'GuardianDashboard' : 'Dashboard');
     } catch (e) {
-      console.error('[Login] Error during login:', e);
+      logger.error(TAG, 'Error during login:', e);
       let message = e?.message ?? 'Please try again.';
       if (e?.code === 'auth/invalid-credential' || e?.code === 'auth/wrong-password')
         message = 'Incorrect password.';

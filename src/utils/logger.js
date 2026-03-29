@@ -21,7 +21,9 @@ const LOG_LEVELS = {
 };
 
 // Set minimum log level (DEBUG shows all, ERROR only errors, NONE disables all)
-const MIN_LOG_LEVEL = __DEV__ ? LOG_LEVELS.DEBUG : LOG_LEVELS.WARN;
+const isDevEnv =
+  (typeof __DEV__ !== 'undefined' && __DEV__) || process.env.NODE_ENV !== 'production';
+const MIN_LOG_LEVEL = isDevEnv ? LOG_LEVELS.DEBUG : LOG_LEVELS.WARN;
 
 /**
  * Format log arguments for consistent output

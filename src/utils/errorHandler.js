@@ -1,4 +1,5 @@
 import { Alert, Linking } from 'react-native';
+import logger from './logger';
 
 const DEFAULT_ERROR_MESSAGES = {
   'location/permission-denied': 'Location access is required for safety monitoring.',
@@ -14,7 +15,7 @@ const DEFAULT_ERROR_MESSAGES = {
  * @param {string} context Context where the error occurred
  */
 export const handleAppError = (error, context) => {
-  console.error(`[Error isolated in ${context}]:`, error);
+  logger.error('[errorHandler]', `[Error isolated in ${context}]:`, error);
 
   const errorCode = error?.code || error?.message?.toLowerCase() || 'unknown';
 

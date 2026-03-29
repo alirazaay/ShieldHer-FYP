@@ -18,6 +18,9 @@ import {
   calculateMapBounds,
   formatLocationTimestamp,
 } from '../services/locationListener';
+import logger from '../utils/logger';
+
+const TAG = '[GroupLocationMapScreen]';
 
 const GroupLocationMapScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
@@ -66,7 +69,7 @@ const GroupLocationMapScreen = ({ navigation }) => {
             }));
           },
           (err) => {
-            console.error('[GroupLocationMapScreen] Location subscription error:', err);
+            logger.error(TAG, 'Location subscription error:', err);
             setError({ message: getLocationErrorMessage(err), type: 'error' });
           }
         );
@@ -74,7 +77,7 @@ const GroupLocationMapScreen = ({ navigation }) => {
         locationSubscriptionRef.current = unsubscribe;
         setLoading(false);
       } catch (err) {
-        console.error('[GroupLocationMapScreen] Initialization error:', err);
+        logger.error(TAG, 'Initialization error:', err);
         setError({ message: getLocationErrorMessage(err), type: 'error' });
         setLoading(false);
       }
@@ -87,7 +90,7 @@ const GroupLocationMapScreen = ({ navigation }) => {
       if (locationSubscriptionRef.current) {
         locationSubscriptionRef.current();
         locationSubscriptionRef.current = null;
-        console.log('[GroupLocationMapScreen] Location subscriptions cleaned up');
+        logger.info(TAG, 'Location subscriptions cleaned up');
       }
     };
   }, [navigation]);

@@ -28,6 +28,9 @@ import {
 import { signOutUser } from '../services/auth';
 import GuardianListItem from '../components/GuardianListItem';
 import { sendGuardianInvite, getInviteErrorMessage } from '../services/guardianInvites';
+import logger from '../utils/logger';
+
+const TAG = '[ProfileScreen]';
 
 const ProfileScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
@@ -98,7 +101,7 @@ const ProfileScreen = ({ navigation }) => {
 
       setError(null);
     } catch (err) {
-      console.error('[ProfileScreen] loadProfileData error:', err);
+      logger.error(TAG, 'loadProfileData error:', err);
       setError({
         message: getErrorMessage(err),
         type: 'error',
@@ -213,7 +216,7 @@ const ProfileScreen = ({ navigation }) => {
         type: 'success',
       });
     } catch (err) {
-      console.error('[ProfileScreen] handleSaveProfile error:', err);
+      logger.error(TAG, 'handleSaveProfile error:', err);
       setError({
         message: getErrorMessage(err),
         type: 'error',
@@ -279,7 +282,7 @@ const ProfileScreen = ({ navigation }) => {
         type: 'success',
       });
     } catch (err) {
-      console.error('[ProfileScreen] handleAddGuardian error:', err);
+      logger.error(TAG, 'handleAddGuardian error:', err);
       setError({
         message: getErrorMessage(err),
         type: 'error',
@@ -317,7 +320,7 @@ const ProfileScreen = ({ navigation }) => {
                 type: 'success',
               });
             } catch (err) {
-              console.error('[ProfileScreen] handleRemoveGuardian error:', err);
+              logger.error(TAG, 'handleRemoveGuardian error:', err);
               setError({
                 message: getErrorMessage(err),
                 type: 'error',
@@ -329,7 +332,7 @@ const ProfileScreen = ({ navigation }) => {
         },
       ]);
     } catch (err) {
-      console.error('[ProfileScreen] handleRemoveGuardian error:', err);
+      logger.error(TAG, 'handleRemoveGuardian error:', err);
       setError({
         message: getErrorMessage(err),
         type: 'error',
@@ -382,7 +385,7 @@ const ProfileScreen = ({ navigation }) => {
         type: 'success',
       });
     } catch (err) {
-      console.error('[ProfileScreen] handleSendGuardianInvite error:', err);
+      logger.error(TAG, 'handleSendGuardianInvite error:', err);
       setError({
         message: getInviteErrorMessage(err),
         type: 'error',
@@ -404,14 +407,14 @@ const ProfileScreen = ({ navigation }) => {
               await signOutUser();
               navigation?.replace('Login');
             } catch (err) {
-              console.error('[ProfileScreen] handleLogout error:', err);
+              logger.error(TAG, 'handleLogout error:', err);
               Alert.alert('Error', 'Failed to logout. Please try again.');
             }
           },
         },
       ]);
     } catch (err) {
-      console.error('[ProfileScreen] handleLogout error:', err);
+      logger.error(TAG, 'handleLogout error:', err);
     }
   };
 

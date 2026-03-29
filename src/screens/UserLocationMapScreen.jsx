@@ -11,6 +11,9 @@ import {
 import { fetchUserProfile } from '../services/profile';
 import { calculateDistance } from '../utils/distance';
 import { getCurrentLocation } from '../services/location';
+import logger from '../utils/logger';
+
+const TAG = '[UserLocationMapScreen]';
 
 const UserLocationMapScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
@@ -67,7 +70,7 @@ const UserLocationMapScreen = ({ navigation, route }) => {
             }
           },
           (err) => {
-            console.error('[UserLocationMapScreen] Location subscription error:', err);
+            logger.error(TAG, 'Location subscription error:', err);
             setError({ message: getLocationErrorMessage(err), type: 'error' });
           }
         );
@@ -75,7 +78,7 @@ const UserLocationMapScreen = ({ navigation, route }) => {
         locationSubscriptionRef.current = unsubscribe;
         setLoading(false);
       } catch (err) {
-        console.error('[UserLocationMapScreen] Initialization error:', err);
+        logger.error(TAG, 'Initialization error:', err);
         setError({ message: getLocationErrorMessage(err), type: 'error' });
         setLoading(false);
       }
@@ -88,7 +91,7 @@ const UserLocationMapScreen = ({ navigation, route }) => {
       if (locationSubscriptionRef.current) {
         locationSubscriptionRef.current();
         locationSubscriptionRef.current = null;
-        console.log('[UserLocationMapScreen] Location subscription cleaned up');
+        logger.info(TAG, 'Location subscription cleaned up');
       }
     };
   }, [userId]);

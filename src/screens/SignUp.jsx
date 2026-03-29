@@ -14,6 +14,9 @@ import FormInput from '../components/FormInput';
 import PrimaryButton from '../components/PrimaryButton';
 import { registerUser, getAuthErrorMessage } from '../services/auth';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import logger from '../utils/logger';
+
+const TAG = '[SignUp]';
 
 const SignUp = ({ navigation }) => {
   const [fullName, setFullName] = useState('');
@@ -33,7 +36,7 @@ const SignUp = ({ navigation }) => {
 
   // Debug: Log message changes
   useEffect(() => {
-    console.log('[SignUp] Message state changed:', message);
+    logger.info(TAG, 'Message state changed:', message);
   }, [message]);
 
   // Auto-hide message after configurable delay with cleanup to prevent memory leaks
@@ -61,7 +64,7 @@ const SignUp = ({ navigation }) => {
       // Clear any previous messages
       setMessage(null);
 
-      console.log('[SignUp] Starting registration');
+      logger.info(TAG, 'Starting registration');
 
       // Call the service function with all required data
       const cred = await registerUser({
@@ -75,7 +78,7 @@ const SignUp = ({ navigation }) => {
         },
       });
 
-      console.log('[SignUp] Registration successful:', cred.user.uid);
+      logger.info(TAG, 'Registration successful:', cred.user.uid);
 
       // Display success message on screen
       setMessage({ text: 'Signup Completed', type: 'success' });
@@ -88,7 +91,7 @@ const SignUp = ({ navigation }) => {
         navigation?.navigate(role === 'guardian' ? 'GuardianDashboard' : 'Dashboard');
       }, 2000);
     } catch (e) {
-      console.error('[SignUp] Registration error:', e);
+      logger.error(TAG, 'Registration error:', e);
 
       // Display user-friendly error message using service function
       const errorMessage = getAuthErrorMessage(e);

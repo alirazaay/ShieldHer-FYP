@@ -9,6 +9,7 @@ import {
   onSnapshot,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import logger from '../utils/logger';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Create an event in the alert's timeline
@@ -19,10 +20,10 @@ import { db } from '../config/firebase';
 // @returns {Promise<void>}
 // ─────────────────────────────────────────────────────────────────────────────
 export async function createTimelineEvent(alertId, type, actorId, metadata = {}) {
-  console.log(`[alertHistory] Creating timeline event: ${type} for alert ${alertId}`);
+  logger.info('[alertHistory]', `Creating timeline event: ${type} for alert ${alertId}`);
 
   if (!alertId || !type || !actorId) {
-    console.error('[alertHistory] Missing required fields for timeline event');
+    logger.error('[alertHistory]', 'Missing required fields for timeline event');
     return;
   }
 
@@ -37,11 +38,11 @@ export async function createTimelineEvent(alertId, type, actorId, metadata = {})
       metadata,
     });
 
-    console.log(`[alertHistory] Event "${type}" created successfully`);
+    logger.info('[alertHistory]', `Event "${type}" created successfully`);
   } catch (error) {
     // Failing to create an event shouldn't break the main flow (likeSOS trigger),
     // so we just log the error instead of throwing.
-    console.error(`[alertHistory] Error creating "${type}" event:`, error);
+    logger.error('[alertHistory]', `Error creating "${type}" event:`, error);
   }
 }
 
@@ -55,7 +56,7 @@ export async function createTimelineEvent(alertId, type, actorId, metadata = {})
 // @returns {Function} Unsubscribe function
 // ─────────────────────────────────────────────────────────────────────────────
 export function subscribeToAlertHistory(userId, isGuardian, connectedUserIds, onUpdate, onError) {
-  console.log('[alertHistory] subscribeToAlertHistory', { userId, isGuardian });
+  logger.info('[alertHistory]', 'subscribeToAlertHistory', { userId, isGuardian });
 
   if (!userId) {
     onUpdate([]);
@@ -91,18 +92,18 @@ export function subscribeToAlertHistory(userId, isGuardian, connectedUserIds, on
           });
         });
 
-        console.log(`[alertHistory] Historic alerts loaded: ${alerts.length}`);
+        logger.info('[alertHistory]', `Historic alerts loaded: ${alerts.length}`);
         onUpdate(alerts);
       },
       (error) => {
-        console.error('[alertHistory] History snapshot error:', error);
+        logger.error('[alertHistory]', 'History snapshot error:', error);
         onError(error);
       }
     );
 
     return unsubscribe;
   } catch (error) {
-    console.error('[alertHistory] History setup error:', error);
+    logger.error('[alertHistory]', 'History setup error:', error);
     onError(error);
     return () => {};
   }
@@ -116,7 +117,7 @@ export function subscribeToAlertHistory(userId, isGuardian, connectedUserIds, on
 // @returns {Function} Unsubscribe function
 // ─────────────────────────────────────────────────────────────────────────────
 export function subscribeToAlertTimeline(alertId, onUpdate, onError) {
-  console.log('[alertHistory] subscribeToAlertTimeline for alert:', alertId);
+  logger.info('[alertHistory]', 'subscribeToAlertTimeline for alert:', alertId);
 
   if (!alertId) {
     onUpdate([]);
@@ -138,18 +139,18 @@ export function subscribeToAlertTimeline(alertId, onUpdate, onError) {
           });
         });
 
-        console.log(`[alertHistory] Loaded ${events.length} timeline events`);
+        logger.info('[alertHistory]', `Loaded ${events.length} timeline events`);
         onUpdate(events);
       },
       (error) => {
-        console.error('[alertHistory] Timeline snapshot error:', error);
+        logger.error('[alertHistory]', 'Timeline snapshot error:', error);
         onError(error);
       }
     );
 
     return unsubscribe;
   } catch (error) {
-    console.error('[alertHistory] Timeline setup error:', error);
+    logger.error('[alertHistory]', 'Timeline setup error:', error);
     onError(error);
     return () => {};
   }

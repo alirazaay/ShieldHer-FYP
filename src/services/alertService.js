@@ -228,7 +228,7 @@ export async function createAlert(userId, latitude, longitude, accuracy = null, 
     const writeResult = await sendAlertToFirestore({ alertId, userId, location });
 
     if (writeResult.created) {
-      console.log('[alertService] SOS alert created successfully:', alertId);
+      logger.info('[alertService]', 'SOS alert created successfully:', alertId);
     }
 
     // Keep existing timeline helper compatibility for legacy flow when explicitly requested.

@@ -40,7 +40,7 @@ const Home = ({ navigation }) => {
       // Respect cooldown to avoid repeated auto-triggers.
       const hasActiveAlert = await checkActiveAlert(user.uid);
       if (hasActiveAlert) {
-        console.log('[Home] Scream trigger ignored: active alert cooldown');
+        logger.info(TAG, 'Scream trigger ignored: active alert cooldown');
         return;
       }
 

@@ -7,6 +7,7 @@ import {
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { clearGuardianCache } from './smsService';
+import logger from '../utils/logger';
 
 /**
  * Register a new user with Firebase Auth and Firestore
@@ -24,7 +25,7 @@ import { clearGuardianCache } from './smsService';
  * @throws {Error} Firebase error with code and message
  */
 export async function registerUser({ email, password, role, profile = {} }) {
-  console.log('[auth] registerUser start', { email, role, profile });
+  logger.info('[auth]', 'registerUser start', { email, role, profile });
 
   // Validate email format
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -86,7 +87,7 @@ export async function registerUser({ email, password, role, profile = {} }) {
     // Create user in Firebase Auth
     const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
     const uid = cred.user.uid;
-    console.log('[auth] created user', uid);
+    logger.info('[auth]', 'created user', uid);
 
     // Prepare user profile data
     const userProfile = {
@@ -109,11 +110,11 @@ export async function registerUser({ email, password, role, profile = {} }) {
 
     // Save user profile to Firestore
     await setDoc(doc(db, 'users', uid), userProfile);
-    console.log('[auth] user profile written to Firestore');
+    logger.info('[auth]', 'user profile written to Firestore');
 
     return cred;
   } catch (error) {
-    console.error('[auth] registerUser error:', error);
+    logger.error('[auth]', 'registerUser error:', error);
     throw error;
   }
 }
@@ -146,25 +147,25 @@ export function getAuthErrorMessage(error) {
 }
 
 export async function loginUser({ email, password }) {
-  console.log('[auth] loginUser start', { email });
+  logger.info('[auth]', 'loginUser start', { email });
   const cred = await signInWithEmailAndPassword(auth, email, password);
   const uid = cred.user.uid;
-  console.log('[auth] signed in', uid);
+  logger.info('[auth]', 'signed in', uid);
   const snap = await getDoc(doc(db, 'users', uid));
   const data = snap.exists() ? snap.data() : null;
-  console.log('[auth] fetched profile', { hasProfile: !!data, role: data?.role });
+  logger.info('[auth]', 'fetched profile', { hasProfile: !!data, role: data?.role });
   return { user: cred.user, profile: data };
 }
 
 export async function resetPassword(email) {
-  console.log('[auth] resetPassword start', { email });
+  logger.info('[auth]', 'resetPassword start', { email });
   await sendPasswordResetEmail(auth, email);
-  console.log('[auth] resetPassword email sent');
+  logger.info('[auth]', 'resetPassword email sent');
   return true;
 }
 
 export async function getCurrentUserRole() {
-  console.log('[auth] getCurrentUserRole start');
+  logger.info('[auth]', 'getCurrentUserRole start');
   const user = auth.currentUser;
   if (!user) return null;
   const snap = await getDoc(doc(db, 'users', user.uid));
@@ -172,13 +173,13 @@ export async function getCurrentUserRole() {
 }
 
 export async function signOutUser() {
-  console.log('[auth] signOutUser start');
+  logger.info('[auth]', 'signOutUser start');
   // Ensure offline guardian cache does not leak across accounts on shared devices.
   try {
     await clearGuardianCache();
   } catch (err) {
-    console.warn('[auth] Failed to clear guardian cache during sign out:', err?.message || err);
+    logger.warn('[auth]', 'Failed to clear guardian cache during sign out:', err?.message || err);
   }
   await signOut(auth);
-  console.log('[auth] signOutUser complete');
+  logger.info('[auth]', 'signOutUser complete');
 }

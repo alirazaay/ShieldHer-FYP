@@ -23,6 +23,9 @@ import {
 } from '../services/profile';
 import { requestLocationPermission } from '../services/location';
 import { startLocationTracking, stopLocationTracking } from '../services/locationListener';
+import logger from '../utils/logger';
+
+const TAG = '[LocationSettings]';
 
 const LocationSettingsScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
@@ -86,7 +89,7 @@ const LocationSettingsScreen = ({ navigation }) => {
         setSafetyMode(false);
       }
     } catch (err) {
-      console.error('[LocationSettings] Error toggling Safety Mode:', err);
+      logger.error(TAG, 'Error toggling Safety Mode:', err);
       Alert.alert('Error', 'Failed to toggle Safety Mode.');
     } finally {
       setSafetyModeLoading(false);
@@ -110,7 +113,7 @@ const LocationSettingsScreen = ({ navigation }) => {
         setVoiceSOSMode(false);
       }
     } catch (err) {
-      console.error('[LocationSettings] Error toggling Voice SOS:', err);
+      logger.error(TAG, 'Error toggling Voice SOS:', err);
       Alert.alert('Error', 'Failed to toggle Voice SOS Mode.');
     } finally {
       setVoiceSOSLoading(false);
@@ -149,7 +152,7 @@ const LocationSettingsScreen = ({ navigation }) => {
         navigation?.goBack();
       }, 1500);
     } catch (err) {
-      console.error('[LocationSettings] handleSave error:', err);
+      logger.error(TAG, 'handleSave error:', err);
       setMessage({
         text: getErrorMessage(err),
         type: 'error',

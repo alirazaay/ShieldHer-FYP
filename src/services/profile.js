@@ -12,6 +12,7 @@ import {
 } from 'firebase/firestore';
 import { reauthenticateWithCredential, EmailAuthProvider, updatePassword } from 'firebase/auth';
 import { auth, db } from '../config/firebase';
+import logger from '../utils/logger';
 
 /**
  * Fetch user profile from Firestore
@@ -34,7 +35,7 @@ export async function fetchUserProfile(uid) {
       ...userSnap.data(),
     };
   } catch (error) {
-    console.error('[profile] fetchUserProfile error:', error);
+    logger.error('[profile]', 'fetchUserProfile error:', error);
     throw error;
   }
 }
@@ -61,7 +62,7 @@ export async function fetchGuardians(uid) {
 
     return guardians;
   } catch (error) {
-    console.error('[profile] fetchGuardians error:', error);
+    logger.error('[profile]', 'fetchGuardians error:', error);
     throw error;
   }
 }
@@ -102,9 +103,9 @@ export async function updateUserProfile(uid, updates) {
 
     await updateDoc(userDocRef, updateData);
 
-    console.log('[profile] User profile updated successfully');
+    logger.info('[profile]', 'User profile updated successfully');
   } catch (error) {
-    console.error('[profile] updateUserProfile error:', error);
+    logger.error('[profile]', 'updateUserProfile error:', error);
     throw error;
   }
 }
@@ -171,10 +172,10 @@ export async function addGuardian(userId, guardianData, guardianUid = null) {
 
     await setDoc(guardianDocRef, guardianWithMetadata);
 
-    console.log('[profile] Guardian added successfully:', guardianDocRef.id);
+    logger.info('[profile]', 'Guardian added successfully:', guardianDocRef.id);
     return guardianDocRef.id;
   } catch (error) {
-    console.error('[profile] addGuardian error:', error);
+    logger.error('[profile]', 'addGuardian error:', error);
     throw error;
   }
 }
@@ -194,9 +195,9 @@ export async function removeGuardian(userId, guardianId) {
     const guardianDocRef = doc(db, 'users', userId, 'guardians', guardianId);
     await deleteDoc(guardianDocRef);
 
-    console.log('[profile] Guardian removed successfully:', guardianId);
+    logger.info('[profile]', 'Guardian removed successfully:', guardianId);
   } catch (error) {
-    console.error('[profile] removeGuardian error:', error);
+    logger.error('[profile]', 'removeGuardian error:', error);
     throw error;
   }
 }
@@ -217,9 +218,9 @@ export async function updateProfileImage(uid, imageUrl) {
       updatedAt: serverTimestamp(),
     });
 
-    console.log('[profile] Profile image updated successfully');
+    logger.info('[profile]', 'Profile image updated successfully');
   } catch (error) {
-    console.error('[profile] updateProfileImage error:', error);
+    logger.error('[profile]', 'updateProfileImage error:', error);
     throw error;
   }
 }
@@ -256,9 +257,9 @@ export async function changePassword(email, oldPassword, newPassword) {
     // Update password
     await updatePassword(user, newPassword);
 
-    console.log('[profile] Password changed successfully');
+    logger.info('[profile]', 'Password changed successfully');
   } catch (error) {
-    console.error('[profile] changePassword error:', error);
+    logger.error('[profile]', 'changePassword error:', error);
     throw error;
   }
 }
@@ -285,7 +286,7 @@ export async function getConnectedUsers(guardianId) {
 
     return connectedUsers;
   } catch (error) {
-    console.error('[profile] getConnectedUsers error:', error);
+    logger.error('[profile]', 'getConnectedUsers error:', error);
     throw error;
   }
 }
@@ -334,7 +335,7 @@ export async function getSafetyModeState(uid) {
     }
     return false;
   } catch (error) {
-    console.error('[profile] getSafetyModeState error:', error);
+    logger.error('[profile]', 'getSafetyModeState error:', error);
     return false;
   }
 }
@@ -355,9 +356,9 @@ export async function toggleSafetyMode(uid, isEnabled) {
       updatedAt: serverTimestamp(),
     });
 
-    console.log(`[profile] Safety Mode set to: ${isEnabled}`);
+    logger.info('[profile]', `Safety Mode set to: ${isEnabled}`);
   } catch (error) {
-    console.error('[profile] toggleSafetyMode error:', error);
+    logger.error('[profile]', 'toggleSafetyMode error:', error);
     throw error;
   }
 }
@@ -376,7 +377,7 @@ export async function getVoiceSOSState(uid) {
     }
     return false;
   } catch (error) {
-    console.error('[profile] getVoiceSOSState error:', error);
+    logger.error('[profile]', 'getVoiceSOSState error:', error);
     return false;
   }
 }
@@ -397,9 +398,9 @@ export async function toggleVoiceSOS(uid, isEnabled) {
       updatedAt: serverTimestamp(),
     });
 
-    console.log(`[profile] Voice SOS set to: ${isEnabled}`);
+    logger.info('[profile]', `Voice SOS set to: ${isEnabled}`);
   } catch (error) {
-    console.error('[profile] toggleVoiceSOS error:', error);
+    logger.error('[profile]', 'toggleVoiceSOS error:', error);
     throw error;
   }
 }

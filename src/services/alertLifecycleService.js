@@ -10,6 +10,7 @@ import {
   getDoc,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import logger from '../utils/logger';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Subscribe to real-time alerts for a set of users (guardian's connected users)
@@ -22,10 +23,10 @@ import { db } from '../config/firebase';
 // @returns {Function}             - Unsubscribe function
 // ─────────────────────────────────────────────────────────────────────────────
 export function subscribeToAlerts(userIds, onUpdate, onError) {
-  console.log('[alertLifecycle] subscribeToAlerts start', { userIds });
+  logger.info('[alertLifecycle]', 'subscribeToAlerts start', { userIds });
 
   if (!Array.isArray(userIds) || userIds.length === 0) {
-    console.warn('[alertLifecycle] subscribeToAlerts: no userIds provided');
+    logger.warn('[alertLifecycle]', 'subscribeToAlerts: no userIds provided');
     onUpdate([]);
     return () => {};
   }
@@ -54,18 +55,18 @@ export function subscribeToAlerts(userIds, onUpdate, onError) {
           return tsB - tsA;
         });
 
-        console.log(`[alertLifecycle] Alerts updated: ${alerts.length} total`);
+        logger.info('[alertLifecycle]', `Alerts updated: ${alerts.length} total`);
         onUpdate(alerts);
       },
       (error) => {
-        console.error('[alertLifecycle] Snapshot listener error:', error);
+        logger.error('[alertLifecycle]', 'Snapshot listener error:', error);
         onError(error);
       }
     );
 
     return unsubscribe;
   } catch (error) {
-    console.error('[alertLifecycle] subscribeToAlerts setup error:', error);
+    logger.error('[alertLifecycle]', 'subscribeToAlerts setup error:', error);
     onError(error);
     return () => {};
   }
@@ -81,7 +82,7 @@ import { createTimelineEvent } from './alertHistoryService';
 // @returns {Promise<void>}
 // ─────────────────────────────────────────────────────────────────────────────
 export async function respondToAlert(alertId, guardianId) {
-  console.log('[alertLifecycle] respondToAlert', { alertId, guardianId });
+  logger.info('[alertLifecycle]', 'respondToAlert', { alertId, guardianId });
 
   if (!alertId || !guardianId) {
     throw new Error('Alert ID and Guardian ID are required');
@@ -107,12 +108,12 @@ export async function respondToAlert(alertId, guardianId) {
       respondedAt: serverTimestamp(),
     });
 
-    console.log('[alertLifecycle] respondToAlert: status set to responding');
+    logger.info('[alertLifecycle]', 'respondToAlert: status set to responding');
 
     // [Timeline hook] Record the response event in the alert's subcollection
     await createTimelineEvent(alertId, 'responded', guardianId);
   } catch (error) {
-    console.error('[alertLifecycle] respondToAlert error:', error);
+    logger.error('[alertLifecycle]', 'respondToAlert error:', error);
     throw error;
   }
 }
@@ -125,7 +126,7 @@ export async function respondToAlert(alertId, guardianId) {
 // @returns {Promise<void>}
 // ─────────────────────────────────────────────────────────────────────────────
 export async function resolveAlert(alertId, guardianId) {
-  console.log('[alertLifecycle] resolveAlert', { alertId, guardianId });
+  logger.info('[alertLifecycle]', 'resolveAlert', { alertId, guardianId });
 
   if (!alertId || !guardianId) {
     throw new Error('Alert ID and Guardian ID are required');
@@ -154,12 +155,12 @@ export async function resolveAlert(alertId, guardianId) {
       resolvedAt: serverTimestamp(),
     });
 
-    console.log('[alertLifecycle] resolveAlert: status set to resolved');
+    logger.info('[alertLifecycle]', 'resolveAlert: status set to resolved');
 
     // [Timeline hook] Record the resolution event in the alert's subcollection
     await createTimelineEvent(alertId, 'resolved', guardianId);
   } catch (error) {
-    console.error('[alertLifecycle] resolveAlert error:', error);
+    logger.error('[alertLifecycle]', 'resolveAlert error:', error);
     throw error;
   }
 }
@@ -172,7 +173,7 @@ export async function resolveAlert(alertId, guardianId) {
 // @returns {Promise<void>}
 // ─────────────────────────────────────────────────────────────────────────────
 export async function cancelAlert(alertId, userId) {
-  console.log('[alertLifecycle] cancelAlert', { alertId, userId });
+  logger.info('[alertLifecycle]', 'cancelAlert', { alertId, userId });
 
   if (!alertId || !userId) {
     throw new Error('Alert ID and User ID are required');
@@ -206,7 +207,7 @@ export async function cancelAlert(alertId, userId) {
       cancelledAt: serverTimestamp(),
     });
 
-    console.log('[alertLifecycle] cancelAlert: status set to cancelled');
+    logger.info('[alertLifecycle]', 'cancelAlert: status set to cancelled');
 
     // Audit trail: explicit cancellation event contract
     const eventsCollectionRef = collection(db, 'alerts', alertId, 'events');
@@ -218,7 +219,7 @@ export async function cancelAlert(alertId, userId) {
       timestamp: serverTimestamp(),
     });
   } catch (error) {
-    console.error('[alertLifecycle] cancelAlert error:', error);
+    logger.error('[alertLifecycle]', 'cancelAlert error:', error);
     throw error;
   }
 }

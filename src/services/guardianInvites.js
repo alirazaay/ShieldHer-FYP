@@ -11,6 +11,7 @@ import {
   updateDoc,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import logger from '../utils/logger';
 
 /**
  * Send a guardian invite from a user to a guardian
@@ -34,7 +35,7 @@ export async function sendGuardianInvite({
   userProfileImage = null,
   message = '',
 }) {
-  console.log('[guardianInvites] sendGuardianInvite start', {
+  logger.info('[guardianInvites]', 'sendGuardianInvite start', {
     userId,
     userEmail,
     guardianEmail,
@@ -93,10 +94,10 @@ export async function sendGuardianInvite({
 
     await setDoc(newInviteRef, inviteData);
 
-    console.log('[guardianInvites] Guardian invite sent successfully:', newInviteRef.id);
+    logger.info('[guardianInvites]', 'Guardian invite sent successfully:', newInviteRef.id);
     return newInviteRef.id;
   } catch (error) {
-    console.error('[guardianInvites] sendGuardianInvite error:', error);
+    logger.error('[guardianInvites]', 'sendGuardianInvite error:', error);
     throw error;
   }
 }
@@ -108,7 +109,7 @@ export async function sendGuardianInvite({
  * @throws {Error} Firebase error
  */
 export async function fetchPendingInvites(guardianEmail) {
-  console.log('[guardianInvites] fetchPendingInvites start', { guardianEmail });
+  logger.info('[guardianInvites]', 'fetchPendingInvites start', { guardianEmail });
 
   if (!guardianEmail) {
     const error = new Error('Guardian email is required');
@@ -134,10 +135,10 @@ export async function fetchPendingInvites(guardianEmail) {
       });
     });
 
-    console.log('[guardianInvites] Fetched pending invites:', invites.length);
+    logger.info('[guardianInvites]', 'Fetched pending invites:', invites.length);
     return invites;
   } catch (error) {
-    console.error('[guardianInvites] fetchPendingInvites error:', error);
+    logger.error('[guardianInvites]', 'fetchPendingInvites error:', error);
     throw error;
   }
 }
@@ -151,7 +152,7 @@ export async function fetchPendingInvites(guardianEmail) {
  * @throws {Error} Firebase or validation error
  */
 export async function acceptInvite(inviteId, guardianId, guardianEmail) {
-  console.log('[guardianInvites] acceptInvite start', { inviteId, guardianId });
+  logger.info('[guardianInvites]', 'acceptInvite start', { inviteId, guardianId });
 
   if (!inviteId || !guardianId || !guardianEmail) {
     const error = new Error('Invite ID, Guardian ID, and Guardian Email are required');
@@ -194,9 +195,9 @@ export async function acceptInvite(inviteId, guardianId, guardianEmail) {
       acceptedByEmail: guardianEmail.toLowerCase(),
     });
 
-    console.log('[guardianInvites] Invite marked accepted; awaiting backend linking');
+    logger.info('[guardianInvites]', 'Invite marked accepted; awaiting backend linking');
   } catch (error) {
-    console.error('[guardianInvites] acceptInvite error:', error);
+    logger.error('[guardianInvites]', 'acceptInvite error:', error);
     throw error;
   }
 }
@@ -208,7 +209,7 @@ export async function acceptInvite(inviteId, guardianId, guardianEmail) {
  * @throws {Error} Firebase error
  */
 export async function rejectInvite(inviteId) {
-  console.log('[guardianInvites] rejectInvite start', { inviteId });
+  logger.info('[guardianInvites]', 'rejectInvite start', { inviteId });
 
   if (!inviteId) {
     const error = new Error('Invite ID is required');
@@ -230,9 +231,9 @@ export async function rejectInvite(inviteId) {
     // Delete the invite
     await deleteDoc(inviteDocRef);
 
-    console.log('[guardianInvites] Invite rejected successfully');
+    logger.info('[guardianInvites]', 'Invite rejected successfully');
   } catch (error) {
-    console.error('[guardianInvites] rejectInvite error:', error);
+    logger.error('[guardianInvites]', 'rejectInvite error:', error);
     throw error;
   }
 }

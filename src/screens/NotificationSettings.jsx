@@ -5,6 +5,9 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { auth } from '../config/firebase';
 import PrimaryButton from '../components/PrimaryButton';
 import { updateUserProfile, getErrorMessage } from '../services/profile';
+import logger from '../utils/logger';
+
+const TAG = '[NotificationSettings]';
 
 const NotificationSettingsScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
@@ -51,7 +54,7 @@ const NotificationSettingsScreen = ({ navigation }) => {
         navigation?.goBack();
       }, 1500);
     } catch (err) {
-      console.error('[NotificationSettings] handleSave error:', err);
+      logger.error(TAG, 'handleSave error:', err);
       setMessage({
         text: getErrorMessage(err),
         type: 'error',

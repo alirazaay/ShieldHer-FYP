@@ -1,19 +1,20 @@
 import * as Location from 'expo-location';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import logger from '../utils/logger';
 
 /**
  * Request foreground location permission from the user
  * @returns {Promise<Object>} { granted: boolean, status: string }
  */
 export async function requestLocationPermission() {
-  console.log('[location] requestLocationPermission start');
+  logger.info('[location]', 'requestLocationPermission start');
 
   try {
     // Check if location services are enabled on the device
     const servicesEnabled = await Location.hasServicesEnabled();
     if (!servicesEnabled) {
-      console.warn('[location] Location services disabled on device');
+      logger.warn('[location]', 'Location services disabled on device');
       return {
         granted: false,
         status: 'disabled',
@@ -25,13 +26,13 @@ export async function requestLocationPermission() {
     const { status } = await Location.requestForegroundPermissionsAsync();
 
     if (status === 'granted') {
-      console.log('[location] Location permission granted');
+      logger.info('[location]', 'Location permission granted');
       return {
         granted: true,
         status: 'granted',
       };
     } else if (status === 'denied') {
-      console.warn('[location] Location permission denied');
+      logger.warn('[location]', 'Location permission denied');
       return {
         granted: false,
         status: 'denied',
@@ -39,7 +40,7 @@ export async function requestLocationPermission() {
           'Location permission is required for safety features. Please enable it in Settings.',
       };
     } else {
-      console.warn('[location] Location permission undetermined');
+      logger.warn('[location]', 'Location permission undetermined');
       return {
         granted: false,
         status: 'undetermined',
@@ -47,7 +48,7 @@ export async function requestLocationPermission() {
       };
     }
   } catch (error) {
-    console.error('[location] requestLocationPermission error:', error);
+    logger.error('[location]', 'requestLocationPermission error:', error);
     return {
       granted: false,
       status: 'error',
@@ -63,7 +64,7 @@ export async function requestLocationPermission() {
  * @throws {Error} If userId is invalid or location tracking fails
  */
 export async function startLocationTracking(userId) {
-  console.log('[location] startLocationTracking start', { userId });
+  logger.info('[location]', 'startLocationTracking start', { userId });
 
   if (!userId) {
     const error = new Error('User ID is required to start location tracking');
@@ -103,7 +104,7 @@ export async function startLocationTracking(userId) {
         try {
           const { latitude, longitude, accuracy } = location.coords;
 
-          console.log('[location] Position update', {
+          logger.info('[location]', 'Position update', {
             latitude: latitude.toFixed(4),
             longitude: longitude.toFixed(4),
             accuracy: accuracy?.toFixed(1),
@@ -120,17 +121,17 @@ export async function startLocationTracking(userId) {
             },
           });
         } catch (updateError) {
-          console.error('[location] Error updating Firestore:', updateError);
+          logger.error('[location]', 'Error updating Firestore:', updateError);
           // Don't throw - let location watching continue even if Firestore update fails
           // In production, could implement retry queue or offline caching
         }
       }
     );
 
-    console.log('[location] Location tracking started successfully');
+    logger.info('[location]', 'Location tracking started successfully');
     return subscription;
   } catch (error) {
-    console.error('[location] startLocationTracking error:', error);
+    logger.error('[location]', 'startLocationTracking error:', error);
     throw error;
   }
 }
@@ -141,15 +142,15 @@ export async function startLocationTracking(userId) {
  * @returns {Promise<void>}
  */
 export async function stopLocationTracking(subscription) {
-  console.log('[location] stopLocationTracking start');
+  logger.info('[location]', 'stopLocationTracking start');
 
   try {
     if (subscription) {
       subscription.remove();
-      console.log('[location] Location tracking stopped');
+      logger.info('[location]', 'Location tracking stopped');
     }
   } catch (error) {
-    console.error('[location] stopLocationTracking error:', error);
+    logger.error('[location]', 'stopLocationTracking error:', error);
     // Don't throw - just log the error during cleanup
   }
 }
@@ -185,7 +186,7 @@ export async function checkLocationPermission() {
     const { status } = await Location.getForegroundPermissionsAsync();
     return status === 'granted';
   } catch (error) {
-    console.error('[location] checkLocationPermission error:', error);
+    logger.error('[location]', 'checkLocationPermission error:', error);
     return false;
   }
 }
@@ -195,11 +196,11 @@ export async function checkLocationPermission() {
  * @returns {Promise<{latitude: number, longitude: number, accuracy: number} | null>}
  */
 export async function getCurrentLocation() {
-  console.log('[location] getCurrentLocation start');
+  logger.info('[location]', 'getCurrentLocation start');
   try {
     const permissionResult = await requestLocationPermission();
     if (!permissionResult.granted) {
-      console.warn('[location] Cannot fetch current location without permissions');
+      logger.warn('[location]', 'Cannot fetch current location without permissions');
       return null;
     }
 
@@ -213,7 +214,7 @@ export async function getCurrentLocation() {
       accuracy: coords.accuracy,
     };
   } catch (error) {
-    console.error('[location] getCurrentLocation error:', error);
+    logger.error('[location]', 'getCurrentLocation error:', error);
     return null;
   }
 }

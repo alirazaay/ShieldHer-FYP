@@ -17,6 +17,9 @@ import {
   dispatchSOSAlert,
   getAlertErrorMessage,
 } from '../services/alertService';
+import logger from '../utils/logger';
+
+const TAG = '[SOSCountdown]';
 
 const SOSCountdownScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
@@ -80,7 +83,7 @@ const SOSCountdownScreen = ({ navigation }) => {
         setIsProcessing(false);
       }
     } catch (error) {
-      console.error('[SOSCountdown] Alert error:', error);
+      logger.error(TAG, 'Alert error:', error);
       setErrorMsg(getAlertErrorMessage(error));
       setIsProcessing(false);
     }

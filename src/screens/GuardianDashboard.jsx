@@ -35,6 +35,9 @@ import {
   getAlertLifecycleErrorMessage,
   formatAlertTime,
 } from '../services/alertLifecycleService';
+import logger from '../utils/logger';
+
+const TAG = '[GuardianDashboard]';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Sub-component: Alert Card
@@ -182,7 +185,7 @@ const GuardianDashboard = ({ navigation }) => {
       const invites = await fetchPendingInvites(currentUser.email);
       setPendingInvites(invites);
     } catch (err) {
-      console.error('[GuardianDashboard] Error loading invites:', err);
+      logger.error(TAG, 'Error loading invites:', err);
       setError({ message: getInviteErrorMessage(err), type: 'error' });
     } finally {
       setLoading(false);
@@ -220,11 +223,7 @@ const GuardianDashboard = ({ navigation }) => {
             }));
           },
           (err) => {
-            console.error(
-              '[GuardianDashboard] Location subscription error for user:',
-              user.id,
-              err
-            );
+            logger.error(TAG, 'Location subscription error for user:', user.id, err);
           }
         );
 
@@ -233,7 +232,7 @@ const GuardianDashboard = ({ navigation }) => {
 
       userLocationSubscriptionsRef.current = newSubscriptions;
     } catch (err) {
-      console.error('[GuardianDashboard] Error loading connected users:', err);
+      logger.error(TAG, 'Error loading connected users:', err);
     } finally {
       setLoadingConnectedUsers(false);
     }
@@ -253,7 +252,7 @@ const GuardianDashboard = ({ navigation }) => {
         setCancelledAlerts(alerts.filter((a) => a.status === 'cancelled'));
       },
       (err) => {
-        console.error('[GuardianDashboard] Alerts subscription error:', err);
+        logger.error(TAG, 'Alerts subscription error:', err);
       }
     );
 

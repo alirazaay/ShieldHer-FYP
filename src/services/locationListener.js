@@ -2,6 +2,7 @@ import { doc, onSnapshot, updateDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '../config/firebase';
 import * as Location from 'expo-location';
 import { requestLocationPermission } from './location';
+import logger from '../utils/logger';
 
 let activeTrackingSub = null;
 
@@ -13,7 +14,7 @@ let activeTrackingSub = null;
  * @returns {function} Unsubscribe function
  */
 export function subscribeToUserLocation(userId, onLocationUpdate, onError) {
-  console.log('[locationListener] subscribeToUserLocation start', { userId });
+  logger.info('[locationListener]', 'subscribeToUserLocation start', { userId });
 
   if (!userId) {
     const error = new Error('User ID is required');
@@ -30,7 +31,7 @@ export function subscribeToUserLocation(userId, onLocationUpdate, onError) {
       (snapshot) => {
         try {
           if (!snapshot.exists()) {
-            console.warn('[locationListener] User document does not exist', { userId });
+            logger.warn('[locationListener]', 'User document does not exist', { userId });
             return;
           }
 
@@ -38,7 +39,7 @@ export function subscribeToUserLocation(userId, onLocationUpdate, onError) {
           const location = userData?.location;
 
           if (location && location.latitude && location.longitude) {
-            console.log('[locationListener] Location update received', {
+            logger.info('[locationListener]', 'Location update received', {
               userId,
               latitude: location.latitude.toFixed(4),
               longitude: location.longitude.toFixed(4),
@@ -50,22 +51,22 @@ export function subscribeToUserLocation(userId, onLocationUpdate, onError) {
               timestamp: location.timestamp,
             });
           } else {
-            console.warn('[locationListener] Location data missing or invalid', { userId });
+            logger.warn('[locationListener]', 'Location data missing or invalid', { userId });
           }
         } catch (err) {
-          console.error('[locationListener] Error processing location snapshot:', err);
+          logger.error('[locationListener]', 'Error processing location snapshot:', err);
           onError(err);
         }
       },
       (error) => {
-        console.error('[locationListener] Firestore listener error:', error);
+        logger.error('[locationListener]', 'Firestore listener error:', error);
         onError(error);
       }
     );
 
     return unsubscribe;
   } catch (error) {
-    console.error('[locationListener] subscribeToUserLocation error:', error);
+    logger.error('[locationListener]', 'subscribeToUserLocation error:', error);
     onError(error);
     return () => {};
   }
@@ -79,7 +80,9 @@ export function subscribeToUserLocation(userId, onLocationUpdate, onError) {
  * @returns {function} Function to unsubscribe all listeners
  */
 export function subscribeToMultipleLocations(userIds, onUpdates, onError) {
-  console.log('[locationListener] subscribeToMultipleLocations start', { count: userIds.length });
+  logger.info('[locationListener]', 'subscribeToMultipleLocations start', {
+    count: userIds.length,
+  });
 
   if (!Array.isArray(userIds) || userIds.length === 0) {
     const error = new Error('User IDs array is required and must not be empty');
@@ -98,7 +101,7 @@ export function subscribeToMultipleLocations(userIds, onUpdates, onError) {
           onUpdates(userId, location);
         },
         (error) => {
-          console.error('[locationListener] Error for user', { userId, error });
+          logger.error('[locationListener]', 'Error for user', { userId, error });
           onError(error);
         }
       );
@@ -106,15 +109,15 @@ export function subscribeToMultipleLocations(userIds, onUpdates, onError) {
       unsubscribers.push(unsubscribe);
     });
 
-    console.log('[locationListener] Subscribed to', { userCount: userIds.length });
+    logger.info('[locationListener]', 'Subscribed to', { userCount: userIds.length });
 
     // Return cleanup function that unsubscribes all listeners
     return () => {
-      console.log('[locationListener] Unsubscribing from all locations');
+      logger.info('[locationListener]', 'Unsubscribing from all locations');
       unsubscribers.forEach((unsubscribe) => unsubscribe());
     };
   } catch (error) {
-    console.error('[locationListener] subscribeToMultipleLocations error:', error);
+    logger.error('[locationListener]', 'subscribeToMultipleLocations error:', error);
     // Cleanup partial subscriptions
     unsubscribers.forEach((unsubscribe) => unsubscribe());
     onError(error);
@@ -233,14 +236,14 @@ export function getMarkerColor(index) {
  * @returns {Promise<void>}
  */
 export async function startLocationTracking(userId) {
-  console.log('[locationListener] startLocationTracking start', { userId });
+  logger.info('[locationListener]', 'startLocationTracking start', { userId });
   if (!userId) {
     throw new Error('User ID is required to start location tracking');
   }
 
   // Prevent multiple listeners
   if (activeTrackingSub) {
-    console.log('[locationListener] Location tracking is already active');
+    logger.info('[locationListener]', 'Location tracking is already active');
     return;
   }
 
@@ -271,13 +274,13 @@ export async function startLocationTracking(userId) {
             },
           });
         } catch (err) {
-          console.error('[locationListener] Error pushing coords to Firestore:', err);
+          logger.error('[locationListener]', 'Error pushing coords to Firestore:', err);
         }
       }
     );
-    console.log('[locationListener] Location tracking fully engaged');
+    logger.info('[locationListener]', 'Location tracking fully engaged');
   } catch (error) {
-    console.error('[locationListener] startLocationTracking error:', error);
+    logger.error('[locationListener]', 'startLocationTracking error:', error);
     throw error;
   }
 }
@@ -287,10 +290,10 @@ export async function startLocationTracking(userId) {
  * @returns {void}
  */
 export function stopLocationTracking() {
-  console.log('[locationListener] stopLocationTracking invoked');
+  logger.info('[locationListener]', 'stopLocationTracking invoked');
   if (activeTrackingSub) {
     activeTrackingSub.remove();
     activeTrackingSub = null;
-    console.log('[locationListener] Location tracking ceased');
+    logger.info('[locationListener]', 'Location tracking ceased');
   }
 }

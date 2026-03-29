@@ -92,9 +92,22 @@ jest.mock('firebase-admin/auth', () => ({
 }), { virtual: true });
 
 describe('Cloud Function: onAlertCreated', () => {
+  let logSpy;
+  let warnSpy;
+  let errorSpy;
+
   beforeEach(() => {
     jest.resetModules();
     jest.clearAllMocks();
+    logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    logSpy.mockRestore();
+    warnSpy.mockRestore();
+    errorSpy.mockRestore();
   });
 
   it('sends guardian notification and queues escalation', async () => {
@@ -112,5 +125,18 @@ describe('Cloud Function: onAlertCreated', () => {
 
     const payload = mockAxiosPost.mock.calls[0][1];
     expect(payload[0].to).toBe('ExponentPushToken[g1]');
+
+    const combinedLogs = [
+      ...logSpy.mock.calls,
+      ...warnSpy.mock.calls,
+      ...errorSpy.mock.calls,
+    ]
+      .flat()
+      .map((entry) => String(entry))
+      .join(' ');
+
+    expect(combinedLogs).not.toContain('Alert data:');
+    expect(combinedLogs).not.toContain('"userId":"u1"');
+    expect(combinedLogs).not.toContain('latitude');
   });
 });

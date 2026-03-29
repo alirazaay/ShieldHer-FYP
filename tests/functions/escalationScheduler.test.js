@@ -3,6 +3,16 @@
 const { processDueEscalations } = require('../../functions/escalationService');
 
 describe('Cloud Function scheduler escalation logic', () => {
+  let logSpy;
+
+  beforeEach(() => {
+    logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    logSpy.mockRestore();
+  });
+
   it('returns empty summary when no due alerts exist', async () => {
     const db = {
       collection: () => ({
@@ -93,5 +103,13 @@ describe('Cloud Function scheduler escalation logic', () => {
     expect(summary.escalated).toBe(1);
     expect(alerts.alertX.escalationState).toBe('completed');
     expect(sendPush).toHaveBeenCalledTimes(1);
+
+    const combinedLogs = logSpy.mock.calls
+      .flat()
+      .map((entry) => String(entry))
+      .join(' ');
+
+    expect(combinedLogs).toContain('"userId":"[redacted]"');
+    expect(combinedLogs).not.toContain('"userId":"u-x"');
   });
 });

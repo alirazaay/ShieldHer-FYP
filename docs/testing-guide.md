@@ -10,12 +10,26 @@
 - `npm run test:unit`
 - `npm run test:integration`
 - `npm run test:functions`
+- `npm run test:rules`
 - `npm run test:rules:emulator`
+- `npm run test:ci`
 - `npm run test:coverage`
 
 ## Firestore Rules Testing
 Rules tests use Firebase Emulator Suite with `@firebase/rules-unit-testing`.
-CI executes rules tests via `firebase emulators:exec`.
+
+### Local behavior without emulator
+- `npm run test:rules` is emulator-aware.
+- If Firestore emulator host/port is not available, tests print a warning and skip safely instead of failing setup/cleanup.
+
+### Full rules validation
+- Use `npm run test:rules:emulator` for full rules enforcement checks.
+- This command runs `firebase emulators:exec --only firestore ...` and executes all assertions against live emulator state.
+
+## CI Pipeline Commands
+- `npm run test:ci` runs unit, integration, and Cloud Functions suites sequentially.
+- Current script uses command chaining with `&&` for shell compatibility.
+- Firestore rules validation remains a dedicated emulator-backed step via `npm run test:rules:emulator`.
 
 ## Coverage Target
 Jest coverage threshold is configured at 70% global for branches, functions, lines, and statements.

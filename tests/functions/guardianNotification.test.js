@@ -22,6 +22,9 @@ jest.mock('axios', () => ({
 
 const mockEnqueueEscalation = jest.fn(async () => {});
 const mockProcessDueEscalations = jest.fn(async () => ({ processed: 0, escalated: 0 }));
+let dbScenario = {
+  throwGuardianTokenFetchError: false,
+};
 
 jest.mock('../../functions/escalationService', () => ({
   enqueueEscalation: (...args) => mockEnqueueEscalation(...args),
@@ -42,7 +45,12 @@ function mockBuildDbMock() {
       if (name === 'users') {
         return {
           doc: (id) => ({
-            get: async () => ({ exists: Boolean(users[id]), data: () => users[id] || {} }),
+            get: async () => {
+              if (id === 'g1' && dbScenario.throwGuardianTokenFetchError) {
+                throw new Error('simulated guardian token fetch error');
+              }
+              return { exists: Boolean(users[id]), data: () => users[id] || {} };
+            },
             collection: (sub) => {
               if (sub === 'guardians' && id === 'u1') {
                 return {
@@ -99,6 +107,8 @@ describe('Cloud Function: onAlertCreated', () => {
   beforeEach(() => {
     jest.resetModules();
     jest.clearAllMocks();
+    dbScenario = { throwGuardianTokenFetchError: false };
+    mockAxiosPost.mockResolvedValue({ data: { data: [{ status: 'ok' }] } });
     logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
     warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
     errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
@@ -166,5 +176,60 @@ describe('Cloud Function: onAlertCreated', () => {
 
     expect(combinedLogs).not.toContain('"userId":"u1"');
     expect(combinedLogs).not.toContain('Alert data:');
+  });
+
+  it('handles guardian token fetch failure without push send and without raw serialized ids', async () => {
+    const fns = require('../../functions/index');
+    dbScenario.throwGuardianTokenFetchError = true;
+
+    await fns.onAlertCancelled({
+      params: { alertId: 'alert-cancel-2' },
+      data: {
+        before: { data: () => ({ status: 'active', userId: 'u1' }) },
+        after: { data: () => ({ status: 'cancelled', userId: 'u1' }) },
+      },
+    });
+
+    expect(mockAxiosPost).not.toHaveBeenCalled();
+
+    const combinedLogs = [
+      ...logSpy.mock.calls,
+      ...warnSpy.mock.calls,
+      ...errorSpy.mock.calls,
+    ]
+      .flat()
+      .map((entry) => String(entry))
+      .join(' ');
+
+    expect(combinedLogs).toContain('Token fetch failed for guardian');
+    expect(combinedLogs).toContain('No guardian tokens for alert alert-cancel-2');
+    expect(combinedLogs).not.toContain('"userId":"u1"');
+  });
+
+  it('handles cancellation notification send failure without leaking raw serialized ids', async () => {
+    const fns = require('../../functions/index');
+    mockAxiosPost.mockRejectedValueOnce(new Error('simulated push provider failure'));
+
+    await fns.onAlertCancelled({
+      params: { alertId: 'alert-cancel-3' },
+      data: {
+        before: { data: () => ({ status: 'active', userId: 'u1' }) },
+        after: { data: () => ({ status: 'cancelled', userId: 'u1' }) },
+      },
+    });
+
+    expect(mockAxiosPost).toHaveBeenCalledTimes(1);
+
+    const combinedLogs = [
+      ...logSpy.mock.calls,
+      ...warnSpy.mock.calls,
+      ...errorSpy.mock.calls,
+    ]
+      .flat()
+      .map((entry) => String(entry))
+      .join(' ');
+
+    expect(combinedLogs).toContain('Notification send failed');
+    expect(combinedLogs).not.toContain('"userId":"u1"');
   });
 });

@@ -39,6 +39,7 @@ Rules tests use Firebase Emulator Suite with `@firebase/rules-unit-testing`.
 - `npm run secrets:scan` scans tracked files for likely hardcoded credentials.
 - `npm run secrets:scan:staged` scans only staged files (used by pre-commit hook).
 - `npm run hooks:install` enables local git hooks via `.githooks/`.
+- Firebase credential rotation procedure: see `docs/key-rotation-runbook.md`.
 
 ## Coverage Target
 Jest coverage threshold is configured at 70% global for branches, functions, lines, and statements.

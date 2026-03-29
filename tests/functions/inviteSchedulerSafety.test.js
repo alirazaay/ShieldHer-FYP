@@ -194,10 +194,10 @@ describe('Cloud Functions invite/scheduler safety', () => {
     expect(combinedLogs).not.toContain('different@example.com');
   });
 
-  it('handles scheduler processing failure and logs only the error message', async () => {
+  it('handles scheduler processing failure and sanitizes sensitive values in error message', async () => {
     const fns = require('../../functions/index');
     mockProcessDueEscalations.mockRejectedValueOnce(
-      Object.assign(new Error('simulated scheduler failure'), { userId: 'u-sensitive' })
+      Object.assign(new Error('simulated scheduler failure for owner@example.com at +1-202-555-0191'), { userId: 'u-sensitive' })
     );
 
     await fns.processEscalations();
@@ -207,7 +207,9 @@ describe('Cloud Functions invite/scheduler safety', () => {
       .map((entry) => String(entry))
       .join(' ');
 
-    expect(combinedLogs).toContain('[processEscalations] Run failed: simulated scheduler failure');
+    expect(combinedLogs).toContain('[processEscalations] Run failed: simulated scheduler failure for [REDACTED] at [REDACTED]');
+    expect(combinedLogs).not.toContain('owner@example.com');
+    expect(combinedLogs).not.toContain('202-555-0191');
     expect(combinedLogs).not.toContain('u-sensitive');
   });
 });

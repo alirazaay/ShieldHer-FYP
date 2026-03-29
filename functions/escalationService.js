@@ -11,9 +11,21 @@
 const ESCALATION_TIMEOUT_MS = 90 * 1000; // 90 seconds
 const ESCALATION_BATCH_LIMIT = 50;
 
+const EMAIL_REGEX = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
+const LONG_DIGIT_REGEX = /\+?\d[\d\s-]{7,}\d/g;
+
+function sanitizeSensitiveText(value) {
+  return String(value)
+    .replace(EMAIL_REGEX, '[REDACTED]')
+    .replace(LONG_DIGIT_REGEX, (match) => {
+      const digits = match.replace(/\D/g, '');
+      return digits.length >= 10 ? '[REDACTED]' : match;
+    });
+}
+
 function safeErrorMessage(error) {
   if (!error) return 'unknown-error';
-  return error.message || String(error);
+  return sanitizeSensitiveText(error.message || String(error));
 }
 
 function logEscalationEvent(event, payload = {}) {

@@ -13,6 +13,9 @@
 - `npm run test:rules`
 - `npm run test:rules:emulator`
 - `npm run test:ci`
+- `npm run secrets:scan`
+- `npm run secrets:scan:staged`
+- `npm run hooks:install`
 - `npm run test:coverage`
 
 ## Firestore Rules Testing
@@ -30,6 +33,11 @@ Rules tests use Firebase Emulator Suite with `@firebase/rules-unit-testing`.
 - `npm run test:ci` runs unit, integration, and Cloud Functions suites sequentially.
 - Current script uses command chaining with `&&` for shell compatibility.
 - Firestore rules validation remains a dedicated emulator-backed step via `npm run test:rules:emulator`.
+
+## Secret Leak Prevention
+- `npm run secrets:scan` scans tracked files for likely hardcoded credentials.
+- `npm run secrets:scan:staged` scans only staged files (used by pre-commit hook).
+- `npm run hooks:install` enables local git hooks via `.githooks/`.
 
 ## Coverage Target
 Jest coverage threshold is configured at 70% global for branches, functions, lines, and statements.

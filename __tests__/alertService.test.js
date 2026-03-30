@@ -21,6 +21,8 @@ const mockCollection = jest.fn(() => ({ id: 'alerts', path: 'alerts' }));
 const mockQuery = jest.fn(() => ({}));
 const mockWhere = jest.fn(() => ({}));
 const mockServerTimestamp = jest.fn(() => new Date());
+const mockGetCachedLocation = jest.fn(() => null);
+const mockGetCurrentLocation = jest.fn(() => Promise.resolve(null));
 
 jest.mock('firebase/firestore', () => ({
   doc: (...args) => mockDoc(...args),
@@ -83,6 +85,11 @@ jest.mock('../src/services/alertHistoryService', () => ({
   createTimelineEvent: jest.fn(() => Promise.resolve()),
 }));
 
+jest.mock('../src/services/location', () => ({
+  getCachedLocation: () => mockGetCachedLocation(),
+  getCurrentLocation: (...args) => mockGetCurrentLocation(...args),
+}));
+
 // ── Import module under test ────────────────────────────────────────────────
 const {
   createAlert,
@@ -97,6 +104,8 @@ const {
 describe('alertService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockGetCachedLocation.mockReturnValue(null);
+    mockGetCurrentLocation.mockResolvedValue(null);
   });
 
   // ── createAlert ───────────────────────────────────────────────────────────
@@ -233,6 +242,9 @@ describe('alertService', () => {
         exists: () => true,
         data: () => ({ fullName: 'Test' }), // no location field
       });
+
+      mockGetCachedLocation.mockReturnValueOnce(null);
+      mockGetCurrentLocation.mockResolvedValueOnce(null);
 
       await expect(fetchUserLocation('uid-123')).rejects.toThrow(
         'User location not available',

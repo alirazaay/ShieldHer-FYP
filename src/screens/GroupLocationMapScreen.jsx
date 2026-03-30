@@ -22,6 +22,13 @@ import logger from '../utils/logger';
 
 const TAG = '[GroupLocationMapScreen]';
 
+function hasValidCoordinates(location) {
+  return (
+    Number.isFinite(location?.latitude) &&
+    Number.isFinite(location?.longitude)
+  );
+}
+
 const GroupLocationMapScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
 
@@ -105,9 +112,7 @@ const GroupLocationMapScreen = ({ navigation }) => {
 
   // Handle center on all users
   const handleFitAllMarkers = () => {
-    const locationsArray = Object.values(userLocations).filter(
-      (loc) => loc?.latitude && loc?.longitude
-    );
+    const locationsArray = Object.values(userLocations).filter((loc) => hasValidCoordinates(loc));
 
     if (locationsArray.length === 0) return;
 
@@ -228,7 +233,7 @@ const GroupLocationMapScreen = ({ navigation }) => {
             {/* User Location Markers */}
             {connectedUsers.map((user, index) => {
               const location = userLocations[user.id];
-              if (!location?.latitude || !location?.longitude) return null;
+              if (!hasValidCoordinates(location)) return null;
 
               return (
                 <Marker
@@ -259,7 +264,7 @@ const GroupLocationMapScreen = ({ navigation }) => {
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.usersList}>
               {connectedUsers.map((user) => {
                 const location = userLocations[user.id];
-                const hasLocation = location?.latitude && location?.longitude;
+                const hasLocation = hasValidCoordinates(location);
 
                 return (
                   <TouchableOpacity

@@ -6,6 +6,55 @@ import logger from '../utils/logger';
 
 let activeTrackingSub = null;
 
+function toFiniteNumber(value) {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null;
+  }
+
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+}
+
+function normalizeLocationPayload(userData) {
+  if (!userData || typeof userData !== 'object') return null;
+
+  const rawLocation =
+    userData.location ||
+    userData.currentLocation ||
+    userData.coords ||
+    (userData.latitude != null || userData.longitude != null
+      ? {
+          latitude: userData.latitude,
+          longitude: userData.longitude,
+          accuracy: userData.accuracy,
+          timestamp: userData.locationUpdatedAt || userData.timestamp,
+        }
+      : null);
+
+  if (!rawLocation || typeof rawLocation !== 'object') return null;
+
+  const latitude = toFiniteNumber(rawLocation.latitude ?? rawLocation.lat);
+  const longitude = toFiniteNumber(rawLocation.longitude ?? rawLocation.lng ?? rawLocation.lon);
+
+  if (latitude == null || longitude == null) return null;
+
+  return {
+    latitude,
+    longitude,
+    accuracy: toFiniteNumber(rawLocation.accuracy),
+    timestamp:
+      rawLocation.timestamp ||
+      rawLocation.updatedAt ||
+      userData.locationUpdatedAt ||
+      userData.timestamp ||
+      null,
+  };
+}
+
 /**
  * Subscribe to real-time location updates for a single user
  * @param {string} userId - Firebase user ID to track
@@ -36,22 +85,28 @@ export function subscribeToUserLocation(userId, onLocationUpdate, onError) {
           }
 
           const userData = snapshot.data();
-          const location = userData?.location;
+          const location = normalizeLocationPayload(userData);
 
-          if (location && location.latitude && location.longitude) {
+          if (location) {
             logger.info('[locationListener]', 'Location update received', {
               userId,
               hasAccuracy: location.accuracy != null,
               hasTimestamp: !!location.timestamp,
             });
-            onLocationUpdate({
-              latitude: location.latitude,
-              longitude: location.longitude,
-              accuracy: location.accuracy || null,
-              timestamp: location.timestamp,
-            });
+            onLocationUpdate(location);
           } else {
-            logger.warn('[locationListener]', 'Location data missing or invalid', { userId });
+            const hasAnyLocationPayload =
+              !!userData?.location ||
+              !!userData?.currentLocation ||
+              !!userData?.coords ||
+              userData?.latitude != null ||
+              userData?.longitude != null;
+
+            if (hasAnyLocationPayload) {
+              logger.warn('[locationListener]', 'Location data missing or invalid', { userId });
+            } else {
+              logger.info('[locationListener]', 'No location payload yet for user', { userId });
+            }
           }
         } catch (err) {
           logger.error('[locationListener]', 'Error processing location snapshot:', err);

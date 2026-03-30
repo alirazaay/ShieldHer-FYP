@@ -4,7 +4,8 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { formatLocationTimestamp } from '../services/locationListener';
 
 const ConnectedUserItem = ({ user, userLocation, onViewLocation, loading = false }) => {
-  const hasLocation = userLocation?.latitude && userLocation?.longitude;
+  const hasLocation =
+    Number.isFinite(userLocation?.latitude) && Number.isFinite(userLocation?.longitude);
 
   return (
     <View style={styles.container}>

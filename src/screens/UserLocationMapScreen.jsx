@@ -15,6 +15,13 @@ import logger from '../utils/logger';
 
 const TAG = '[UserLocationMapScreen]';
 
+function hasValidCoordinates(location) {
+  return (
+    Number.isFinite(location?.latitude) &&
+    Number.isFinite(location?.longitude)
+  );
+}
+
 const UserLocationMapScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
   const { userId } = route.params;
@@ -54,7 +61,7 @@ const UserLocationMapScreen = ({ navigation, route }) => {
             setUserLocation(location);
 
             // Animate map camera to follow user
-            if (mapRef.current && location.latitude && location.longitude) {
+            if (mapRef.current && hasValidCoordinates(location)) {
               mapRef.current.animateCamera(
                 {
                   center: {
@@ -129,7 +136,7 @@ const UserLocationMapScreen = ({ navigation, route }) => {
   }
 
   // Available location
-  const hasLocation = userLocation?.latitude && userLocation?.longitude;
+  const hasLocation = hasValidCoordinates(userLocation);
 
   // Calculate distance
   const distance =

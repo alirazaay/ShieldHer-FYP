@@ -85,6 +85,8 @@ const AlertHistoryScreen = ({ navigation, route }) => {
     const isResolved = item.status === 'resolved';
     const isResponding = item.status === 'responding';
     const isCancelled = item.status === 'cancelled';
+    const hasStatusDetails =
+      typeof item.status === 'string' && item.status.length > 0 && item.status !== 'active';
 
     let statusColor = '#EF4444';
     let statusIcon = 'alert-decagram';
@@ -130,7 +132,7 @@ const AlertHistoryScreen = ({ navigation, route }) => {
             <MaterialCommunityIcons name="clock-outline" size={16} color="#6B7280" />
             <Text style={styles.infoText}>{formatAlertTime(item.timestamp)}</Text>
           </View>
-          {item.status !== 'active' && item.status && (
+          {hasStatusDetails && (
             <View style={styles.infoRow}>
               <MaterialCommunityIcons name="account-hard-hat" size={16} color="#6B7280" />
               <Text style={styles.infoText}>

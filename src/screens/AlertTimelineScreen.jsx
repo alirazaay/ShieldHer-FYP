@@ -17,6 +17,15 @@ import logger from '../utils/logger';
 
 const TAG = '[AlertTimelineScreen]';
 
+function hasFiniteCoordinates(metadata) {
+  if (!metadata) return false;
+
+  const latitude = metadata.latitude;
+  const longitude = metadata.longitude;
+
+  return Number.isFinite(latitude) && Number.isFinite(longitude);
+}
+
 const AlertTimelineScreen = ({ navigation, route }) => {
   const { alertId, alertName } = route.params;
   const [events, setEvents] = useState([]);
@@ -140,7 +149,7 @@ const AlertTimelineScreen = ({ navigation, route }) => {
           </View>
 
           {/* Render extra metadata if available */}
-          {item.metadata?.latitude && item.metadata?.longitude && (
+          {hasFiniteCoordinates(item.metadata) && (
             <View style={styles.metadataBadge}>
               <MaterialCommunityIcons name="map-marker" size={12} color="#4F2CF5" />
               <Text style={styles.metadataText}>Location captured</Text>

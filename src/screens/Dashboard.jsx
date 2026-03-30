@@ -21,9 +21,9 @@ import {
   dispatchSOSAlert,
   getAlertErrorMessage,
 } from '../services/alertService';
-import { getSafetyModeState, getVoiceSOSState } from '../services/profile';
+import { getSafetyModeState } from '../services/profile';
 import { startLocationTracking, stopLocationTracking } from '../services/locationListener';
-import { startVoiceListener, stopVoiceListener } from '../services/voiceSOSService';
+import { useScreamDetection } from '../hooks/useScreamDetection';
 import logger from '../utils/logger';
 
 const TAG = '[Dashboard]';
@@ -36,6 +36,7 @@ const Dashboard = ({ navigation }) => {
 
   // Location tracking state
   const [locationTracking, setLocationTracking] = useState(false);
+  const [isSafetyModeEnabled, setIsSafetyModeEnabled] = useState(false);
   const [locationError, setLocationError] = useState(null);
 
   // SOS alert state
@@ -60,19 +61,12 @@ const Dashboard = ({ navigation }) => {
         if (isSafetyModeEnabled) {
           await startLocationTracking(currentUser.uid);
           setLocationTracking(true);
+          setIsSafetyModeEnabled(true);
           logger.info(TAG, 'Safety Mode ON: Location tracking started');
-
-          // Check Voice SOS permissions
-          const isVoiceEnabled = await getVoiceSOSState(currentUser.uid);
-          if (isVoiceEnabled) {
-            await startVoiceListener(currentUser.uid);
-          } else {
-            stopVoiceListener();
-          }
         } else {
           stopLocationTracking();
-          stopVoiceListener();
           setLocationTracking(false);
+          setIsSafetyModeEnabled(false);
           logger.info(TAG, 'Safety Mode OFF: Location tracking bypassed');
         }
       } catch (error) {
@@ -85,8 +79,8 @@ const Dashboard = ({ navigation }) => {
 
     return () => {
       stopLocationTracking();
-      stopVoiceListener();
       setLocationTracking(false);
+      setIsSafetyModeEnabled(false);
       logger.info(TAG, 'Dashboard unmounted: Native location and mic monitoring stopped');
     };
   }, [navigation]);
@@ -139,6 +133,79 @@ const Dashboard = ({ navigation }) => {
       return () => clearTimeout(timeout);
     }
   }, [sosError, sosMessage]);
+
+  const triggerSosFromScream = async (analysis, source = 'manual') => {
+    try {
+      setSosLoading(true);
+      setSosError(null);
+
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        navigation?.replace('Login');
+        return;
+      }
+
+      const hasActiveAlert = await checkActiveAlert(currentUser.uid);
+      if (hasActiveAlert) {
+        setSosError({
+          message: 'An alert was recently sent. Please wait before sending another.',
+          type: 'warning',
+        });
+        return;
+      }
+
+      const location = await fetchUserLocation(currentUser.uid);
+      const dispatchResult = await dispatchSOSAlert(currentUser.uid, location);
+
+      if (dispatchResult.success) {
+        const confidenceText = Number(analysis?.confidence || 0).toFixed(2);
+        setSosMessage({
+          message: `Scream detected (${confidenceText}) - SOS triggered via ${source}.`,
+          type: dispatchResult.deliveryStatus === 'pending_retry' ? 'warning' : 'success',
+        });
+      } else {
+        setSosError({
+          message: dispatchResult.error || 'Failed to send alert. Please try again.',
+          type: 'error',
+        });
+      }
+    } catch (error) {
+      logger.error(TAG, 'Voice-triggered SOS error:', error);
+      setSosError({
+        message: getAlertErrorMessage(error),
+        type: 'error',
+      });
+    } finally {
+      setSosLoading(false);
+    }
+  };
+
+  const {
+    startListening,
+    stopListening,
+    isListening: isVoiceListening,
+    error: voiceDetectionError,
+  } = useScreamDetection({
+    enabled: isSafetyModeEnabled,
+    continuous: isSafetyModeEnabled,
+    config: {
+      confidenceThreshold: 0.75,
+      intervalMs: 2000,
+      cooldownMs: 60000,
+    },
+    onScreamDetected: async (analysis) => {
+      await triggerSosFromScream(analysis, 'auto');
+    },
+  });
+
+  useEffect(() => {
+    if (!voiceDetectionError) return;
+
+    setSosError({
+      message: voiceDetectionError.message || 'Voice detection failed',
+      type: 'error',
+    });
+  }, [voiceDetectionError]);
 
   const openLogout = () => {
     setLogoutVisible(true);
@@ -211,9 +278,28 @@ const Dashboard = ({ navigation }) => {
     navigation.navigate('SOSCountdownScreen');
   };
 
-  const onHoldVoice = () => {
-    // Placeholder: long press action hook
-    logger.info(TAG, 'Voice trigger pressed');
+  const handleVoicePressIn = async () => {
+    setSosError(null);
+    setSosMessage({
+      message: 'Listening for distress...',
+      type: 'warning',
+    });
+    await startListening();
+  };
+
+  const handleVoicePressOut = async () => {
+    const analysis = await stopListening();
+    if (!analysis) return;
+
+    if (analysis.isScream || Number(analysis.confidence || 0) > 0.75) {
+      await triggerSosFromScream(analysis, 'manual');
+      return;
+    }
+
+    setSosMessage({
+      message: 'No threat detected',
+      type: 'success',
+    });
   };
 
   return (
@@ -387,14 +473,25 @@ const Dashboard = ({ navigation }) => {
         )}
 
         {/* Voice trigger button */}
-        <TouchableOpacity activeOpacity={0.9} onPress={onHoldVoice} style={styles.voiceBtn}>
+        <TouchableOpacity
+          activeOpacity={0.9}
+          onPressIn={handleVoicePressIn}
+          onPressOut={handleVoicePressOut}
+          disabled={sosLoading}
+          style={[styles.voiceBtn, sosLoading && styles.voiceBtnDisabled]}
+        >
           <MaterialCommunityIcons
-            name="microphone"
+            name={isVoiceListening ? 'microphone' : 'microphone-outline'}
             size={18}
             color="#fff"
             style={{ marginRight: 10 }}
           />
-          <Text style={styles.voiceText}>Hold to activate voice Trigger</Text>
+          <View style={styles.voiceTextWrap}>
+            <Text style={styles.voiceText}>
+              {isVoiceListening ? 'Listening...' : 'Hold To Activate Voice Trigger'}
+            </Text>
+            {isSafetyModeEnabled && <Text style={styles.voiceSubText}>Auto mode is running</Text>}
+          </View>
         </TouchableOpacity>
 
         {/* Status Row */}
@@ -609,7 +706,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
+  voiceBtnDisabled: {
+    opacity: 0.7,
+  },
+  voiceTextWrap: {
+    flex: 1,
+  },
   voiceText: { color: '#fff', fontWeight: '800' },
+  voiceSubText: { color: 'rgba(255,255,255,0.85)', fontSize: 11, marginTop: 2 },
 
   statusRow: {
     marginTop: 28,

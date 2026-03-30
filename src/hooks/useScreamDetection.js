@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
-import { NativeModules, NativeEventEmitter, PermissionsAndroid, Platform } from 'react-native';
+import { NativeModules, PermissionsAndroid, Platform } from 'react-native';
 import logger from '../utils/logger';
 
 const TAG = '[AI_DETECTION]';
@@ -9,6 +9,7 @@ export const DEFAULT_SCREAM_CONFIG = {
   requiredConsecutiveFrames: 3,
   validationWindowMs: 2000,
   cooldownMs: 60000,
+  intervalMs: 2000,
   confirmationCountdownSec: 5,
   maxBufferSize: 20,
 };
@@ -72,29 +73,25 @@ export function buildDetectionTelemetry(payload) {
   };
 }
 
-export const useScreamDetection = ({ onScreamDetected, enabled = false, config = {} }) => {
+export const useScreamDetection = ({
+  onScreamDetected,
+  enabled = false,
+  continuous = false,
+  config = {},
+}) => {
   const runtimeConfig = { ...DEFAULT_SCREAM_CONFIG, ...config };
-  const { ScreamDetection } = NativeModules;
-  const emitter = ScreamDetection ? new NativeEventEmitter(ScreamDetection) : null;
+  const nativeModule = NativeModules.ScreamDetectionModule || NativeModules.ScreamDetection;
 
-  const confidenceListener = useRef(null);
-  const alertListener = useRef(null);
-  const isListeningRef = useRef(false);
   const mountedRef = useRef(true);
-
-  const detectionBufferRef = useRef([]);
-  const pendingCountdownIntervalRef = useRef(null);
+  const loopActiveRef = useRef(false);
+  const loopTimeoutRef = useRef(null);
+  const isListeningRef = useRef(false);
+  const analyzeInFlightRef = useRef(false);
   const lastTriggerTimeRef = useRef(0);
-  const pendingAlertVisibleRef = useRef(false);
 
-  const [detectionState, setDetectionState] = useState({
-    isListening: false,
-    lastConfidence: 0,
-    trailingConsecutive: 0,
-    lastEventAt: null,
-    pendingConfirmation: false,
-    detectionBuffer: [],
-  });
+  const [isListening, setIsListening] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
 
   const [cooldownState, setCooldownState] = useState({
     isCoolingDown: false,
@@ -102,383 +99,282 @@ export const useScreamDetection = ({ onScreamDetected, enabled = false, config =
     remainingMs: 0,
   });
 
-  const [pendingAlert, setPendingAlert] = useState({
-    visible: false,
-    countdownSec: runtimeConfig.confirmationCountdownSec,
-    acknowledged: false,
-    confidence: 0,
-    startedAt: 0,
-    source: 'unknown',
-  });
-
   const requestMicPermission = useCallback(async () => {
     if (Platform.OS !== 'android') return true;
+
     const granted = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO, {
       title: 'ShieldHer Microphone Permission',
       message: 'ShieldHer needs mic access to detect screams and trigger SOS.',
       buttonPositive: 'Allow',
     });
+
     return granted === PermissionsAndroid.RESULTS.GRANTED;
   }, []);
 
-  const clearCountdownInterval = useCallback(() => {
-    if (pendingCountdownIntervalRef.current) {
-      clearInterval(pendingCountdownIntervalRef.current);
-      pendingCountdownIntervalRef.current = null;
+  const setListeningState = useCallback((next) => {
+    isListeningRef.current = next;
+    if (mountedRef.current) {
+      setIsListening(next);
     }
   }, []);
 
-  const beginCooldown = useCallback(() => {
+  const clearLoopTimeout = useCallback(() => {
+    if (loopTimeoutRef.current) {
+      clearTimeout(loopTimeoutRef.current);
+      loopTimeoutRef.current = null;
+    }
+  }, []);
+
+  const normalizeAnalysisResult = useCallback(
+    (raw) => {
+      const confidence = Number(raw?.confidence);
+      const safeConfidence = Number.isFinite(confidence) ? confidence : 0;
+      const screamed =
+        raw?.isScream === true || safeConfidence >= Number(runtimeConfig.confidenceThreshold || 0.8);
+
+      return {
+        isScream: screamed,
+        confidence: safeConfidence,
+        timestamp: Date.now(),
+      };
+    },
+    [runtimeConfig.confidenceThreshold]
+  );
+
+  const updateCooldown = useCallback(() => {
     const nowTs = Date.now();
-    lastTriggerTimeRef.current = nowTs;
+    const remaining = Math.max(
+      Number(runtimeConfig.cooldownMs || 0) - (nowTs - lastTriggerTimeRef.current),
+      0
+    );
+
+    if (!mountedRef.current) return;
+
     setCooldownState({
-      isCoolingDown: true,
-      lastTriggerTime: nowTs,
-      remainingMs: runtimeConfig.cooldownMs,
+      isCoolingDown: remaining > 0,
+      lastTriggerTime: lastTriggerTimeRef.current,
+      remainingMs: remaining,
     });
   }, [runtimeConfig.cooldownMs]);
 
-  const runSOS = useCallback(
-    async (triggerMeta) => {
-      try {
-        beginCooldown();
-
-        const detectionDurationMs = triggerMeta.startedAt
-          ? Date.now() - triggerMeta.startedAt
-          : 0;
-
-        logger.warn(
-          TAG,
-          'AI_DETECTION_EVENT',
-          buildDetectionTelemetry({
-            confidence: triggerMeta.confidence,
-            timestamp: Date.now(),
-            source: triggerMeta.source,
-            trailingConsecutive: triggerMeta.trailingConsecutive,
-            detectionDurationMs,
-            triggeredSOS: true,
-            cancelledByUser: false,
-          })
-        );
-
-        if (onScreamDetected) {
-          await onScreamDetected({
-            label: 'scream',
-            confidence: triggerMeta.confidence,
-            timestamp: Date.now(),
-            source: triggerMeta.source,
-            trailingConsecutive: triggerMeta.trailingConsecutive,
-          });
-        }
-      } catch (error) {
-        logger.error(TAG, 'Failed to execute AI-triggered SOS', error);
-      }
-    },
-    [beginCooldown, onScreamDetected]
-  );
-
-  const cancelPendingAlert = useCallback(() => {
-    clearCountdownInterval();
-    pendingAlertVisibleRef.current = false;
-
-    setPendingAlert((prev) => {
-      if (!prev.visible) return prev;
-
-      const detectionDurationMs = prev.startedAt ? Date.now() - prev.startedAt : 0;
-      logger.info(
-        TAG,
-        'AI_DETECTION_EVENT',
-        buildDetectionTelemetry({
-          confidence: prev.confidence,
-          timestamp: Date.now(),
-          source: prev.source,
-          detectionDurationMs,
-          triggeredSOS: false,
-          cancelledByUser: true,
-        })
-      );
-
-      return {
-        visible: false,
-        countdownSec: runtimeConfig.confirmationCountdownSec,
-        acknowledged: false,
-        confidence: 0,
-        startedAt: 0,
-        source: 'unknown',
-      };
-    });
-
-    setDetectionState((prev) => ({ ...prev, pendingConfirmation: false }));
-  }, [clearCountdownInterval, runtimeConfig.confirmationCountdownSec]);
-
-  const allowPendingCountdown = useCallback(() => {
-    setPendingAlert((prev) => ({ ...prev, acknowledged: true }));
-  }, []);
-
-  const startPendingConfirmation = useCallback(
-    (eventMeta) => {
-      pendingAlertVisibleRef.current = true;
-      setPendingAlert({
-        visible: true,
-        countdownSec: runtimeConfig.confirmationCountdownSec,
-        acknowledged: false,
-        confidence: eventMeta.confidence,
-        startedAt: Date.now(),
-        source: eventMeta.source,
-        trailingConsecutive: eventMeta.trailingConsecutive,
-      });
-
-      setDetectionState((prev) => ({ ...prev, pendingConfirmation: true }));
-
-      clearCountdownInterval();
-      pendingCountdownIntervalRef.current = setInterval(() => {
-        setPendingAlert((prev) => {
-          if (!prev.visible) return prev;
-
-          if (prev.countdownSec <= 1) {
-            clearCountdownInterval();
-            pendingAlertVisibleRef.current = false;
-            setDetectionState((statePrev) => ({ ...statePrev, pendingConfirmation: false }));
-            runSOS({
-              confidence: prev.confidence,
-              source: prev.source,
-              startedAt: prev.startedAt,
-              trailingConsecutive: prev.trailingConsecutive || eventMeta.trailingConsecutive || 0,
-            });
-
-            return {
-              visible: false,
-              countdownSec: runtimeConfig.confirmationCountdownSec,
-              acknowledged: false,
-              confidence: 0,
-              startedAt: 0,
-              source: 'unknown',
-              trailingConsecutive: 0,
-            };
-          }
-
-          return {
-            ...prev,
-            countdownSec: prev.countdownSec - 1,
-          };
-        });
-      }, 1000);
-    },
-    [clearCountdownInterval, runSOS, runtimeConfig.confirmationCountdownSec]
-  );
-
-  const processDetectionFrame = useCallback(
-    (rawEvent, source) => {
-      const parsed = normalizeScreamEvent(rawEvent, source);
-      if (!parsed) {
-        logger.debug(TAG, 'AI_DETECTION_EVENT', {
-          eventType: 'AI_DETECTION_EVENT',
-          source,
-          timestamp: Date.now(),
-          ignored: true,
-          reason: 'invalid_or_missing_confidence',
-        });
-        return;
-      }
-
+  const triggerDetectedScream = useCallback(
+    async (analysis, source = 'manual') => {
       const nowTs = Date.now();
       if (isInCooldown(lastTriggerTimeRef.current, nowTs, runtimeConfig.cooldownMs)) {
-        logger.debug(TAG, 'AI_DETECTION_EVENT', {
-          eventType: 'AI_DETECTION_EVENT',
+        logger.info(TAG, 'Scream detection ignored due to cooldown', {
+          confidence: analysis.confidence,
           source,
-          timestamp: nowTs,
-          confidence: parsed.confidence,
-          triggeredSOS: false,
-          cancelledByUser: false,
-          ignored: true,
-          reason: 'cooldown',
         });
         return;
       }
 
-      detectionBufferRef.current.push(parsed);
-      if (detectionBufferRef.current.length > runtimeConfig.maxBufferSize) {
-        detectionBufferRef.current = detectionBufferRef.current.slice(-runtimeConfig.maxBufferSize);
-      }
+      lastTriggerTimeRef.current = nowTs;
+      updateCooldown();
 
-      const evaluation = evaluateConsecutiveFrames(
-        detectionBufferRef.current,
-        runtimeConfig.confidenceThreshold,
-        runtimeConfig.requiredConsecutiveFrames,
-        runtimeConfig.validationWindowMs,
-        nowTs
-      );
-
-      detectionBufferRef.current = evaluation.recent;
-
-      const nextDetectionState = {
-        isListening: isListeningRef.current,
-        lastConfidence: parsed.confidence,
-        trailingConsecutive: evaluation.trailingConsecutive,
-        lastEventAt: parsed.timestamp,
-        pendingConfirmation: pendingAlertVisibleRef.current,
-        detectionBuffer: [...detectionBufferRef.current],
-      };
-      setDetectionState(nextDetectionState);
-
-      logger.debug(
+      logger.warn(
         TAG,
         'AI_DETECTION_EVENT',
         buildDetectionTelemetry({
-          confidence: parsed.confidence,
-          timestamp: parsed.timestamp,
+          confidence: analysis.confidence,
+          timestamp: nowTs,
           source,
-          trailingConsecutive: evaluation.trailingConsecutive,
-          detectionDurationMs: 0,
-          triggeredSOS: false,
-          cancelledByUser: false,
+          triggeredSOS: true,
         })
       );
 
-      if (evaluation.shouldTrigger && !pendingAlertVisibleRef.current) {
-        startPendingConfirmation({
-          confidence: parsed.confidence,
+      if (onScreamDetected) {
+        await onScreamDetected({
+          ...analysis,
+          label: 'scream',
           source,
-          trailingConsecutive: evaluation.trailingConsecutive,
         });
       }
     },
-    [
-      runtimeConfig.cooldownMs,
-      runtimeConfig.maxBufferSize,
-      runtimeConfig.confidenceThreshold,
-      runtimeConfig.requiredConsecutiveFrames,
-      runtimeConfig.validationWindowMs,
-      startPendingConfirmation,
-    ]
+    [onScreamDetected, runtimeConfig.cooldownMs, updateCooldown]
   );
 
-  const startDetection = useCallback(async () => {
-    if (isListeningRef.current) return;
+  const startListening = useCallback(async () => {
+    if (isListeningRef.current) {
+      return true;
+    }
 
-    if (!ScreamDetection || !emitter) {
-      logger.warn(TAG, 'ScreamDetection native module is unavailable on this platform/build');
-      return;
+    if (!nativeModule || typeof nativeModule.startRecording !== 'function') {
+      const moduleError = new Error('ScreamDetectionModule is not available on this build');
+      setError(moduleError);
+      logger.warn(TAG, moduleError.message);
+      return false;
     }
 
     const hasPermission = await requestMicPermission();
     if (!hasPermission) {
-      logger.warn(TAG, 'Microphone permission denied, AI detection not started');
-      return;
+      const permissionError = new Error('Microphone permission denied');
+      setError(permissionError);
+      return false;
     }
-
-    confidenceListener.current = emitter.addListener('onScreamConfidence', (data) => {
-      processDetectionFrame(data, 'onScreamConfidence');
-    });
-
-    alertListener.current = emitter.addListener('onScreamDetected', (data) => {
-      processDetectionFrame(data, 'onScreamDetected');
-    });
-
-    await ScreamDetection.startListening();
-    isListeningRef.current = true;
-    setDetectionState((prev) => ({ ...prev, isListening: true }));
-    logger.info(TAG, 'AI scream detection started');
-  }, [ScreamDetection, emitter, processDetectionFrame, requestMicPermission]);
-
-  const stopDetection = useCallback(async () => {
-    if (!isListeningRef.current && !pendingAlert.visible) return;
-
-    clearCountdownInterval();
-    pendingAlertVisibleRef.current = false;
 
     try {
-      if (ScreamDetection && isListeningRef.current) {
-        await ScreamDetection.stopListening();
+      await nativeModule.startRecording();
+      setError(null);
+      setListeningState(true);
+      logger.info(TAG, 'Audio recording started');
+      return true;
+    } catch (startError) {
+      logger.error(TAG, 'startRecording failed', startError);
+      setError(startError instanceof Error ? startError : new Error(String(startError)));
+      setListeningState(false);
+      return false;
+    }
+  }, [nativeModule, requestMicPermission, setListeningState]);
+
+  const stopListening = useCallback(async () => {
+    if (!nativeModule || typeof nativeModule.stopAndAnalyze !== 'function') {
+      const moduleError = new Error('ScreamDetectionModule.stopAndAnalyze is unavailable');
+      setError(moduleError);
+      return null;
+    }
+
+    if (analyzeInFlightRef.current) {
+      return result;
+    }
+
+    if (!isListeningRef.current) {
+      return result;
+    }
+
+    analyzeInFlightRef.current = true;
+    try {
+      const raw = await nativeModule.stopAndAnalyze();
+      const analysis = normalizeAnalysisResult(raw || {});
+
+      setResult(analysis);
+      setError(null);
+      setListeningState(false);
+
+      if (analysis.isScream || analysis.confidence > Number(runtimeConfig.confidenceThreshold || 0.8)) {
+        await triggerDetectedScream(analysis, loopActiveRef.current ? 'continuous' : 'manual');
       }
-    } catch (error) {
-      logger.warn(TAG, 'stopListening failed', error?.message || error);
+
+      return analysis;
+    } catch (stopError) {
+      logger.error(TAG, 'stopAndAnalyze failed', stopError);
+      const normalizedError = stopError instanceof Error ? stopError : new Error(String(stopError));
+      setError(normalizedError);
+      setListeningState(false);
+      return null;
+    } finally {
+      analyzeInFlightRef.current = false;
     }
+  }, [
+    nativeModule,
+    normalizeAnalysisResult,
+    result,
+    runtimeConfig.confidenceThreshold,
+    setListeningState,
+    triggerDetectedScream,
+  ]);
 
-    confidenceListener.current?.remove();
-    alertListener.current?.remove();
-    confidenceListener.current = null;
-    alertListener.current = null;
-    isListeningRef.current = false;
-    detectionBufferRef.current = [];
+  const stopDetection = useCallback(async () => {
+    loopActiveRef.current = false;
+    clearLoopTimeout();
 
-    if (mountedRef.current) {
-      setPendingAlert({
-        visible: false,
-        countdownSec: runtimeConfig.confirmationCountdownSec,
-        acknowledged: false,
-        confidence: 0,
-        startedAt: 0,
-        source: 'unknown',
-      });
-      setDetectionState({
-        isListening: false,
-        lastConfidence: 0,
-        trailingConsecutive: 0,
-        lastEventAt: null,
-        pendingConfirmation: false,
-        detectionBuffer: [],
-      });
+    if (isListeningRef.current) {
+      await stopListening();
     }
+  }, [clearLoopTimeout, stopListening]);
 
-    logger.info(TAG, 'AI scream detection stopped');
-  }, [ScreamDetection, clearCountdownInterval, pendingAlert.visible, runtimeConfig.confirmationCountdownSec]);
+  const startDetection = useCallback(async () => {
+    return startListening();
+  }, [startListening]);
 
-  // Cooldown ticker
+  // Continuous sliding-window detection loop (every intervalMs)
   useEffect(() => {
-    if (!cooldownState.isCoolingDown) return undefined;
+    if (!(enabled && continuous)) {
+      loopActiveRef.current = false;
+      clearLoopTimeout();
+      return undefined;
+    }
 
-    const timer = setInterval(() => {
-      const nowTs = Date.now();
-      const remaining = Math.max(
-        runtimeConfig.cooldownMs - (nowTs - cooldownState.lastTriggerTime),
-        0
-      );
+    loopActiveRef.current = true;
 
-      if (!mountedRef.current) return;
+    const runLoop = async () => {
+      if (!loopActiveRef.current || !mountedRef.current) return;
 
-      if (remaining <= 0) {
-        setCooldownState((prev) => ({
-          ...prev,
-          isCoolingDown: false,
-          remainingMs: 0,
-        }));
-        clearInterval(timer);
+      const started = await startListening();
+      if (!started || !loopActiveRef.current || !mountedRef.current) {
+        loopTimeoutRef.current = setTimeout(runLoop, Number(runtimeConfig.intervalMs || 2000));
         return;
       }
 
-      setCooldownState((prev) => ({ ...prev, remainingMs: remaining }));
-    }, 1000);
+      loopTimeoutRef.current = setTimeout(async () => {
+        if (!loopActiveRef.current || !mountedRef.current) return;
+        await stopListening();
+        runLoop();
+      }, Number(runtimeConfig.intervalMs || 2000));
+    };
 
-    return () => clearInterval(timer);
-  }, [cooldownState.isCoolingDown, cooldownState.lastTriggerTime, runtimeConfig.cooldownMs]);
+    runLoop();
 
-  // Auto start/stop based on enabled prop
+    return () => {
+      loopActiveRef.current = false;
+      clearLoopTimeout();
+    };
+  }, [
+    clearLoopTimeout,
+    continuous,
+    enabled,
+    runtimeConfig.intervalMs,
+    startListening,
+    stopListening,
+  ]);
+
+  // Cooldown ticker
   useEffect(() => {
-    if (enabled) {
-      startDetection();
-    } else {
-      stopDetection();
-    }
-  }, [enabled, startDetection, stopDetection]);
+    const timer = setInterval(updateCooldown, 1000);
+    return () => clearInterval(timer);
+  }, [updateCooldown]);
 
-  // Full cleanup
+  // Cleanup on unmount
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      loopActiveRef.current = false;
+      clearLoopTimeout();
       stopDetection();
     };
-  }, [stopDetection]);
+  }, [clearLoopTimeout, stopDetection]);
+
+  const detectionState = {
+    isListening,
+    lastConfidence: Number(result?.confidence || 0),
+    trailingConsecutive: Number(result?.isScream ? 1 : 0),
+    lastEventAt: result?.timestamp || null,
+    pendingConfirmation: false,
+    detectionBuffer: result ? [result] : [],
+  };
+
+  const pendingAlert = {
+    visible: false,
+    countdownSec: 0,
+    acknowledged: false,
+    confidence: Number(result?.confidence || 0),
+    startedAt: 0,
+    source: 'unknown',
+  };
 
   return {
+    startListening,
+    stopListening,
     startDetection,
     stopDetection,
+    isListening,
+    result,
+    error,
     detectionState,
     cooldownState,
     detectionBuffer: detectionState.detectionBuffer,
     pendingAlert,
-    cancelPendingAlert,
-    allowPendingCountdown,
+    cancelPendingAlert: () => {},
+    allowPendingCountdown: () => {},
   };
 };

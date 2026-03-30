@@ -184,6 +184,9 @@ const Dashboard = ({ navigation }) => {
     startListening,
     stopListening,
     isListening: isVoiceListening,
+    isAnalyzing: isVoiceAnalyzing,
+    result: voiceResult,
+    cooldownState: voiceCooldownState,
     error: voiceDetectionError,
   } = useScreamDetection({
     enabled: isSafetyModeEnabled,
@@ -301,6 +304,29 @@ const Dashboard = ({ navigation }) => {
       type: 'success',
     });
   };
+
+  const voiceStatus = (() => {
+    if (voiceCooldownState?.isCoolingDown) {
+      return `Cooldown ${Math.ceil((voiceCooldownState.remainingMs || 0) / 1000)}s`;
+    }
+    if (isVoiceAnalyzing) {
+      return 'Analyzing audio...';
+    }
+    if (isVoiceListening) {
+      return 'Listening...';
+    }
+    if (isSafetyModeEnabled) {
+      return 'Armed (auto scan every 2s)';
+    }
+    return 'Idle';
+  })();
+
+  const voiceLastConfidence = Number(voiceResult?.confidence || 0).toFixed(2);
+  const voiceLastResult = voiceResult
+    ? voiceResult.isScream || Number(voiceResult.confidence || 0) > 0.75
+      ? 'Scream detected'
+      : 'No threat'
+    : 'No sample yet';
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -493,6 +519,18 @@ const Dashboard = ({ navigation }) => {
             {isSafetyModeEnabled && <Text style={styles.voiceSubText}>Auto mode is running</Text>}
           </View>
         </TouchableOpacity>
+
+        <View style={styles.voiceHealthCard}>
+          <View style={styles.voiceHealthRow}>
+            <MaterialCommunityIcons name="waveform" size={14} color="#3A2BF1" />
+            <Text style={styles.voiceHealthLabel}>Voice Detection</Text>
+            <Text style={styles.voiceHealthValue}>{voiceStatus}</Text>
+          </View>
+          <View style={styles.voiceHealthRowMuted}>
+            <Text style={styles.voiceHealthMuted}>Last result: {voiceLastResult}</Text>
+            <Text style={styles.voiceHealthMuted}>Confidence: {voiceLastConfidence}</Text>
+          </View>
+        </View>
 
         {/* Status Row */}
         <View style={styles.statusRow}>
@@ -714,6 +752,41 @@ const styles = StyleSheet.create({
   },
   voiceText: { color: '#fff', fontWeight: '800' },
   voiceSubText: { color: 'rgba(255,255,255,0.85)', fontSize: 11, marginTop: 2 },
+  voiceHealthCard: {
+    marginTop: 10,
+    width: '88%',
+    borderRadius: 8,
+    backgroundColor: '#EEF2FF',
+    borderWidth: 1,
+    borderColor: '#D9E1FF',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  voiceHealthRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  voiceHealthLabel: {
+    marginLeft: 6,
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#2A2D34',
+    flex: 1,
+  },
+  voiceHealthValue: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#3A2BF1',
+  },
+  voiceHealthRowMuted: {
+    marginTop: 4,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  voiceHealthMuted: {
+    fontSize: 11,
+    color: '#535964',
+  },
 
   statusRow: {
     marginTop: 28,

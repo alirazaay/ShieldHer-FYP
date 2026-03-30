@@ -90,6 +90,7 @@ export const useScreamDetection = ({
   const lastTriggerTimeRef = useRef(0);
 
   const [isListening, setIsListening] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
 
@@ -242,6 +243,7 @@ export const useScreamDetection = ({
     }
 
     analyzeInFlightRef.current = true;
+    setIsAnalyzing(true);
     try {
       const raw = await nativeModule.stopAndAnalyze();
       const analysis = normalizeAnalysisResult(raw || {});
@@ -263,6 +265,9 @@ export const useScreamDetection = ({
       return null;
     } finally {
       analyzeInFlightRef.current = false;
+      if (mountedRef.current) {
+        setIsAnalyzing(false);
+      }
     }
   }, [
     nativeModule,
@@ -368,6 +373,7 @@ export const useScreamDetection = ({
     startDetection,
     stopDetection,
     isListening,
+    isAnalyzing,
     result,
     error,
     detectionState,

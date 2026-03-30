@@ -16,6 +16,18 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
+    // Validate that a pending invite exists for this user/guardian pair.
+    function hasPendingInviteForPair(inviteId, userId, guardianId) {
+      return isAuthenticated() &&
+        inviteId is string &&
+        request.auth.uid == guardianId &&
+        request.auth.token.email is string &&
+        exists(/databases/$(database)/documents/guardianInvites/$(inviteId)) &&
+        get(/databases/$(database)/documents/guardianInvites/$(inviteId)).data.status == 'pending' &&
+        get(/databases/$(database)/documents/guardianInvites/$(inviteId)).data.userId == userId &&
+        get(/databases/$(database)/documents/guardianInvites/$(inviteId)).data.guardianEmail == request.auth.token.email;
+    }
+
     // Check if the current user is a guardian of the specified user
     // Uses subcollection: users/{userId}/guardians/{guardianId}
     // The guardian document ID must match the guardian's auth UID
@@ -112,6 +124,10 @@ service cloud.firestore {
         allow read, write: if isUserOwner(userId);
         // Guardian can read their own guardian relationship
         allow read: if isAuthenticated() && request.auth.uid == guardianId;
+        // Guardian can create/update relationship during invite acceptance.
+        allow create, update: if
+          request.resource.data.inviteId is string &&
+          hasPendingInviteForPair(request.resource.data.inviteId, userId, guardianId);
       }
 
       // 1b. Connected Users Subcollection (for guardians)
@@ -121,6 +137,10 @@ service cloud.firestore {
         allow read, write: if isUserOwner(userId);
         // The connected user can also read this relationship
         allow read: if isAuthenticated() && request.auth.uid == connectedUserId;
+        // Guardian can create/update reciprocal link during invite acceptance.
+        allow create, update: if
+          request.resource.data.inviteId is string &&
+          hasPendingInviteForPair(request.resource.data.inviteId, connectedUserId, userId);
       }
 
       // 1c. Location Subcollection (if used)

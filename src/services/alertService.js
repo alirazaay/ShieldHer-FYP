@@ -25,6 +25,7 @@ import {
   retryPendingAlertsNow,
   shutdownAlertRetryQueue,
 } from './alertRetryQueue';
+import { getCachedLocation, getCurrentLocation } from './location';
 
 const TAG = '[alertService]';
 let retryQueueReady = false;
@@ -153,11 +154,25 @@ export async function fetchUserLocation(userId) {
     const userData = userSnap.data();
     const location = userData?.location;
 
-    if (!location || !location.latitude || !location.longitude) {
-      throw new Error('User location not available');
+    if (location && location.latitude && location.longitude) {
+      return location;
     }
 
-    return location;
+    // Fallback 1: in-memory last-known device location from active session.
+    const cachedLocation = getCachedLocation();
+    if (cachedLocation?.latitude && cachedLocation?.longitude) {
+      logger.info(TAG, 'Using cached in-memory location for SOS dispatch');
+      return cachedLocation;
+    }
+
+    // Fallback 2: one-shot foreground location read.
+    const currentLocation = await getCurrentLocation();
+    if (currentLocation?.latitude && currentLocation?.longitude) {
+      logger.info(TAG, 'Using freshly sampled location for SOS dispatch');
+      return currentLocation;
+    }
+
+    throw new Error('User location not available');
   } catch (error) {
     handleAppError(error, 'Alert Service - Fetching Location');
     throw error;

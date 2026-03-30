@@ -3,6 +3,8 @@ import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import logger from '../utils/logger';
 
+let lastKnownLocation = null;
+
 async function areLocationServicesEnabled() {
   if (typeof Location.hasServicesEnabledAsync === 'function') {
     return Location.hasServicesEnabledAsync();
@@ -14,6 +16,22 @@ async function areLocationServicesEnabled() {
 
   // If API shape changes, avoid hard-failing permission flows.
   return true;
+}
+
+function cacheLocation(coords) {
+  if (!coords) return;
+  if (coords.latitude == null || coords.longitude == null) return;
+
+  lastKnownLocation = {
+    latitude: coords.latitude,
+    longitude: coords.longitude,
+    accuracy: coords.accuracy || null,
+    timestamp: Date.now(),
+  };
+}
+
+export function getCachedLocation() {
+  return lastKnownLocation;
 }
 
 /**
@@ -35,7 +53,20 @@ export async function requestLocationPermission() {
       };
     }
 
-    // Request foreground location permission
+    // Reuse existing permission state to avoid repeatedly prompting users.
+    const existing =
+      typeof Location.getForegroundPermissionsAsync === 'function'
+        ? await Location.getForegroundPermissionsAsync()
+        : null;
+    if (existing?.status === 'granted') {
+      logger.info('[location]', 'Location permission already granted');
+      return {
+        granted: true,
+        status: 'granted',
+      };
+    }
+
+    // Request foreground location permission only when needed.
     const { status } = await Location.requestForegroundPermissionsAsync();
 
     if (status === 'granted') {
@@ -95,7 +126,11 @@ export async function startLocationTracking(userId) {
     }
 
     // Check/request permissions
-    const { status } = await Location.getForegroundPermissionsAsync();
+    const currentPermission =
+      typeof Location.getForegroundPermissionsAsync === 'function'
+        ? await Location.getForegroundPermissionsAsync()
+        : null;
+    const status = currentPermission?.status;
     if (status !== 'granted') {
       const permissionResult = await requestLocationPermission();
       if (!permissionResult.granted) {
@@ -116,6 +151,8 @@ export async function startLocationTracking(userId) {
       async (location) => {
         try {
           const { latitude, longitude, accuracy } = location.coords;
+
+          cacheLocation(location.coords);
 
           logger.info('[location]', 'Position update', {
             latitude: latitude.toFixed(4),
@@ -196,6 +233,9 @@ export function getLocationErrorMessage(error) {
  */
 export async function checkLocationPermission() {
   try {
+    if (typeof Location.getForegroundPermissionsAsync !== 'function') {
+      return false;
+    }
     const { status } = await Location.getForegroundPermissionsAsync();
     return status === 'granted';
   } catch (error) {
@@ -211,8 +251,24 @@ export async function checkLocationPermission() {
 export async function getCurrentLocation() {
   logger.info('[location]', 'getCurrentLocation start');
   try {
-    const permissionResult = await requestLocationPermission();
-    if (!permissionResult.granted) {
+    const servicesEnabled = await areLocationServicesEnabled();
+    if (!servicesEnabled) {
+      logger.warn('[location]', 'Cannot fetch current location: services disabled');
+      return null;
+    }
+
+    const currentPermission =
+      typeof Location.getForegroundPermissionsAsync === 'function'
+        ? await Location.getForegroundPermissionsAsync()
+        : null;
+    let status = currentPermission?.status;
+
+    if (status !== 'granted') {
+      const permissionResult = await requestLocationPermission();
+      status = permissionResult.status;
+    }
+
+    if (status !== 'granted') {
       logger.warn('[location]', 'Cannot fetch current location without permissions');
       return null;
     }
@@ -220,6 +276,8 @@ export async function getCurrentLocation() {
     const { coords } = await Location.getCurrentPositionAsync({
       accuracy: Location.Accuracy.Balanced,
     });
+
+    cacheLocation(coords);
 
     return {
       latitude: coords.latitude,

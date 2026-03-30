@@ -8,7 +8,7 @@ import {
   deleteDoc,
   getDoc,
   serverTimestamp,
-  updateDoc,
+  writeBatch,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import logger from '../utils/logger';
@@ -190,16 +190,57 @@ export async function acceptInvite(inviteId, guardianId, guardianEmail) {
       throw error;
     }
 
-    // Mark invite accepted; a backend Cloud Function will perform
-    // bidirectional linking securely with Admin SDK privileges.
-    await updateDoc(inviteDocRef, {
-      status: 'accepted',
-      acceptedAt: serverTimestamp(),
-      acceptedByUid: guardianId,
-      acceptedByEmail: guardianEmail.toLowerCase(),
-    });
+    const normalizedGuardianEmail = guardianEmail.toLowerCase();
 
-    logger.info('[guardianInvites]', 'Invite marked accepted; awaiting backend linking');
+    // Fetch guardian profile to enrich relationship data.
+    const guardianDocRef = doc(db, 'users', guardianId);
+    const guardianSnap = await getDoc(guardianDocRef);
+    const guardianProfile =
+      guardianSnap && typeof guardianSnap.exists === 'function' && guardianSnap.exists()
+        ? guardianSnap.data()
+        : {};
+
+    const batch = writeBatch(db);
+
+    // 1) Link guardian under user profile
+    const userGuardianRef = doc(db, 'users', inviteData.userId, 'guardians', guardianId);
+    batch.set(
+      userGuardianRef,
+      {
+        name: guardianProfile.fullName || guardianProfile.name || 'Guardian',
+        phone: guardianProfile.phone || guardianProfile.phoneNumber || '',
+        email: normalizedGuardianEmail,
+        profileImage: guardianProfile.profileImage || null,
+        relationship: guardianProfile.relationship || 'Guardian',
+        status: 'active',
+        isRegisteredUser: true,
+        linkedAt: serverTimestamp(),
+        inviteId,
+      },
+      { merge: true }
+    );
+
+    // 2) Link user under guardian profile
+    const guardianUserRef = doc(db, 'users', guardianId, 'connectedUsers', inviteData.userId);
+    batch.set(
+      guardianUserRef,
+      {
+        name: inviteData.userName || 'User',
+        phone: inviteData.userPhone || '',
+        email: (inviteData.userEmail || '').toLowerCase(),
+        profileImage: inviteData.userProfileImage || null,
+        status: 'active',
+        linkedAt: serverTimestamp(),
+        inviteId,
+      },
+      { merge: true }
+    );
+
+    // 3) Consume the invite once linking succeeds
+    batch.delete(inviteDocRef);
+
+    await batch.commit();
+    logger.info('[guardianInvites]', 'Invite accepted and bidirectional links created');
   } catch (error) {
     logger.error('[guardianInvites]', 'acceptInvite error:', error);
     throw error;

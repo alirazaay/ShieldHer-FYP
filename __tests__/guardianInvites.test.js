@@ -5,16 +5,27 @@ const mockDoc = jest.fn((...args) => {
   if (args.length === 1 && args[0]?.path === 'guardianInvites') {
     return { id: 'new-invite-123', path: 'guardianInvites/new-invite-123' };
   }
-  if (args.length === 3) {
-    return { id: args[2], path: `${args[1]}/${args[2]}` };
+  if (args.length >= 3) {
+    const segments = args.slice(1);
+    return {
+      id: segments[segments.length - 1],
+      path: segments.join('/'),
+    };
   }
   return { id: 'mock-doc-id', path: 'guardianInvites/mock-doc-id' };
 });
 const mockGetDocs = jest.fn();
 const mockGetDoc = jest.fn();
 const mockSetDoc = jest.fn(() => Promise.resolve());
-const mockUpdateDoc = jest.fn(() => Promise.resolve());
 const mockDeleteDoc = jest.fn(() => Promise.resolve());
+const mockBatchSet = jest.fn();
+const mockBatchDelete = jest.fn();
+const mockBatchCommit = jest.fn(() => Promise.resolve());
+const mockWriteBatch = jest.fn(() => ({
+  set: mockBatchSet,
+  delete: mockBatchDelete,
+  commit: mockBatchCommit,
+}));
 const mockQuery = jest.fn(() => ({}));
 const mockWhere = jest.fn(() => ({}));
 const mockServerTimestamp = jest.fn(() => new Date());
@@ -25,8 +36,8 @@ jest.mock('firebase/firestore', () => ({
   getDocs: (...args) => mockGetDocs(...args),
   getDoc: (...args) => mockGetDoc(...args),
   setDoc: (...args) => mockSetDoc(...args),
-  updateDoc: (...args) => mockUpdateDoc(...args),
   deleteDoc: (...args) => mockDeleteDoc(...args),
+  writeBatch: (...args) => mockWriteBatch(...args),
   query: (...args) => mockQuery(...args),
   where: (...args) => mockWhere(...args),
   serverTimestamp: () => mockServerTimestamp(),
@@ -92,27 +103,58 @@ describe('guardianInvites service', () => {
   });
 
   describe('acceptInvite', () => {
-    it('marks invite accepted when guardian email matches', async () => {
-      mockGetDoc.mockResolvedValueOnce({
-        exists: () => true,
-        data: () => ({
-          status: 'pending',
-          guardianEmail: 'guardian@mail.com',
-        }),
-      });
+    it('creates bidirectional links and deletes invite when guardian email matches', async () => {
+      mockGetDoc
+        .mockResolvedValueOnce({
+          exists: () => true,
+          data: () => ({
+            status: 'pending',
+            guardianEmail: 'guardian@mail.com',
+            userId: 'user-1',
+            userName: 'Ayesha Khan',
+            userEmail: 'user@mail.com',
+            userPhone: '03001234567',
+          }),
+        })
+        .mockResolvedValueOnce({
+          exists: () => true,
+          data: () => ({
+            fullName: 'Guardian Person',
+            phone: '03110001111',
+            relationship: 'Sibling',
+          }),
+        });
 
       await acceptInvite('invite-123', 'guardian-uid-1', 'guardian@mail.com');
 
-      expect(mockUpdateDoc).toHaveBeenCalledTimes(1);
-      expect(mockUpdateDoc).toHaveBeenCalledWith(
-        expect.objectContaining({ id: 'invite-123' }),
+      expect(mockWriteBatch).toHaveBeenCalledTimes(1);
+      expect(mockBatchSet).toHaveBeenCalledTimes(2);
+      expect(mockBatchDelete).toHaveBeenCalledTimes(1);
+      expect(mockBatchCommit).toHaveBeenCalledTimes(1);
+      expect(mockBatchSet).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({ id: 'guardian-uid-1', path: 'users/user-1/guardians/guardian-uid-1' }),
         expect.objectContaining({
-          status: 'accepted',
-          acceptedByUid: 'guardian-uid-1',
-          acceptedByEmail: 'guardian@mail.com',
-        })
+          status: 'active',
+          email: 'guardian@mail.com',
+          inviteId: 'invite-123',
+          isRegisteredUser: true,
+        }),
+        { merge: true }
       );
-      expect(mockSetDoc).not.toHaveBeenCalled();
+      expect(mockBatchSet).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({ id: 'user-1', path: 'users/guardian-uid-1/connectedUsers/user-1' }),
+        expect.objectContaining({
+          status: 'active',
+          email: 'user@mail.com',
+          inviteId: 'invite-123',
+        }),
+        { merge: true }
+      );
+      expect(mockBatchDelete).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'invite-123', path: 'guardianInvites/invite-123' })
+      );
     });
 
     it('rejects accept when guardian email does not match invite', async () => {
@@ -127,7 +169,7 @@ describe('guardianInvites service', () => {
       await expect(
         acceptInvite('invite-123', 'guardian-uid-1', 'guardian@mail.com')
       ).rejects.toMatchObject({ code: 'validation/email-mismatch' });
-      expect(mockUpdateDoc).not.toHaveBeenCalled();
+      expect(mockBatchCommit).not.toHaveBeenCalled();
     });
   });
 

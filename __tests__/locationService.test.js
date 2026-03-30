@@ -233,6 +233,7 @@ describe('locationService', () => {
   describe('getCurrentLocation', () => {
     it('should return coords when successful', async () => {
       mockHasServicesEnabled.mockResolvedValueOnce(true);
+      mockHasServicesEnabled.mockResolvedValueOnce(true);
       mockRequestForegroundPermissionsAsync.mockResolvedValueOnce({
         status: 'granted',
       });
@@ -250,6 +251,7 @@ describe('locationService', () => {
     });
 
     it('should return null when permission denied', async () => {
+      mockHasServicesEnabled.mockResolvedValueOnce(true);
       mockHasServicesEnabled.mockResolvedValueOnce(true);
       mockRequestForegroundPermissionsAsync.mockResolvedValueOnce({
         status: 'denied',

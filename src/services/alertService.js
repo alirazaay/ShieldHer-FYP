@@ -26,6 +26,7 @@ import {
   shutdownAlertRetryQueue,
 } from './alertRetryQueue';
 import { getCachedLocation, getCurrentLocation } from './location';
+import { startLocationTracking } from './locationListener';
 
 const TAG = '[alertService]';
 let retryQueueReady = false;
@@ -367,6 +368,15 @@ export async function dispatchSOSAlert(userId, location) {
         });
         logger.info(TAG, `SOS alert created via Firestore: ${alertId}`);
 
+        try {
+          await startLocationTracking(userId, { sosAlertId: alertId });
+        } catch (trackingError) {
+          logger.warn(
+            TAG,
+            `SOS location tracking start failed: ${trackingError?.message || trackingError}`
+          );
+        }
+
         // Proactively cache guardians for future offline scenarios
         try {
           const guardians = await fetchGuardians(userId);
@@ -412,6 +422,15 @@ export async function dispatchSOSAlert(userId, location) {
       result.method = 'retry_queue';
       result.deliveryStatus = 'pending_retry';
       result.statusMessage = 'Network unstable - retrying';
+
+      try {
+        await startLocationTracking(userId, { sosAlertId: alertId });
+      } catch (trackingError) {
+        logger.warn(
+          TAG,
+          `SOS location tracking start failed: ${trackingError?.message || trackingError}`
+        );
+      }
 
       logger.event('warn', TAG, 'SOS_QUEUED_FOR_RETRY', {
         alertId,

@@ -11,6 +11,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import logger from '../utils/logger';
+import { stopLocationTracking } from './locationListener';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Subscribe to real-time alerts for a set of users (guardian's connected users)
@@ -161,6 +162,9 @@ export async function resolveAlert(alertId, guardianId) {
 
     // [Timeline hook] Record the resolution event in the alert's subcollection
     await createTimelineEvent(alertId, 'resolved', guardianId);
+
+    // Stop active SOS location tracking loop in this runtime.
+    stopLocationTracking('alert-resolved');
   } catch (error) {
     logger.error('[alertLifecycle]', 'resolveAlert error:', error);
     throw error;
@@ -220,6 +224,9 @@ export async function cancelAlert(alertId, userId) {
       actorId: userId,
       timestamp: serverTimestamp(),
     });
+
+    // Stop active SOS location tracking loop in this runtime.
+    stopLocationTracking('alert-cancelled');
   } catch (error) {
     logger.error('[alertLifecycle]', 'cancelAlert error:', error);
     throw error;

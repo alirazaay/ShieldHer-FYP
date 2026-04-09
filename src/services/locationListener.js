@@ -5,6 +5,67 @@ import { requestLocationPermission } from './location';
 import logger from '../utils/logger';
 
 let activeTrackingSub = null;
+let activeTrackingUserId = null;
+let activeSosAlertId = null;
+let activeSosAlertUnsubscribe = null;
+let sosTrackingStartedSession = false;
+let missingSosAlertWriteLogged = false;
+
+function clearSosLifecycleBinding() {
+  if (activeSosAlertUnsubscribe) {
+    activeSosAlertUnsubscribe();
+    activeSosAlertUnsubscribe = null;
+  }
+
+  activeSosAlertId = null;
+  sosTrackingStartedSession = false;
+  missingSosAlertWriteLogged = false;
+}
+
+function isAlertDocMissingError(error) {
+  const code = error?.code || '';
+  const message = String(error?.message || '');
+  return code === 'not-found' || message.includes('No document to update');
+}
+
+function bindSosAlertLifecycle(userId, alertId) {
+  if (!alertId) return;
+
+  clearSosLifecycleBinding();
+  activeSosAlertId = alertId;
+
+  const alertRef = doc(db, 'alerts', alertId);
+  activeSosAlertUnsubscribe = onSnapshot(
+    alertRef,
+    (snapshot) => {
+      if (!snapshot.exists()) {
+        logger.info('[locationListener]', 'SOS lifecycle watcher waiting for alert document', {
+          userId,
+          alertId,
+        });
+        return;
+      }
+
+      const status = snapshot.data()?.status || 'active';
+      if (status !== 'active') {
+        logger.info('[locationListener]', 'SOS alert no longer active', {
+          userId,
+          alertId,
+          status,
+        });
+
+        if (sosTrackingStartedSession) {
+          stopLocationTracking(`sos-ended:${status}`);
+        } else {
+          clearSosLifecycleBinding();
+        }
+      }
+    },
+    (error) => {
+      logger.error('[locationListener]', 'SOS lifecycle watcher error:', error);
+    }
+  );
+}
 
 function toFiniteNumber(value) {
   if (typeof value === 'number') {
@@ -290,7 +351,9 @@ export function getMarkerColor(index) {
  * @param {string} userId - Firebase user ID
  * @returns {Promise<void>}
  */
-export async function startLocationTracking(userId) {
+export async function startLocationTracking(userId, options = {}) {
+  const sosAlertId = options.sosAlertId || null;
+
   logger.info('[locationListener]', 'startLocationTracking start', { userId });
   if (!userId) {
     throw new Error('User ID is required to start location tracking');
@@ -298,7 +361,16 @@ export async function startLocationTracking(userId) {
 
   // Prevent multiple listeners
   if (activeTrackingSub) {
-    logger.info('[locationListener]', 'Location tracking is already active');
+    if (sosAlertId && activeTrackingUserId === userId && activeSosAlertId !== sosAlertId) {
+      sosTrackingStartedSession = false;
+      bindSosAlertLifecycle(userId, sosAlertId);
+      logger.info('[locationListener]', 'Location tracking promoted to SOS lifecycle mode', {
+        userId,
+        sosAlertId,
+      });
+    } else {
+      logger.info('[locationListener]', 'Location tracking is already active');
+    }
     return;
   }
 
@@ -328,11 +400,43 @@ export async function startLocationTracking(userId) {
               timestamp: serverTimestamp(),
             },
           });
+
+          if (activeSosAlertId) {
+            const alertRef = doc(db, 'alerts', activeSosAlertId);
+            try {
+              await updateDoc(alertRef, {
+                latitude,
+                longitude,
+                accuracy: accuracy || null,
+                lastLocationAt: serverTimestamp(),
+              });
+              missingSosAlertWriteLogged = false;
+            } catch (alertWriteError) {
+              if (isAlertDocMissingError(alertWriteError)) {
+                if (!missingSosAlertWriteLogged) {
+                  missingSosAlertWriteLogged = true;
+                  logger.info('[locationListener]', 'SOS alert doc not available yet for live location', {
+                    alertId: activeSosAlertId,
+                  });
+                }
+              } else {
+                logger.error('[locationListener]', 'Error updating SOS alert location:', alertWriteError);
+              }
+            }
+          }
         } catch (err) {
           logger.error('[locationListener]', 'Error pushing coords to Firestore:', err);
         }
       }
     );
+
+    activeTrackingUserId = userId;
+
+    if (sosAlertId) {
+      sosTrackingStartedSession = true;
+      bindSosAlertLifecycle(userId, sosAlertId);
+    }
+
     logger.info('[locationListener]', 'Location tracking fully engaged');
   } catch (error) {
     logger.error('[locationListener]', 'startLocationTracking error:', error);
@@ -344,11 +448,14 @@ export async function startLocationTracking(userId) {
  * Stop the singleton location tracking loop
  * @returns {void}
  */
-export function stopLocationTracking() {
-  logger.info('[locationListener]', 'stopLocationTracking invoked');
+export function stopLocationTracking(reason = 'manual') {
+  logger.info('[locationListener]', 'stopLocationTracking invoked', { reason });
   if (activeTrackingSub) {
     activeTrackingSub.remove();
     activeTrackingSub = null;
     logger.info('[locationListener]', 'Location tracking ceased');
   }
+
+  activeTrackingUserId = null;
+  clearSosLifecycleBinding();
 }

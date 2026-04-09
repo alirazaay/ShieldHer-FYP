@@ -1,8 +1,57 @@
 import * as SMS from 'expo-sms';
-import { PermissionsAndroid, Platform } from 'react-native';
+import { NativeModules, PermissionsAndroid, Platform } from 'react-native';
 import logger from '../utils/logger';
 import { fetchGuardians } from './profile';
 import { isOnline } from './networkService';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Native silent-SMS helper
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Send SMS without any user-facing UI.
+ *
+ * Android: delegates to the custom SmsModule native bridge which calls
+ *          android.telephony.SmsManager directly — zero user interaction.
+ * iOS:     falls back to expo-sms composer (iOS never permits silent SMS).
+ *
+ * @param {string[]} phoneNumbers - Array of cleaned phone number strings
+ * @param {string}   message      - SMS body
+ * @returns {Promise<{ sent: number, failed: number, errors: string }>}
+ */
+async function sendSilentSMS(phoneNumbers, message) {
+  // ── Android: use native SmsManager ───────────────────────────────────────
+  if (Platform.OS === 'android') {
+    const { SmsModule } = NativeModules;
+
+    if (!SmsModule) {
+      // Native module not linked (e.g. Expo Go). Surface the error so the
+      // caller can decide whether to fall back to the composer.
+      throw new Error('SmsModule native module is not available. Rebuild the app with `npx expo run:android`.');
+    }
+
+    // SmsModule.sendSMS resolves with { sent, failed, errors }
+    const result = await SmsModule.sendSMS(phoneNumbers, message);
+    return result;
+  }
+
+  // ── iOS / other: open SMS composer (still requires a user tap) ────────────
+  const composerResult = await SMS.sendSMSAsync(phoneNumbers, message);
+
+  const composerSent =
+    composerResult.result === 'sent' || composerResult.result === 'unknown'
+      ? phoneNumbers.length
+      : 0;
+
+  return {
+    sent: composerSent,
+    failed: phoneNumbers.length - composerSent,
+    errors:
+      composerResult.result === 'cancelled'
+        ? 'SMS composer was cancelled by the user'
+        : '',
+  };
+}
 
 const TAG = '[smsService]';
 
@@ -220,32 +269,34 @@ export async function sendEmergencySMSToGuardians(userId, location, userName = n
     // Collect all phone numbers for batch sending
     const phoneNumbers = guardiansWithPhones.map((g) => g.phone.replace(/[\s\-()]/g, ''));
 
-    logger.info(TAG, `Sending emergency SMS to ${phoneNumbers.length} guardian(s)`);
+    logger.info(TAG, `Sending autonomous emergency SMS to ${phoneNumbers.length} guardian(s)`);
 
-    // Send to all guardians at once (opens single SMS compose with multiple recipients)
-    // This is more efficient and ensures the message goes to all guardians together
     try {
-      const result = await SMS.sendSMSAsync(phoneNumbers, message);
+      // sendSilentSMS: uses SmsManager on Android (no UI), composer on iOS
+      const result = await sendSilentSMS(phoneNumbers, message);
 
-      // expo-sms returns 'sent', 'cancelled', or 'unknown'
-      // 'unknown' can mean the SMS was sent but result couldn't be confirmed
-      if (result.result === 'sent' || result.result === 'unknown') {
-        summary.sent = phoneNumbers.length;
-        logger.info(TAG, `Emergency SMS batch sent to ${phoneNumbers.length} guardians`);
-      } else if (result.result === 'cancelled') {
-        summary.failed = phoneNumbers.length;
-        summary.errors.push('SMS sending was cancelled');
-        logger.warn(TAG, 'User cancelled SMS sending');
+      summary.sent = result.sent ?? 0;
+      summary.failed = result.failed ?? 0;
+
+      if (result.errors) {
+        summary.errors.push(result.errors);
+      }
+
+      if (summary.sent > 0) {
+        logger.info(TAG, `Emergency SMS sent to ${summary.sent} of ${phoneNumbers.length} guardian(s)`);
+      } else {
+        logger.warn(TAG, 'No SMS messages were delivered in this batch');
       }
 
       summary.results.push({
         recipients: phoneNumbers.length,
-        result: result.result,
+        sent: summary.sent,
+        failed: summary.failed,
       });
     } catch (batchError) {
       logger.error(TAG, 'Batch SMS failed, attempting individual sends:', batchError);
 
-      // Fallback: try sending individually
+      // Fallback: try sending individually (each is its own SmsManager call)
       for (const guardian of guardiansWithPhones) {
         const result = await sendSingleSMS(guardian.phone, message);
         summary.results.push(result);
@@ -486,13 +537,16 @@ export async function sendOfflineEmergencySMS(userId, location, userName = null)
       return summary;
     }
 
-    const result = await SMS.sendSMSAsync(phoneNumbers, message);
+    logger.info(TAG, `Sending autonomous offline SMS to ${phoneNumbers.length} guardian(s)`);
 
-    if (result.result === 'sent' || result.result === 'unknown') {
-      summary.sent = phoneNumbers.length;
-    } else {
-      summary.failed = phoneNumbers.length;
-      summary.errors.push(`SMS result: ${result.result}`);
+    // sendSilentSMS: uses SmsManager on Android (no UI), composer on iOS
+    const result = await sendSilentSMS(phoneNumbers, message);
+
+    summary.sent = result.sent ?? 0;
+    summary.failed = result.failed ?? 0;
+
+    if (result.errors) {
+      summary.errors.push(result.errors);
     }
 
     return summary;

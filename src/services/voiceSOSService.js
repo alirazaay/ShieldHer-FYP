@@ -86,6 +86,8 @@ class VoiceSOSService {
           latitude: location.latitude,
           longitude: location.longitude,
           accuracy: location.accuracy,
+        }, {
+          triggerType: 'AI',
         });
 
         if (result.success) {

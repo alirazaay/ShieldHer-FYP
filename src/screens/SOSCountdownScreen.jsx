@@ -67,7 +67,9 @@ const SOSCountdownScreen = ({ navigation }) => {
       const location = await fetchUserLocation(currentUser.uid);
 
       // Dispatch SOS alert (handles online Firestore + offline SMS fallback)
-      const result = await dispatchSOSAlert(currentUser.uid, location);
+      const result = await dispatchSOSAlert(currentUser.uid, location, {
+        triggerType: 'manual',
+      });
 
       if (result.success) {
         // Success – Navigate to active alert screen

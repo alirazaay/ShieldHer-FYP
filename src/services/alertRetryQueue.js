@@ -28,6 +28,7 @@ function cloneAlert(alert) {
     alertId: alert.alertId,
     userId: alert.userId,
     location: alert.location,
+    triggerType: alert.triggerType === 'AI' ? 'AI' : 'manual',
     timestamp: alert.timestamp,
     retries: Number(alert.retries || 0),
     status: alert.status || 'pending_retry',

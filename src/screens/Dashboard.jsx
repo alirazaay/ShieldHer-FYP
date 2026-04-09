@@ -155,7 +155,9 @@ const Dashboard = ({ navigation }) => {
       }
 
       const location = await fetchUserLocation(currentUser.uid);
-      const dispatchResult = await dispatchSOSAlert(currentUser.uid, location);
+      const dispatchResult = await dispatchSOSAlert(currentUser.uid, location, {
+        triggerType: source === 'auto' ? 'AI' : 'manual',
+      });
 
       if (dispatchResult.success) {
         const confidenceText = Number(analysis?.confidence || 0).toFixed(2);
@@ -252,7 +254,9 @@ const Dashboard = ({ navigation }) => {
       // Fetch user's current location
       const location = await fetchUserLocation(currentUser.uid);
 
-      const result = await dispatchSOSAlert(currentUser.uid, location);
+      const result = await dispatchSOSAlert(currentUser.uid, location, {
+        triggerType: 'manual',
+      });
 
       if (result.success) {
         setSosMessage({

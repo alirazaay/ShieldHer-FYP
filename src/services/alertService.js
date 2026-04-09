@@ -31,10 +31,15 @@ import { startLocationTracking } from './locationListener';
 const TAG = '[alertService]';
 let retryQueueReady = false;
 
-function buildAlertPayload(userId, location) {
+function normalizeTriggerType(triggerType) {
+  return triggerType === 'AI' ? 'AI' : 'manual';
+}
+
+function buildAlertPayload(userId, location, triggerType = 'manual') {
   return {
     userId,
     alertType: 'SOS',
+    type: normalizeTriggerType(triggerType),
     latitude: location.latitude,
     longitude: location.longitude,
     accuracy: location.accuracy || null,
@@ -58,7 +63,7 @@ async function createTriggeredTimelineEventIdempotent(alertId, actorId, metadata
   );
 }
 
-async function sendAlertToFirestore({ alertId, userId, location }) {
+async function sendAlertToFirestore({ alertId, userId, location, triggerType }) {
   const alertRef = doc(db, 'alerts', alertId);
   const existing = await getDoc(alertRef);
 
@@ -67,7 +72,7 @@ async function sendAlertToFirestore({ alertId, userId, location }) {
     return { alertId, created: false };
   }
 
-  const alertData = buildAlertPayload(userId, location);
+  const alertData = buildAlertPayload(userId, location, triggerType);
   await setDoc(alertRef, alertData);
 
   await createTriggeredTimelineEventIdempotent(alertId, userId, {
@@ -115,6 +120,7 @@ async function ensureRetryQueueInitialized() {
         alertId: item.alertId,
         userId: item.userId,
         location: item.location,
+        triggerType: item.triggerType,
       });
     },
     onMaxRetriesReached: async (item) => {
@@ -243,7 +249,12 @@ export async function createAlert(userId, latitude, longitude, accuracy = null, 
 
     const alertId = options.alertId || doc(collection(db, 'alerts')).id;
     const location = { latitude, longitude, accuracy };
-    const writeResult = await sendAlertToFirestore({ alertId, userId, location });
+    const writeResult = await sendAlertToFirestore({
+      alertId,
+      userId,
+      location,
+      triggerType: normalizeTriggerType(options.triggerType),
+    });
 
     if (writeResult.created) {
       logger.info('[alertService]', 'SOS alert created successfully:', alertId);
@@ -314,7 +325,7 @@ export function getAlertErrorMessage(error) {
  * @param {Object} location - Location object {latitude, longitude, accuracy}
  * @returns {Promise<Object>} Result with alertId (if online) or smsResult (if offline)
  */
-export async function dispatchSOSAlert(userId, location) {
+export async function dispatchSOSAlert(userId, location, options = {}) {
   const result = {
     success: false,
     method: null, // 'firestore' | 'retry_queue' | 'sms'
@@ -336,6 +347,8 @@ export async function dispatchSOSAlert(userId, location) {
 
     await ensureRetryQueueInitialized();
 
+    const triggerType = normalizeTriggerType(options.triggerType);
+
     const alertId = doc(collection(db, 'alerts')).id;
     result.alertId = alertId;
 
@@ -356,7 +369,7 @@ export async function dispatchSOSAlert(userId, location) {
       result.method = 'firestore';
 
       try {
-        await sendAlertToFirestore({ alertId, userId, location });
+        await sendAlertToFirestore({ alertId, userId, location, triggerType });
 
         result.success = true;
         result.deliveryStatus = 'sent';
@@ -408,6 +421,7 @@ export async function dispatchSOSAlert(userId, location) {
         alertId,
         userId,
         location,
+        triggerType,
         timestamp: Date.now(),
         retries: 0,
         status: 'pending_retry',

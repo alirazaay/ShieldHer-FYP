@@ -15,6 +15,7 @@ import AlertHistoryScreen from './src/screens/AlertHistoryScreen';
 import AlertTimelineScreen from './src/screens/AlertTimelineScreen';
 import SOSCountdownScreen from './src/screens/SOSCountdownScreen';
 import AlertActiveScreen from './src/screens/AlertActiveScreen';
+import IncomingSOSCallScreen from './src/screens/IncomingSOSCallScreen';
 import PhoneLoginScreen from './src/screens/Auth/PhoneLoginScreen';
 import VerifyOTPScreen from './src/screens/Auth/VerifyOTPScreen';
 import OfflineBanner from './src/components/OfflineBanner';
@@ -44,6 +45,7 @@ import {
   initializeSOSDeliverySystem,
   shutdownSOSDeliverySystem,
 } from './src/services/alertService';
+import { initializeGuardianEmergencyListener } from './src/services/guardianEmergencyListener';
 import logger from './src/utils/logger';
 
 const TAG = '[App]';
@@ -63,6 +65,7 @@ export default function App() {
   const cleanupForegroundHandler = useRef(null);
   const cleanupTokenRefresh = useRef(null);
   const notifResponseListener = useRef(null);
+  const cleanupEmergencyListener = useRef(null);
 
   // ── Firebase connection check ──────────────────────────────────────────────
   useEffect(() => {
@@ -120,6 +123,16 @@ export default function App() {
         // 3. Listen for token refresh and update Firestore
         if (cleanupTokenRefresh.current) cleanupTokenRefresh.current();
         cleanupTokenRefresh.current = setupTokenRefreshListener(user.uid);
+
+        // 4. Start guardian emergency listener (incoming SOS call handling)
+        if (cleanupEmergencyListener.current) cleanupEmergencyListener.current();
+        cleanupEmergencyListener.current = await initializeGuardianEmergencyListener({
+          guardianId: user.uid,
+          onNavigate: (screen, params) => {
+            if (!navigationRef.isReady()) return;
+            navigationRef.navigate(screen, params);
+          },
+        });
       } else {
         // User logged out — clean up listeners
         logger.info(TAG, 'User signed out, cleaning up notification listeners');
@@ -130,6 +143,10 @@ export default function App() {
         if (cleanupTokenRefresh.current) {
           cleanupTokenRefresh.current();
           cleanupTokenRefresh.current = null;
+        }
+        if (cleanupEmergencyListener.current) {
+          cleanupEmergencyListener.current();
+          cleanupEmergencyListener.current = null;
         }
         shutdownSOSDeliverySystem();
       }
@@ -148,6 +165,11 @@ export default function App() {
       (response) => {
         logger.info(TAG, 'Notification tapped:', response.notification.request.content.data);
 
+        const data = response?.notification?.request?.content?.data;
+        if (data?.eventType === 'SOS_CALL') {
+          return;
+        }
+
         const navTarget = handleNotificationNavigation(response);
         if (navTarget && navigationRef.isReady()) {
           logger.info(TAG, 'Navigating to:', navTarget.screen, navTarget.params);
@@ -160,6 +182,10 @@ export default function App() {
     // by checking if there's a pending notification response on startup.
     Notifications.getLastNotificationResponseAsync().then((response) => {
       if (!response) return;
+      const data = response?.notification?.request?.content?.data;
+      if (data?.eventType === 'SOS_CALL') {
+        return;
+      }
       const navTarget = handleNotificationNavigation(response);
       if (navTarget && navigationRef.isReady()) {
         logger.info(TAG, 'Navigating from launch notification:', navTarget.screen, navTarget.params);
@@ -208,6 +234,7 @@ export default function App() {
               <Stack.Screen name="AlertTimeline" component={AlertTimelineScreen} />
               <Stack.Screen name="SOSCountdownScreen" component={SOSCountdownScreen} />
               <Stack.Screen name="AlertActiveScreen" component={AlertActiveScreen} />
+              <Stack.Screen name="IncomingSOSCall" component={IncomingSOSCallScreen} />
             </Stack.Navigator>
           </NavigationContainer>
         </View>

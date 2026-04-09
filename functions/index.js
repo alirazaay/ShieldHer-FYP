@@ -5,6 +5,7 @@ const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { getAuth } = require('firebase-admin/auth');
+const { getMessaging } = require('firebase-admin/messaging');
 const axios = require('axios');
 
 // Escalation service for police workflow
@@ -40,6 +41,224 @@ function safeErrorMessage(error) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const EXPO_PUSH_API = 'https://exp.host/--/push/v2/send';
+const SOS_PUSH_TITLE = '🚨 EMERGENCY! User needs help';
+const SOS_SMS_FALLBACK_DELAY_MS =
+  process.env.NODE_ENV === 'test'
+    ? 0
+    : Number.isFinite(Number(process.env.SOS_SMS_FALLBACK_DELAY_MS))
+      ? Number(process.env.SOS_SMS_FALLBACK_DELAY_MS)
+      : 8000;
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(ms) || 0)));
+}
+
+function buildMapsLink(latitude, longitude) {
+  if (!Number.isFinite(Number(latitude)) || !Number.isFinite(Number(longitude))) {
+    return null;
+  }
+
+  return `https://maps.google.com/?q=${Number(latitude)},${Number(longitude)}`;
+}
+
+function buildEmergencyDataPayload({
+  alertId,
+  userId,
+  userName,
+  latitude,
+  longitude,
+  triggerType,
+  inboxDocId,
+}) {
+  const mapsLink = buildMapsLink(latitude, longitude);
+
+  return {
+    eventType: 'SOS_CALL',
+    alertType: 'SOS',
+    alertId,
+    userId,
+    userName,
+    screen: 'UserLocationMap',
+    triggerType: triggerType || 'manual',
+    locationLink: mapsLink || '',
+    latitude: Number.isFinite(Number(latitude)) ? String(latitude) : '',
+    longitude: Number.isFinite(Number(longitude)) ? String(longitude) : '',
+    inboxDocId: inboxDocId || '',
+    urgency: 'critical',
+  };
+}
+
+function buildEmergencyBody(userName, mapsLink) {
+  const who = userName || 'A ShieldHer user';
+  if (!mapsLink) {
+    return `${who} triggered an emergency SOS. Open ShieldHer now.`;
+  }
+  return `${who} triggered an emergency SOS. Live location: ${mapsLink}`;
+}
+
+function isExpoToken(token) {
+  return typeof token === 'string' && token.startsWith('ExponentPushToken');
+}
+
+function hasTwilioConfig() {
+  return Boolean(
+    process.env.TWILIO_ACCOUNT_SID &&
+      process.env.TWILIO_AUTH_TOKEN &&
+      process.env.TWILIO_PHONE_NUMBER
+  );
+}
+
+async function sendHighPriorityFcm(tokens, payload) {
+  if (!Array.isArray(tokens) || tokens.length === 0) {
+    return null;
+  }
+
+  const cleanTokens = tokens.filter((token) => typeof token === 'string' && !isExpoToken(token));
+  if (cleanTokens.length === 0) {
+    return null;
+  }
+
+  const mapsLink = payload.locationLink || '';
+  const body = buildEmergencyBody(payload.userName, mapsLink);
+
+  const message = {
+    tokens: cleanTokens,
+    notification: {
+      title: SOS_PUSH_TITLE,
+      body,
+    },
+    data: Object.entries(payload).reduce((acc, [key, value]) => {
+      acc[key] = value == null ? '' : String(value);
+      return acc;
+    }, {}),
+    android: {
+      priority: 'high',
+      ttl: 3600 * 1000,
+      notification: {
+        channelId: 'emergency-alerts',
+        priority: 'max',
+        defaultVibrateTimings: true,
+        defaultSound: true,
+        visibility: 'public',
+      },
+    },
+  };
+
+  try {
+    const messaging = getMessaging();
+    const response = await messaging.sendEachForMulticast(message);
+
+    if (response.failureCount > 0) {
+      response.responses.forEach((res, index) => {
+        if (!res.success) {
+          console.warn(
+            `[sendHighPriorityFcm] Token delivery failed (index=${index}): ${safeErrorMessage(
+              res.error
+            )}`
+          );
+        }
+      });
+    }
+
+    console.log(
+      `[sendHighPriorityFcm] Sent=${response.successCount}, Failed=${response.failureCount}`
+    );
+
+    return response;
+  } catch (error) {
+    console.error(`[sendHighPriorityFcm] Error: ${safeErrorMessage(error)}`);
+    return null;
+  }
+}
+
+function formatEmergencySms({ userName, mapsLink, triggerType }) {
+  const who = userName || 'ShieldHer user';
+  const mode = triggerType === 'AI' ? 'AI scream detection' : 'manual SOS';
+  const locationPart = mapsLink ? `Location: ${mapsLink}` : 'Location unavailable';
+  return `SOS ALERT from ShieldHer. ${who} triggered ${mode}. ${locationPart}`;
+}
+
+async function sendEmergencySmsViaTwilio({ toPhone, userName, mapsLink, triggerType }) {
+  if (!toPhone || !hasTwilioConfig()) {
+    return false;
+  }
+
+  try {
+    const twilio = require('twilio');
+    const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+    await client.messages.create({
+      body: formatEmergencySms({ userName, mapsLink, triggerType }),
+      from: process.env.TWILIO_PHONE_NUMBER,
+      to: toPhone,
+    });
+
+    return true;
+  } catch (error) {
+    console.error(`[sendEmergencySmsViaTwilio] Error: ${safeErrorMessage(error)}`);
+    return false;
+  }
+}
+
+async function executeSmsFallbackForPendingDeliveries(alertId, guardianTargets) {
+  if (!Array.isArray(guardianTargets) || guardianTargets.length === 0) {
+    return;
+  }
+
+  await sleep(SOS_SMS_FALLBACK_DELAY_MS);
+
+  for (const target of guardianTargets) {
+    const deliveryRef = db.collection('guardianAlertInbox').doc(target.deliveryId);
+    let deliveryData = null;
+
+    try {
+      const deliverySnap = await deliveryRef.get();
+      if (!deliverySnap.exists) {
+        continue;
+      }
+
+      deliveryData = deliverySnap.data() || {};
+      const isAcked = Boolean(deliveryData.pushAckAt || deliveryData.callAcceptedAt);
+      const wasSmsSent = Boolean(deliveryData.smsFallbackSent);
+
+      if (isAcked || wasSmsSent) {
+        continue;
+      }
+    } catch (error) {
+      console.error(
+        `[executeSmsFallbackForPendingDeliveries] Fetch failed: ${safeErrorMessage(error)}`
+      );
+      continue;
+    }
+
+    const mapsLink = deliveryData.mapsLink || buildMapsLink(target.latitude, target.longitude);
+    const sent = await sendEmergencySmsViaTwilio({
+      toPhone: target.guardianPhone,
+      userName: target.userName,
+      mapsLink,
+      triggerType: target.triggerType,
+    });
+
+    if (!sent) {
+      continue;
+    }
+
+    try {
+      await deliveryRef.set(
+        {
+          smsFallbackSent: true,
+          smsFallbackAt: FieldValue.serverTimestamp(),
+          status: 'sms_fallback',
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+    } catch (updateError) {
+      console.error(
+        `[executeSmsFallbackForPendingDeliveries] Update failed: ${safeErrorMessage(updateError)}`
+      );
+    }
+  }
+}
 
 /**
  * Send push notifications to multiple Expo push tokens.
@@ -599,7 +818,8 @@ exports.onAlertCreated = onDocumentCreated(
       return null;
     }
 
-    const { userId, alertType, latitude, longitude } = alertData;
+    const { userId, alertType, latitude, longitude, type } = alertData;
+    const triggerType = type === 'AI' ? 'AI' : 'manual';
 
     if (!userId) {
       console.error('[onAlertCreated] userId missing from alert, aborting');
@@ -628,22 +848,13 @@ exports.onAlertCreated = onDocumentCreated(
       // Continue — we can still send notifications with a generic name
     }
 
-    // ── Fetch user's guardians subcollection ─────────────────────────────────
+    // ── Fetch guardians and profile channels ──────────────────────────────────
     let guardians = [];
     try {
-      const guardiansSnap = await db
-        .collection('users')
-        .doc(userId)
-        .collection('guardians')
-        .get();
-
-      guardians = guardiansSnap.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-
-      // Only notify active guardian relationships.
-      guardians = guardians.filter((guardian) => (guardian.status || 'active') === 'active');
+      const guardiansSnap = await db.collection('users').doc(userId).collection('guardians').get();
+      guardians = guardiansSnap.docs
+        .map((doc) => ({ id: doc.id, ...doc.data() }))
+        .filter((guardian) => (guardian.status || 'active') === 'active');
 
       console.log(`[onAlertCreated] Found ${guardians.length} active guardian(s)`);
     } catch (err) {
@@ -653,115 +864,144 @@ exports.onAlertCreated = onDocumentCreated(
 
     if (guardians.length === 0) {
       console.warn('[onAlertCreated] No guardians found, no notifications to send');
-      // Queue escalation even when no guardians are linked
       await enqueueEscalation(alertId, db);
       return null;
     }
 
-    // ── Fetch each guardian's FCM token from their user document ─────────────
-    // For guardians added via invite flow: doc ID = guardian's UID (can fetch token)
-    // For guardians added manually: doc ID = random ID (no token available)
-    const tokenFetchPromises = guardians.map(async (guardian) => {
+    const mapsLink = buildMapsLink(latitude, longitude);
+    const guardianTargets = [];
+
+    for (const guardian of guardians) {
       if (!guardian.id) {
-        console.warn('[onAlertCreated] Guardian has no ID, skipping');
-        return null;
+        continue;
       }
 
-      // Skip non-registered guardians (manual additions without app account)
-      // They have random doc IDs and won't have FCM tokens anyway
-      if (guardian.isRegisteredUser === false) {
-        console.log('[onAlertCreated] Guardian is not a registered user, skipping notification');
-        return null;
-      }
-
+      let guardianProfile = {};
       try {
-        // Guardian doc ID should be the guardian's UID for registered users
         const guardianDoc = await db.collection('users').doc(guardian.id).get();
         if (!guardianDoc.exists) {
-          console.warn('[onAlertCreated] Guardian user doc not found (may be a manual addition)');
-          return null;
+          continue;
         }
-
-        const guardianProfile = guardianDoc.data() || {};
-        const prefs = guardianProfile.notificationPreferences || {};
-
-        // Respect guardian-level notification opt-outs.
-        if (prefs.pushNotifications === false) {
-          console.log('[onAlertCreated] Guardian has push notifications disabled');
-          return null;
-        }
-        if (prefs.guardianAlerts === false) {
-          console.log('[onAlertCreated] Guardian has guardian alerts disabled');
-          return null;
-        }
-
-        const token = guardianProfile.fcmToken;
-        if (!token) {
-          console.warn('[onAlertCreated] No FCM token for guardian');
-          return null;
-        }
-
-        console.log('[onAlertCreated] Collected a guardian FCM token');
-        return token;
-      } catch (err) {
-        console.error(`[onAlertCreated] Error fetching token for guardian: ${safeErrorMessage(err)}`);
-        return null;
+        guardianProfile = guardianDoc.data() || {};
+      } catch (profileError) {
+        console.error(
+          `[onAlertCreated] Error fetching guardian profile: ${safeErrorMessage(profileError)}`
+        );
+        continue;
       }
-    });
 
-    const tokenResults = await Promise.all(tokenFetchPromises);
+      const prefs = guardianProfile.notificationPreferences || {};
+      if (prefs.pushNotifications === false || prefs.guardianAlerts === false) {
+        continue;
+      }
 
-    // Filter out nulls
-    const validTokens = tokenResults.filter(Boolean);
-    console.log(`[onAlertCreated] Valid tokens collected: ${validTokens.length}`);
+      const nativeFcmToken = guardianProfile.nativeFcmToken || null;
+      const legacyToken = guardianProfile.fcmToken || null;
+      const expoPushToken = guardianProfile.expoPushToken || (isExpoToken(legacyToken) ? legacyToken : null);
+      const fallbackFcmToken = !isExpoToken(legacyToken) ? legacyToken : null;
+      const deliveryId = `${alertId}_${guardian.id}`;
 
-    if (validTokens.length === 0) {
-      console.warn('[onAlertCreated] No valid FCM tokens found among guardians, aborting');
-      // Queue escalation regardless of push token availability
+      guardianTargets.push({
+        guardianId: guardian.id,
+        deliveryId,
+        userId,
+        alertId,
+        userName,
+        guardianPhone: guardian.phone || guardianProfile.phone || guardianProfile.phoneNumber || null,
+        latitude,
+        longitude,
+        triggerType,
+        mapsLink,
+        nativeFcmToken: nativeFcmToken || fallbackFcmToken,
+        expoPushToken,
+      });
+    }
+
+    if (guardianTargets.length === 0) {
+      console.warn('[onAlertCreated] No reachable guardian target after preference filtering');
       await enqueueEscalation(alertId, db);
       return null;
     }
 
-    // ── Build location hint for notification body ─────────────────────────────
-    let locationHint = '';
-    if (latitude && longitude) {
-      locationHint = ` (${parseFloat(latitude).toFixed(4)}, ${parseFloat(longitude).toFixed(4)})`;
-    }
+    // Persist per-guardian inbox entries for offline replay reliability.
+    await Promise.all(
+      guardianTargets.map((target) =>
+        db.collection('guardianAlertInbox').doc(target.deliveryId).set(
+          {
+            deliveryId: target.deliveryId,
+            alertId,
+            userId,
+            guardianId: target.guardianId,
+            userName,
+            triggerType,
+            latitude: Number.isFinite(Number(latitude)) ? Number(latitude) : null,
+            longitude: Number.isFinite(Number(longitude)) ? Number(longitude) : null,
+            mapsLink,
+            status: 'pending',
+            pushAckAt: null,
+            callAcceptedAt: null,
+            callDeclinedAt: null,
+            smsFallbackSent: false,
+            guardianPhone: target.guardianPhone || null,
+            lastPushAt: FieldValue.serverTimestamp(),
+            createdAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        )
+      )
+    );
 
-    // ── Send push notifications ───────────────────────────────────────────────
-    const notificationTitle = '🚨 Emergency SOS Alert';
-    const notificationBody = `${userName} has triggered an SOS alert! Tap to view their live location.`;
+    const fcmTokens = guardianTargets.map((target) => target.nativeFcmToken).filter(Boolean);
+    const expoTokens = guardianTargets.map((target) => target.expoPushToken).filter(Boolean);
 
-    // Data payload — used by the app's notification tap handler to deep-link
-    const notificationData = {
-      screen: 'UserLocationMap',  // matches Stack.Screen name in App.js
-      userId: userId,
-      alertId: alertId,
-      alertType: 'SOS',
+    // Send call-like emergency payloads to both direct FCM and Expo push channels.
+    await Promise.all(
+      guardianTargets.map(async (target) => {
+        const payload = buildEmergencyDataPayload({
+          alertId,
+          userId,
+          userName,
+          latitude,
+          longitude,
+          triggerType,
+          inboxDocId: target.deliveryId,
+        });
+
+        const body = buildEmergencyBody(userName, mapsLink);
+
+        const tasks = [];
+        if (target.nativeFcmToken) {
+          tasks.push(sendHighPriorityFcm([target.nativeFcmToken], payload));
+        }
+        if (target.expoPushToken) {
+          tasks.push(
+            sendExpoPushNotifications([target.expoPushToken], SOS_PUSH_TITLE, body, payload)
+          );
+        }
+
+        if (tasks.length === 0) {
+          console.warn('[onAlertCreated] Guardian has no push channel, relying on inbox/SMS fallback');
+        }
+
+        await Promise.all(tasks);
+      })
+    );
+
+    console.log(
+      `[onAlertCreated] Push dispatched. directFcm=${fcmTokens.length}, expo=${expoTokens.length}, guardians=${guardianTargets.length}`
+    );
+
+    // Fire fail-safe SMS fallback for guardians that still have no push ack in 5-10 seconds.
+    await executeSmsFallbackForPendingDeliveries(alertId, guardianTargets);
+
+    await enqueueEscalation(alertId, db);
+
+    return {
+      guardiansNotified: guardianTargets.length,
+      directFcm: fcmTokens.length,
+      expo: expoTokens.length,
     };
-
-    try {
-      const result = await sendExpoPushNotifications(
-        validTokens,
-        notificationTitle,
-        notificationBody,
-        notificationData
-      );
-
-      console.log(
-        `[onAlertCreated] ✅ SOS notifications sent to ${validTokens.length} guardian(s) for alert ${alertId}`
-      );
-
-      // Queue escalation for scheduler processing
-      await enqueueEscalation(alertId, db);
-
-      return result;
-    } catch (err) {
-      console.error(`[onAlertCreated] Error sending push notifications: ${safeErrorMessage(err)}`);
-      // Queue escalation even if push send fails
-      await enqueueEscalation(alertId, db);
-      return null;
-    }
   }
 );
 
@@ -873,6 +1113,91 @@ exports.onAlertCancelled = onDocumentUpdated(
       console.error(`[onAlertCancelled] Notification send failed: ${safeErrorMessage(err)}`);
       return null;
     }
+  }
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CLOUD FUNCTION: onGuardianTokenUpdated
+// Replays pending guardian inbox alerts whenever guardian push token changes.
+// This helps notify guardians when they come back online or reinstall the app.
+// ─────────────────────────────────────────────────────────────────────────────
+exports.onGuardianTokenUpdated = onDocumentUpdated(
+  {
+    document: 'users/{guardianId}',
+    region: 'us-central1',
+  },
+  async (event) => {
+    const guardianId = event.params.guardianId;
+    const before = event.data?.before?.data() || {};
+    const after = event.data?.after?.data() || {};
+
+    const beforeNative = before.nativeFcmToken || null;
+    const afterNative = after.nativeFcmToken || null;
+    const beforeExpo = before.expoPushToken || before.fcmToken || null;
+    const afterExpo = after.expoPushToken || after.fcmToken || null;
+
+    const tokenChanged = beforeNative !== afterNative || beforeExpo !== afterExpo;
+    if (!tokenChanged) {
+      return null;
+    }
+
+    let pendingSnap;
+    try {
+      pendingSnap = await db
+        .collection('guardianAlertInbox')
+        .where('guardianId', '==', guardianId)
+        .where('status', '==', 'pending')
+        .limit(20)
+        .get();
+    } catch (error) {
+      console.error(`[onGuardianTokenUpdated] Query failed: ${safeErrorMessage(error)}`);
+      return null;
+    }
+
+    if (pendingSnap.empty) {
+      return null;
+    }
+
+    const sendTasks = [];
+    const now = FieldValue.serverTimestamp();
+
+    for (const docSnap of pendingSnap.docs) {
+      const data = docSnap.data() || {};
+      const payload = buildEmergencyDataPayload({
+        alertId: data.alertId,
+        userId: data.userId,
+        userName: data.userName,
+        latitude: data.latitude,
+        longitude: data.longitude,
+        triggerType: data.triggerType,
+        inboxDocId: docSnap.id,
+      });
+
+      const body = buildEmergencyBody(data.userName, data.mapsLink);
+
+      if (afterNative) {
+        sendTasks.push(sendHighPriorityFcm([afterNative], payload));
+      }
+
+      if (afterExpo && isExpoToken(afterExpo)) {
+        sendTasks.push(sendExpoPushNotifications([afterExpo], SOS_PUSH_TITLE, body, payload));
+      }
+
+      sendTasks.push(
+        db.collection('guardianAlertInbox').doc(docSnap.id).set(
+          {
+            lastPushAt: now,
+            updatedAt: now,
+          },
+          { merge: true }
+        )
+      );
+    }
+
+    await Promise.all(sendTasks);
+    console.log(`[onGuardianTokenUpdated] Replayed ${pendingSnap.size} pending inbox alert(s)`);
+
+    return null;
   }
 );
 

@@ -326,7 +326,29 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
-    // 6. OTP Codes Collection (Phone Auth)
+    // 6. Guardian Alert Inbox (delivery/ack state)
+    // Created by Cloud Functions for each guardian emergency notification.
+    match /guardianAlertInbox/{deliveryId} {
+      // Guardian can read entries addressed to them.
+      allow read: if isAuthenticated() && resource.data.guardianId == request.auth.uid;
+
+      // Guardian can only acknowledge/transition safe mutable fields.
+      allow update: if isAuthenticated() &&
+        resource.data.guardianId == request.auth.uid &&
+        request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          'status',
+          'pushAckAt',
+          'callAcceptedAt',
+          'callDeclinedAt',
+          'source',
+          'updatedAt'
+        ]);
+
+      // No client-side creation or deletion.
+      allow create, delete: if false;
+    }
+
+    // 7. OTP Codes Collection (Phone Auth)
     // Managed entirely by Cloud Functions – no client access
     match /otpCodes/{phoneHash} {
       allow read, write: if false;

@@ -99,6 +99,16 @@ jest.mock('firebase-admin/auth', () => ({
   })),
 }), { virtual: true });
 
+jest.mock('firebase-admin/messaging', () => ({
+  getMessaging: jest.fn(() => ({
+    sendEachForMulticast: jest.fn(async () => ({
+      successCount: 1,
+      failureCount: 0,
+      responses: [{ success: true }],
+    })),
+  })),
+}), { virtual: true });
+
 describe('Cloud Function: onAlertCreated', () => {
   let logSpy;
   let warnSpy;

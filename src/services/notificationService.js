@@ -99,6 +99,17 @@ export async function registerForPushNotifications(userId) {
     }
 
     const token = tokenData.data;
+    let nativeFcmToken = null;
+
+    try {
+      const nativeTokenData = await Notifications.getDevicePushTokenAsync();
+      if (nativeTokenData?.type === 'fcm' && nativeTokenData?.data) {
+        nativeFcmToken = nativeTokenData.data;
+      }
+    } catch (nativeTokenError) {
+      logger.warn(TAG, 'Unable to fetch native FCM token:', nativeTokenError?.message || nativeTokenError);
+    }
+
     logger.info(TAG, 'Got push token:', token?.slice(0, 30) + '...');
 
     // Save token to Firestore
@@ -106,6 +117,8 @@ export async function registerForPushNotifications(userId) {
       const userRef = doc(db, 'users', userId);
       await updateDoc(userRef, {
         fcmToken: token,
+        expoPushToken: token,
+        nativeFcmToken: nativeFcmToken || null,
         fcmTokenUpdatedAt: new Date().toISOString(),
         platform: Platform.OS,
       });
@@ -139,6 +152,7 @@ export function setupTokenRefreshListener(userId) {
       const userRef = doc(db, 'users', userId);
       await updateDoc(userRef, {
         fcmToken: newToken.data,
+        expoPushToken: newToken.data,
         fcmTokenUpdatedAt: new Date().toISOString(),
       });
       logger.info(TAG, 'Push token dynamically updated');

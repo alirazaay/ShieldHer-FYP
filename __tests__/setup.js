@@ -161,6 +161,18 @@ jest.mock('@react-native-community/netinfo', () => ({
 }));
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Mock: react-native-callkeep
+// ─────────────────────────────────────────────────────────────────────────────
+jest.mock('react-native-callkeep', () => ({
+  setup: jest.fn(() => Promise.resolve()),
+  setAvailable: jest.fn(),
+  displayIncomingCall: jest.fn(() => Promise.resolve()),
+  endCall: jest.fn(),
+  endAllCalls: jest.fn(),
+  addEventListener: jest.fn(),
+}), { virtual: true });
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Suppress console noise in tests
 // setupFiles run before Jest globals are available, so we override directly.
 // ─────────────────────────────────────────────────────────────────────────────

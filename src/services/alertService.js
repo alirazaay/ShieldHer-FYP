@@ -38,6 +38,7 @@ function normalizeTriggerType(triggerType) {
 function buildAlertPayload(userId, location, triggerType = 'manual') {
   return {
     userId,
+    ownerId: userId, // Canonical owner field for Firestore rules (alertOwnerId helper)
     alertType: 'SOS',
     type: normalizeTriggerType(triggerType),
     latitude: location.latitude,

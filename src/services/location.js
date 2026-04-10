@@ -102,6 +102,84 @@ export async function requestLocationPermission() {
 }
 
 /**
+ * Request background location permission ("Allow all the time").
+ * Must be called AFTER foreground permission is already granted.
+ * Required for location tracking when the app is backgrounded during
+ * an active SOS — the victim's phone will likely be in their pocket.
+ * @returns {Promise<Object>} { granted: boolean, status: string }
+ */
+export async function requestBackgroundLocationPermission() {
+  logger.info('[location]', 'requestBackgroundLocationPermission start');
+
+  try {
+    // Foreground permission must be granted first (Android requirement)
+    const foreground = await requestLocationPermission();
+    if (!foreground.granted) {
+      return foreground;
+    }
+
+    // Check if background permission is already granted
+    const existing =
+      typeof Location.getBackgroundPermissionsAsync === 'function'
+        ? await Location.getBackgroundPermissionsAsync()
+        : null;
+    if (existing?.status === 'granted') {
+      logger.info('[location]', 'Background location permission already granted');
+      return { granted: true, status: 'granted' };
+    }
+
+    // Request background permission
+    const { status } = await Location.requestBackgroundPermissionsAsync();
+
+    if (status === 'granted') {
+      logger.info('[location]', 'Background location permission granted');
+      return { granted: true, status: 'granted' };
+    }
+
+    logger.warn('[location]', 'Background location permission denied:', status);
+    return {
+      granted: false,
+      status,
+      message:
+        'Background location is required for SOS tracking when the app is in the background. ' +
+        'Please select "Allow all the time" in Settings.',
+    };
+  } catch (error) {
+    logger.error('[location]', 'requestBackgroundLocationPermission error:', error);
+    return {
+      granted: false,
+      status: 'error',
+      message: 'Failed to request background location permission.',
+    };
+  }
+}
+
+/**
+ * Request both foreground and background location permissions.
+ * Call this when Safety Mode is activated to ensure full location tracking.
+ * @returns {Promise<Object>} { foregroundGranted, backgroundGranted, message }
+ */
+export async function requestFullLocationPermissions() {
+  const foreground = await requestLocationPermission();
+  if (!foreground.granted) {
+    return {
+      foregroundGranted: false,
+      backgroundGranted: false,
+      message: foreground.message,
+    };
+  }
+
+  const background = await requestBackgroundLocationPermission();
+  return {
+    foregroundGranted: true,
+    backgroundGranted: background.granted,
+    message: background.granted
+      ? null
+      : background.message,
+  };
+}
+
+/**
  * Start tracking user location and updating Firestore
  * @param {string} userId - Firebase user ID
  * @returns {Promise<Function>} Unsubscribe function to stop tracking

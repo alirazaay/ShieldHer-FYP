@@ -7,6 +7,8 @@ import { initializeAuth, getReactNativePersistence } from 'firebase/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   initializeFirestore,
+  persistentLocalCache,
+  persistentSingleTabManager,
   setLogLevel,
   enableNetwork,
 } from 'firebase/firestore';
@@ -43,12 +45,15 @@ if (!isConfigValid) {
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 logger.info(TAG, 'Firebase initialized:', app.name);
 
-// Initialize Firestore with long polling (required for Expo/React Native)
+// Initialize Firestore with offline persistence and long polling.
+// persistentLocalCache enables on-device IndexedDB caching so reads work
+// offline — critical for fetching guardians during emergencies.
 const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({ tabManager: persistentSingleTabManager() }),
   experimentalForceLongPolling: true,
   useFetchStreams: false,
 });
-logger.info(TAG, 'Firestore initialized with long polling');
+logger.info(TAG, 'Firestore initialized with offline persistence + long polling');
 
 // Initialize Firebase Auth with AsyncStorage persistence
 export const auth = initializeAuth(app, {

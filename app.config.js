@@ -36,11 +36,13 @@ export default {
         'android.permission.RECORD_AUDIO',
         'android.permission.ACCESS_FINE_LOCATION',
         'android.permission.ACCESS_COARSE_LOCATION',
+        'android.permission.ACCESS_BACKGROUND_LOCATION',
         'android.permission.SEND_SMS',
         'android.permission.POST_NOTIFICATIONS',
         'android.permission.READ_PHONE_STATE',
         'android.permission.RECEIVE_BOOT_COMPLETED',
         'android.permission.FOREGROUND_SERVICE',
+        'android.permission.FOREGROUND_SERVICE_LOCATION',
         'android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK',
         'android.permission.USE_FULL_SCREEN_INTENT',
         'android.permission.INTERNET',
@@ -51,7 +53,20 @@ export default {
     web: {
       favicon: './assets/favicon.png',
     },
-    plugins: ['expo-speech-recognition'],
+    plugins: [
+      'expo-speech-recognition',
+      [
+        'expo-location',
+        {
+          locationAlwaysAndWhenInUsePermission:
+            'ShieldHer needs your location at all times to track your position during an active SOS emergency, even when the app is in the background.',
+          locationWhenInUsePermission:
+            'ShieldHer needs your location to share it with guardians during emergencies.',
+          isAndroidBackgroundLocationEnabled: true,
+          isAndroidForegroundServiceEnabled: true,
+        },
+      ],
+    ],
     extra: {
       // Firebase configuration from environment variables
       firebaseApiKey: process.env.FIREBASE_API_KEY,

@@ -43,7 +43,7 @@ const Dashboard = ({ navigation }) => {
   const [sosLoading, setSosLoading] = useState(false);
   const [sosError, setSosError] = useState(null);
   const [sosMessage, setSosMessage] = useState(null);
-  const [confirmSosVisible, setConfirmSosVisible] = useState(false);
+
 
   // Escalation state – tracks whether current user's alert has been escalated to authorities
   const [escalationState, setEscalationState] = useState(null); // null | 'pending' | 'escalated'
@@ -227,59 +227,7 @@ const Dashboard = ({ navigation }) => {
     ]).start(() => setLogoutVisible(false));
   };
 
-  const handleSosConfirm = async () => {
-    try {
-      setSosLoading(true);
-      setConfirmSosVisible(false);
-      setSosError(null);
-      setSosMessage(null);
 
-      const currentUser = auth.currentUser;
-      if (!currentUser) {
-        navigation?.replace('Login');
-        return;
-      }
-
-      // Check for active alert within cooldown
-      const hasActiveAlert = await checkActiveAlert(currentUser.uid);
-      if (hasActiveAlert) {
-        setSosError({
-          message: 'An alert was recently sent. Please wait before sending another.',
-          type: 'warning',
-        });
-        logger.info(TAG, 'SOS alert blocked by cooldown');
-        return;
-      }
-
-      // Fetch user's current location
-      const location = await fetchUserLocation(currentUser.uid);
-
-      const result = await dispatchSOSAlert(currentUser.uid, location, {
-        triggerType: 'manual',
-      });
-
-      if (result.success) {
-        setSosMessage({
-          message: result.statusMessage || 'Emergency alert sent',
-          type: result.deliveryStatus === 'pending_retry' ? 'warning' : 'success',
-        });
-        logger.info(TAG, 'SOS dispatch result:', result.method, result.alertId);
-      } else {
-        setSosError({
-          message: result.error || 'Failed to send alert. Please try again.',
-          type: 'error',
-        });
-      }
-    } catch (error) {
-      logger.error(TAG, 'SOS alert error:', error);
-      setSosError({
-        message: getAlertErrorMessage(error),
-        type: 'error',
-      });
-    } finally {
-      setSosLoading(false);
-    }
-  };
 
   const handleSosPress = () => {
     navigation.navigate('SOSCountdownScreen');
@@ -556,53 +504,7 @@ const Dashboard = ({ navigation }) => {
         </View>
       </ScrollView>
 
-      {/* SOS Confirmation Modal */}
-      <Modal
-        transparent
-        visible={confirmSosVisible}
-        animationType="fade"
-        onRequestClose={() => setConfirmSosVisible(false)}
-      >
-        <View style={styles.modalBackdrop}>
-          <View style={styles.confirmationDialog}>
-            <MaterialCommunityIcons
-              name="alert"
-              size={48}
-              color="#E01111"
-              style={{ marginBottom: 16 }}
-            />
-            <Text style={styles.confirmTitle}>Emergency Alert</Text>
-            <Text style={styles.confirmMessage}>
-              Send SOS alert to your guardians and local authorities?
-            </Text>
-            <Text style={styles.confirmWarning}>
-              Your location and contact details will be shared.
-            </Text>
-            <View style={styles.confirmButtonGroup}>
-              <TouchableOpacity
-                onPress={() => setConfirmSosVisible(false)}
-                style={[styles.confirmButton, styles.confirmButtonCancel]}
-                disabled={sosLoading}
-              >
-                <Text style={[styles.confirmButtonText, styles.confirmButtonTextCancel]}>
-                  Cancel
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handleSosConfirm}
-                style={[styles.confirmButton, styles.confirmButtonConfirm]}
-                disabled={sosLoading}
-              >
-                {sosLoading ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Text style={styles.confirmButtonText}>Send Alert</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+
 
       {/* Logout Modal Overlay */}
       <Modal transparent visible={logoutVisible} animationType="none" onRequestClose={closeLogout}>
@@ -847,67 +749,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 24,
   },
-  confirmationDialog: {
-    width: '100%',
-    maxWidth: 340,
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    paddingHorizontal: 24,
-    paddingVertical: 28,
-    alignItems: 'center',
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-  },
-  confirmTitle: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: '#111318',
-    marginBottom: 8,
-  },
-  confirmMessage: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#3E4046',
-    textAlign: 'center',
-    marginBottom: 8,
-    lineHeight: 20,
-  },
-  confirmWarning: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#9AA0A6',
-    textAlign: 'center',
-    marginBottom: 24,
-    fontStyle: 'italic',
-  },
-  confirmButtonGroup: {
-    width: '100%',
-    gap: 12,
-  },
-  confirmButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  confirmButtonCancel: {
-    backgroundColor: '#F3F4F6',
-  },
-  confirmButtonConfirm: {
-    backgroundColor: '#E01111',
-  },
-  confirmButtonText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#fff',
-  },
-  confirmButtonTextCancel: {
-    color: '#111318',
-  },
+
 
   modalCardWrap: {
     width: '82%',

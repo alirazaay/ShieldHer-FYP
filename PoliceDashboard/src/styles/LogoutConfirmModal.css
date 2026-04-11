@@ -1,0 +1,92 @@
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 12px;
+  padding: 40px 30px;
+  text-align: center;
+  max-width: 350px;
+  width: 90%;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+}
+
+.modal-header {
+  margin-bottom: 20px;
+}
+
+.modal-icon {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background-color: #4318ff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  margin: 0 auto;
+}
+
+.modal-title {
+  font-size: 20px;
+  font-weight: bold;
+  color: #000;
+  margin: 20px 0 10px 0;
+}
+
+.modal-message {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 25px;
+  line-height: 1.5;
+}
+
+.modal-buttons {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.btn-cancel {
+  padding: 10px 30px;
+  border-radius: 6px;
+  border: none;
+  background-color: #d0d0d0;
+  color: #000;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex: 1;
+}
+
+.btn-cancel:hover {
+  background-color: #c0c0c0;
+}
+
+.btn-logout {
+  padding: 10px 30px;
+  border-radius: 6px;
+  border: none;
+  background-color: #ff5555;
+  color: white;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex: 1;
+}
+
+.btn-logout:hover {
+  background-color: #ff3333;
+}

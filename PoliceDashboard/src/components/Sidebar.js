@@ -89,9 +89,7 @@ function Sidebar() {
               <span>{item.label}</span>
             </Link>
           ))}
-        </div>
-
-        <div style={{ marginTop: 'auto', paddingTop: '20px' }}>
+          
           <button
             className="menu-item logout-btn"
             onClick={handleLogoutClick}

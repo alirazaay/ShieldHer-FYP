@@ -15,7 +15,6 @@ function Sidebar() {
     { path: '/users', label: 'Users', icon: '👥' },
     { path: '/live-map', label: 'Live Map', icon: '📍' },
     { path: '/reports', label: 'Report', icon: '📊' },
-    { label: 'LOGOUT', icon: '🚪', action: 'logout' },
   ];
 
   const handleLogoutClick = (e) => {
@@ -80,29 +79,29 @@ function Sidebar() {
         )}
 
         <div className="menu">
-          {menuItems.map((item, index) => 
-            item.action === 'logout' ? (
-              <button
-                key={index}
-                className="menu-item logout-btn"
-                onClick={handleLogoutClick}
-              >
-                <span className="menu-icon">{item.icon}</span>
-                <span>{item.label}</span>
-              </button>
-            ) : (
-              <Link
-                key={index}
-                to={item.path}
-                className={`menu-item ${location.pathname === item.path ? 'active' : ''}`}
-              >
-                <span className="menu-icon">{item.icon}</span>
-                <span>{item.label}</span>
-              </Link>
-            )
-          )}
+          {menuItems.map((item, index) => (
+            <Link
+              key={index}
+              to={item.path}
+              className={`menu-item ${location.pathname === item.path ? 'active' : ''}`}
+            >
+              <span className="menu-icon">{item.icon}</span>
+              <span>{item.label}</span>
+            </Link>
+          ))}
+        </div>
+
+        <div style={{ marginTop: 'auto', paddingTop: '20px' }}>
+          <button
+            className="menu-item logout-btn"
+            onClick={handleLogoutClick}
+          >
+            <span className="menu-icon">🚪</span>
+            <span>LOGOUT</span>
+          </button>
         </div>
       </div>
+
       <LogoutConfirmModal 
         isOpen={showLogoutModal} 
         onCancel={() => setShowLogoutModal(false)}

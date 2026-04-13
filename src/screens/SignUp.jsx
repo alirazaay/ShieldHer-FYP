@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   ScrollView,
   View,
@@ -19,6 +19,7 @@ import logger from '../utils/logger';
 const TAG = '[SignUp]';
 
 const SignUp = ({ navigation }) => {
+  const redirectTimerRef = useRef(null);
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [emergencyPhone, setEmergencyPhone] = useState('');
@@ -53,6 +54,11 @@ const SignUp = ({ navigation }) => {
       if (timer) {
         clearTimeout(timer);
       }
+
+      if (redirectTimerRef.current) {
+        clearTimeout(redirectTimerRef.current);
+        redirectTimerRef.current = null;
+      }
     };
   }, [message]);
 
@@ -81,15 +87,19 @@ const SignUp = ({ navigation }) => {
       logger.info(TAG, 'Registration successful:', cred.user.uid);
 
       // Display success message on screen
-      setMessage({ text: 'Signup Completed', type: 'success' });
+      setMessage({ text: 'Account created successfully. Please log in.', type: 'success' });
 
       // Re-enable button after successful signup
       setIsLoading(false);
 
-      // Navigate after a delay to show the success message
-      setTimeout(() => {
-        navigation?.navigate(role === 'guardian' ? 'GuardianDashboard' : 'Dashboard');
-      }, 2000);
+      // Navigate to Login after a short delay so users see confirmation.
+      redirectTimerRef.current = setTimeout(() => {
+        if (navigation?.replace) {
+          navigation.replace('Login');
+        } else if (navigation?.navigate) {
+          navigation.navigate('Login');
+        }
+      }, 1500);
     } catch (e) {
       logger.error(TAG, 'Registration error:', e);
 

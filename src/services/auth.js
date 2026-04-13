@@ -118,6 +118,10 @@ export async function registerUser({ email, password, role, profile = {} }) {
     await setDoc(doc(db, 'users', uid), userProfile);
     logger.info('[auth]', 'user profile written to Firestore');
 
+    // Do not keep signup sessions active; user must log in manually.
+    await signOut(auth);
+    logger.info('[auth]', 'registerUser forced sign out complete');
+
     return cred;
   } catch (error) {
     logger.error('[auth]', 'registerUser error:', error);

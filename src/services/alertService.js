@@ -32,11 +32,11 @@ const TAG = '[alertService]';
 let retryQueueReady = false;
 
 function normalizeTriggerType(triggerType) {
-  return triggerType === 'AI' ? 'AI' : 'manual';
+  return triggerType === 'AI' || triggerType === 'AI_DETECTION' ? 'AI' : 'manual';
 }
 
-function buildAlertPayload(userId, location, triggerType = 'manual') {
-  return {
+function buildAlertPayload(userId, location, triggerType = 'manual', metadata = {}) {
+  const payload = {
     userId,
     ownerId: userId, // Canonical owner field for Firestore rules (alertOwnerId helper)
     alertType: 'SOS',
@@ -48,6 +48,16 @@ function buildAlertPayload(userId, location, triggerType = 'manual') {
     status: 'active',
     createdAt: serverTimestamp(),
   };
+
+  if (metadata?.source) {
+    payload.source = metadata.source;
+  }
+
+  if (metadata?.detectedAt) {
+    payload.detectedAt = metadata.detectedAt;
+  }
+
+  return payload;
 }
 
 async function createTriggeredTimelineEventIdempotent(alertId, actorId, metadata = {}) {
@@ -64,7 +74,7 @@ async function createTriggeredTimelineEventIdempotent(alertId, actorId, metadata
   );
 }
 
-async function sendAlertToFirestore({ alertId, userId, location, triggerType }) {
+async function sendAlertToFirestore({ alertId, userId, location, triggerType, metadata = {} }) {
   const alertRef = doc(db, 'alerts', alertId);
   const existing = await getDoc(alertRef);
 
@@ -73,7 +83,7 @@ async function sendAlertToFirestore({ alertId, userId, location, triggerType }) 
     return { alertId, created: false };
   }
 
-  const alertData = buildAlertPayload(userId, location, triggerType);
+  const alertData = buildAlertPayload(userId, location, triggerType, metadata);
   await setDoc(alertRef, alertData);
 
   await createTriggeredTimelineEventIdempotent(alertId, userId, {
@@ -122,6 +132,10 @@ async function ensureRetryQueueInitialized() {
         userId: item.userId,
         location: item.location,
         triggerType: item.triggerType,
+        metadata: {
+          source: item.source,
+          detectedAt: item.detectedAt,
+        },
       });
     },
     onMaxRetriesReached: async (item) => {
@@ -349,6 +363,11 @@ export async function dispatchSOSAlert(userId, location, options = {}) {
     await ensureRetryQueueInitialized();
 
     const triggerType = normalizeTriggerType(options.triggerType);
+    const metadata = {
+      source:
+        options.source || (triggerType === 'AI' ? 'AI_DETECTION' : null),
+      detectedAt: Number(options.detectedAt || 0) || null,
+    };
 
     const alertId = doc(collection(db, 'alerts')).id;
     result.alertId = alertId;
@@ -370,7 +389,7 @@ export async function dispatchSOSAlert(userId, location, options = {}) {
       result.method = 'firestore';
 
       try {
-        await sendAlertToFirestore({ alertId, userId, location, triggerType });
+        await sendAlertToFirestore({ alertId, userId, location, triggerType, metadata });
 
         result.success = true;
         result.deliveryStatus = 'sent';
@@ -423,6 +442,8 @@ export async function dispatchSOSAlert(userId, location, options = {}) {
         userId,
         location,
         triggerType,
+        source: metadata.source,
+        detectedAt: metadata.detectedAt,
         timestamp: Date.now(),
         retries: 0,
         status: 'pending_retry',

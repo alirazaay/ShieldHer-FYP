@@ -296,6 +296,11 @@ export const useScreamDetection = ({
     if (!(enabled && continuous)) {
       loopActiveRef.current = false;
       clearLoopTimeout();
+      if (isListeningRef.current) {
+        stopListening().catch((stopErr) => {
+          logger.warn(TAG, 'Failed stopping listening while disabling detection', stopErr);
+        });
+      }
       return undefined;
     }
 

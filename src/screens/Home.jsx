@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ScrollView,
   View,
@@ -7,8 +7,10 @@ import {
   StyleSheet,
   Switch,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useScreamDetection } from '../hooks/useScreamDetection';
@@ -18,9 +20,13 @@ import { getCurrentLocation } from '../services/location';
 import logger from '../utils/logger';
 
 const TAG = '[Home]';
+const AI_DETECTION_STORAGE_KEY = '@shieldher_ai_detection_enabled';
+const AUTO_SOS_COOLDOWN_MS = 60000;
 
 const Home = ({ navigation }) => {
   const [autoSosEnabled, setAutoSosEnabled] = useState(false);
+  const [autoSosInitialized, setAutoSosInitialized] = useState(false);
+  const lastAutoSosTriggerRef = useRef(0);
 
   const handleGetStarted = () => {
     if (navigation?.navigate) {
@@ -30,12 +36,48 @@ const Home = ({ navigation }) => {
 
   const [aiTriggerLoading, setAiTriggerLoading] = useState(false);
 
-  const handleScreamDetected = async (data) => {
+  const handleToggleAiDetection = useCallback(async (nextValue) => {
+    setAutoSosEnabled(nextValue);
+
     try {
+      await AsyncStorage.setItem(AI_DETECTION_STORAGE_KEY, nextValue ? 'true' : 'false');
+    } catch (storageError) {
+      logger.warn(TAG, 'Failed to persist AI detection toggle:', storageError);
+    }
+
+    if (nextValue) {
+      console.log('AI Detection Started');
+      logger.info(TAG, 'AI Detection Started');
+      Alert.alert('AI Detection', 'AI Detection turned ON');
+    } else {
+      logger.info(TAG, 'AI Detection Stopped');
+      Alert.alert('AI Detection', 'AI Detection turned OFF');
+    }
+  }, []);
+
+  const handleScreamDetected = useCallback(async (data) => {
+    try {
+      if (!autoSosEnabled) return;
+
+      console.log('Scream Detected');
+      logger.warn(TAG, 'Scream Detected', {
+        confidence: data?.confidence ?? null,
+        source: data?.source ?? 'unknown',
+      });
+
+      const now = Date.now();
+      if (now - lastAutoSosTriggerRef.current < AUTO_SOS_COOLDOWN_MS) {
+        logger.info(TAG, 'Auto SOS skipped due to AI cooldown window');
+        return;
+      }
+
       setAiTriggerLoading(true);
 
       const user = auth.currentUser;
-      if (!user) return;
+      if (!user) {
+        logger.warn(TAG, 'Auto SOS skipped: user not authenticated');
+        return;
+      }
 
       // Respect cooldown to avoid repeated auto-triggers.
       const hasActiveAlert = await checkActiveAlert(user.uid);
@@ -50,13 +92,33 @@ const Home = ({ navigation }) => {
         location = await fetchUserLocation(user.uid);
       }
 
-      const result = await dispatchSOSAlert(user.uid, location);
+      if (!location?.latitude || !location?.longitude) {
+        logger.warn(TAG, 'Auto SOS skipped: location not available yet');
+        Alert.alert('Auto SOS', 'Location not available yet');
+        return;
+      }
+
+      const detectedAt = Date.now();
+
+      const result = await dispatchSOSAlert(user.uid, location, {
+        triggerType: 'AI',
+        source: 'AI_DETECTION',
+        detectedAt,
+      });
+
       if (result.success) {
+        lastAutoSosTriggerRef.current = now;
+        console.log('Auto SOS Triggered');
         logger.warn(TAG, 'AI SOS dispatched', {
           method: result.method,
           confidence: data?.confidence ?? null,
           source: data?.source ?? 'unknown',
+          detectedAt,
+          userId: user.uid,
+          latitude: location.latitude,
+          longitude: location.longitude,
         });
+        Alert.alert('Auto SOS', 'Auto SOS Triggered');
       } else {
         logger.error(TAG, 'AI SOS failed', {
           error: result.error,
@@ -68,21 +130,76 @@ const Home = ({ navigation }) => {
     } finally {
       setAiTriggerLoading(false);
     }
-  };
+  }, [autoSosEnabled]);
 
   // AI detection pipeline with confidence threshold + multi-frame validation
-  const { detectionState, cooldownState, pendingAlert, cancelPendingAlert, allowPendingCountdown } =
-    useScreamDetection({
-      enabled: autoSosEnabled,
-      onScreamDetected: handleScreamDetected,
-      config: {
-        confidenceThreshold: 0.8,
-        requiredConsecutiveFrames: 3,
-        validationWindowMs: 2000,
-        cooldownMs: 60000,
-        confirmationCountdownSec: 5,
-      },
-    });
+  const {
+    detectionState,
+    cooldownState,
+    pendingAlert,
+    cancelPendingAlert,
+    allowPendingCountdown,
+    startDetection,
+    stopDetection,
+  } = useScreamDetection({
+    enabled: autoSosEnabled,
+    continuous: true,
+    onScreamDetected: handleScreamDetected,
+    config: {
+      confidenceThreshold: 0.8,
+      requiredConsecutiveFrames: 3,
+      validationWindowMs: 2000,
+      cooldownMs: 60000,
+      confirmationCountdownSec: 5,
+      intervalMs: 2000,
+    },
+  });
+
+  useEffect(() => {
+    let mounted = true;
+
+    const restoreToggleState = async () => {
+      try {
+        const savedValue = await AsyncStorage.getItem(AI_DETECTION_STORAGE_KEY);
+        const enabled = savedValue === 'true';
+        if (mounted) {
+          setAutoSosEnabled(enabled);
+        }
+      } catch (restoreErr) {
+        logger.warn(TAG, 'Failed to restore AI detection toggle:', restoreErr);
+      } finally {
+        if (mounted) {
+          setAutoSosInitialized(true);
+        }
+      }
+    };
+
+    restoreToggleState();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!autoSosInitialized) return;
+
+    if (autoSosEnabled) {
+      logger.info(TAG, 'AI Detection Started');
+      startDetection();
+      return;
+    }
+
+    stopDetection();
+    logger.info(TAG, 'AI Detection Stopped');
+  }, [autoSosEnabled, autoSosInitialized, startDetection, stopDetection]);
+
+  useEffect(
+    () => () => {
+      stopDetection();
+    },
+    [stopDetection]
+  );
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -114,7 +231,7 @@ const Home = ({ navigation }) => {
           <Text style={styles.toggleText}>AI Auto SOS (Scream Detection)</Text>
           <Switch
             value={autoSosEnabled}
-            onValueChange={setAutoSosEnabled}
+            onValueChange={handleToggleAiDetection}
             trackColor={{ false: '#ccc', true: '#0B26FF' }}
           />
         </View>

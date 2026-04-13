@@ -33,6 +33,8 @@ function cloneAlert(alert) {
     retries: Number(alert.retries || 0),
     status: alert.status || 'pending_retry',
     userName: alert.userName || null,
+    source: alert.source || null,
+    detectedAt: Number(alert.detectedAt || 0) || null,
     nextRetryAt: Number(alert.nextRetryAt || 0),
     lastError: alert.lastError || null,
   };

@@ -49,7 +49,7 @@ const ConnectedUserItem = ({ user, userLocation, onViewLocation, loading = false
 
       {/* View Location Button */}
       <TouchableOpacity
-        onPress={() => onViewLocation(user.id)}
+        onPress={() => onViewLocation(user, userLocation)}
         disabled={loading}
         style={[
           styles.viewButton,

@@ -129,6 +129,8 @@ export async function acceptIncomingEmergency(payload) {
   navigate('UserLocationMap', {
     userId: payload?.userId,
     alertId: payload?.alertId,
+    latitude: payload?.latitude,
+    longitude: payload?.longitude,
   });
 }
 

@@ -189,11 +189,17 @@ export function handleNotificationNavigation(response) {
     const targetScreen = data.alertType === 'SOS' ? 'UserLocationMap' : data.screen || null;
 
     if (targetScreen) {
+      const latitude = Number(data.latitude);
+      const longitude = Number(data.longitude);
+      const hasCoordinates = Number.isFinite(latitude) && Number.isFinite(longitude);
+
       return {
         screen: targetScreen,
         params: {
-          userId: data.userId,
+          userId: data.userId || data.ownerId,
           alertId: data.alertId,
+          latitude: hasCoordinates ? latitude : undefined,
+          longitude: hasCoordinates ? longitude : undefined,
         },
       };
     }

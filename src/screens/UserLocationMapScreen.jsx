@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Linking } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import MapView, { Marker } from 'react-native-maps';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../config/firebase';
 import {
   subscribeToUserLocation,
   getLocationErrorMessage,
@@ -24,7 +26,13 @@ function hasValidCoordinates(location) {
 
 const UserLocationMapScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
-  const { userId } = route.params;
+
+  const routeUserId = route?.params?.userId || null;
+  const routeAlertId = route?.params?.alertId || null;
+  const routeLatitude = Number(route?.params?.latitude);
+  const routeLongitude = Number(route?.params?.longitude);
+
+  const [resolvedUserId, setResolvedUserId] = useState(routeUserId);
 
   // Location and user data state
   const [userLocation, setUserLocation] = useState(null);
@@ -38,6 +46,53 @@ const UserLocationMapScreen = ({ navigation, route }) => {
   const mapRef = useRef(null);
   const locationSubscriptionRef = useRef(null);
 
+  const hasRouteCoordinates =
+    Number.isFinite(routeLatitude) && Number.isFinite(routeLongitude);
+
+  const extractAlertLocation = (alertData = {}) => {
+    const lat = Number(alertData?.latitude ?? alertData?.location?.latitude ?? NaN);
+    const lng = Number(alertData?.longitude ?? alertData?.location?.longitude ?? NaN);
+    const accuracy = Number(alertData?.accuracy ?? alertData?.location?.accuracy ?? NaN);
+
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return null;
+    }
+
+    return {
+      latitude: lat,
+      longitude: lng,
+      accuracy: Number.isFinite(accuracy) ? accuracy : null,
+      timestamp: Date.now(),
+    };
+  };
+
+  const openInGoogleMaps = async () => {
+    if (!hasValidCoordinates(userLocation)) {
+      setError({ message: 'Location not available yet', type: 'warning' });
+      return;
+    }
+
+    const url = `https://www.google.com/maps?q=${userLocation.latitude},${userLocation.longitude}`;
+    logger.info(TAG, 'Opening external maps URL', {
+      alertId: routeAlertId,
+      userId: resolvedUserId,
+      latitude: userLocation.latitude,
+      longitude: userLocation.longitude,
+    });
+
+    try {
+      const canOpen = await Linking.canOpenURL(url);
+      if (!canOpen) {
+        setError({ message: 'Unable to open maps on this device', type: 'error' });
+        return;
+      }
+      await Linking.openURL(url);
+    } catch (openErr) {
+      logger.error(TAG, 'Failed opening external map URL:', openErr);
+      setError({ message: 'Unable to open maps right now', type: 'error' });
+    }
+  };
+
   // Initialize: fetch user profile and subscribe to location updates
   useEffect(() => {
     const initializeScreen = async () => {
@@ -45,9 +100,69 @@ const UserLocationMapScreen = ({ navigation, route }) => {
         setLoading(true);
         setError(null);
 
+        logger.info(TAG, 'Map screen navigation payload received', {
+          routeUserId,
+          routeAlertId,
+          hasRouteCoordinates,
+          routeLatitude,
+          routeLongitude,
+        });
+
+        let nextUserId = routeUserId;
+
+        if (!nextUserId && routeAlertId) {
+          try {
+            const alertSnap = await getDoc(doc(db, 'alerts', routeAlertId));
+            if (alertSnap.exists()) {
+              const alertData = alertSnap.data() || {};
+              const ownerId = alertData.userId || alertData.ownerId || null;
+              const alertLocation = extractAlertLocation(alertData);
+
+              if (ownerId) {
+                nextUserId = ownerId;
+                setResolvedUserId(ownerId);
+              }
+
+              if (alertLocation) {
+                setUserLocation(alertLocation);
+              }
+
+              logger.info(TAG, 'Resolved alert document fallback payload', {
+                alertId: routeAlertId,
+                hasOwnerId: Boolean(ownerId),
+                hasAlertLocation: Boolean(alertLocation),
+              });
+            }
+          } catch (alertFetchErr) {
+            logger.warn(TAG, 'Failed to load alert document fallback:', alertFetchErr);
+          }
+        }
+
+        if (hasRouteCoordinates) {
+          setUserLocation({
+            latitude: routeLatitude,
+            longitude: routeLongitude,
+            accuracy: null,
+            timestamp: Date.now(),
+          });
+        }
+
+        if (!nextUserId && !routeAlertId && !hasRouteCoordinates) {
+          setError({ message: 'Location not available yet', type: 'warning' });
+          setLoading(false);
+          return;
+        }
+
         // Fetch user profile to get name
-        const profile = await fetchUserProfile(userId);
-        setUserName(profile.fullName || 'User');
+        if (nextUserId) {
+          try {
+            const profile = await fetchUserProfile(nextUserId);
+            setUserName(profile.fullName || 'User');
+          } catch (profileErr) {
+            logger.warn(TAG, 'Could not fetch user profile for map screen:', profileErr);
+            setUserName('User');
+          }
+        }
 
         // Fetch local guardian's location for distance calculations
         const gLocation = await getCurrentLocation();
@@ -55,34 +170,38 @@ const UserLocationMapScreen = ({ navigation, route }) => {
         setGuardianLocLoading(false);
 
         // Subscribe to real-time location updates
-        const unsubscribe = subscribeToUserLocation(
-          userId,
-          (location) => {
-            setUserLocation(location);
+        if (nextUserId) {
+          // Subscribe to real-time location updates
+          const unsubscribe = subscribeToUserLocation(
+            nextUserId,
+            (location) => {
+              setUserLocation(location);
 
-            // Animate map camera to follow user
-            if (mapRef.current && hasValidCoordinates(location)) {
-              mapRef.current.animateCamera(
-                {
-                  center: {
-                    latitude: location.latitude,
-                    longitude: location.longitude,
+              // Animate map camera to follow user
+              if (mapRef.current && hasValidCoordinates(location)) {
+                mapRef.current.animateCamera(
+                  {
+                    center: {
+                      latitude: location.latitude,
+                      longitude: location.longitude,
+                    },
+                    pitch: 0,
+                    heading: 0,
+                    altitude: 1000,
                   },
-                  pitch: 0,
-                  heading: 0,
-                  altitude: 1000,
-                },
-                { duration: 1000 }
-              );
+                  { duration: 1000 }
+                );
+              }
+            },
+            (err) => {
+              logger.error(TAG, 'Location subscription error:', err);
+              setError({ message: getLocationErrorMessage(err), type: 'error' });
             }
-          },
-          (err) => {
-            logger.error(TAG, 'Location subscription error:', err);
-            setError({ message: getLocationErrorMessage(err), type: 'error' });
-          }
-        );
+          );
 
-        locationSubscriptionRef.current = unsubscribe;
+          locationSubscriptionRef.current = unsubscribe;
+        }
+
         setLoading(false);
       } catch (err) {
         logger.error(TAG, 'Initialization error:', err);
@@ -101,7 +220,7 @@ const UserLocationMapScreen = ({ navigation, route }) => {
         logger.info(TAG, 'Location subscription cleaned up');
       }
     };
-  }, [userId]);
+  }, [routeAlertId, routeLatitude, routeLongitude, routeUserId, hasRouteCoordinates]);
 
   // Auto-dismiss error messages after 4 seconds
   useEffect(() => {
@@ -202,7 +321,7 @@ const UserLocationMapScreen = ({ navigation, route }) => {
           <MaterialCommunityIcons name="map-search" size={64} color="#9AA0A6" />
           <Text style={styles.noLocationTitle}>Location Not Available</Text>
           <Text style={styles.noLocationSubtitle}>
-            {userName}&apos;s location hasn&apos;t been shared yet
+            Location not available yet. The sender may still be granting location permission.
           </Text>
         </View>
       )}
@@ -240,6 +359,11 @@ const UserLocationMapScreen = ({ navigation, route }) => {
               <Text style={styles.infoValue}>{userLocation.accuracy.toFixed(1)}m</Text>
             </View>
           )}
+
+          <TouchableOpacity style={styles.openMapsButton} onPress={openInGoogleMaps}>
+            <MaterialCommunityIcons name="google-maps" size={16} color="#fff" />
+            <Text style={styles.openMapsButtonText}>Open in Google Maps</Text>
+          </TouchableOpacity>
         </View>
       )}
     </SafeAreaView>
@@ -356,6 +480,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#111318',
     flex: 1,
+  },
+  openMapsButton: {
+    marginTop: 10,
+    backgroundColor: '#4F2CF5',
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  openMapsButtonText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 13,
   },
 });
 

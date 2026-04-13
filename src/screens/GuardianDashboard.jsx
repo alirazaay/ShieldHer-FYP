@@ -171,6 +171,43 @@ const GuardianDashboard = ({ navigation }) => {
   const [cancelledAlerts, setCancelledAlerts] = useState([]);
   const [processingAlertId, setProcessingAlertId] = useState(null);
 
+  const handleViewLiveLocation = useCallback(
+    (user, userLocation = null) => {
+      if (!user?.id) {
+        setLocationError({
+          message: 'Location not available yet',
+          type: 'warning',
+        });
+        return;
+      }
+
+      const latitude = Number(userLocation?.latitude);
+      const longitude = Number(userLocation?.longitude);
+      const hasCoordinates = Number.isFinite(latitude) && Number.isFinite(longitude);
+
+      logger.info(TAG, 'View Live Location pressed', {
+        userId: user.id,
+        hasCoordinates,
+        latitude,
+        longitude,
+      });
+
+      if (!hasCoordinates) {
+        setLocationError({
+          message: 'Location not available yet',
+          type: 'warning',
+        });
+      }
+
+      navigation.push('UserLocationMap', {
+        userId: user.id,
+        latitude: hasCoordinates ? latitude : undefined,
+        longitude: hasCoordinates ? longitude : undefined,
+      });
+    },
+    [navigation]
+  );
+
   const loadPendingInvites = useCallback(async () => {
     try {
       setLoading(true);
@@ -552,7 +589,7 @@ const GuardianDashboard = ({ navigation }) => {
                 {connectedUsers.map((user) => (
                   <TouchableOpacity
                     key={user.id}
-                    onPress={() => navigation.push('UserLocationMap', { userId: user.id })}
+                    onPress={() => handleViewLiveLocation(user, userLocations[user.id])}
                     style={styles.userQuickCard}
                     activeOpacity={0.8}
                   >
@@ -598,7 +635,9 @@ const GuardianDashboard = ({ navigation }) => {
                   <ConnectedUserItem
                     user={user}
                     userLocation={userLocations[user.id]}
-                    onViewLocation={(userId) => navigation.push('UserLocationMap', { userId })}
+                    onViewLocation={(targetUser, targetUserLocation) =>
+                      handleViewLiveLocation(targetUser, targetUserLocation)
+                    }
                     loading={false}
                   />
                   {index < connectedUsers.length - 1 && <View style={styles.divider} />}

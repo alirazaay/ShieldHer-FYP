@@ -14,6 +14,8 @@ export default function IncomingSOSCallScreen({ navigation, route }) {
     navigation.replace('UserLocationMap', {
       userId: payload.userId,
       alertId: payload.alertId,
+      latitude: payload.latitude,
+      longitude: payload.longitude,
     });
   };
 

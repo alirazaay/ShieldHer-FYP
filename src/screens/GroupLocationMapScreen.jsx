@@ -269,7 +269,13 @@ const GroupLocationMapScreen = ({ navigation }) => {
                 return (
                   <TouchableOpacity
                     key={user.id}
-                    onPress={() => navigation.push('UserLocationMap', { userId: user.id })}
+                    onPress={() =>
+                      navigation.push('UserLocationMap', {
+                        userId: user.id,
+                        latitude: location?.latitude,
+                        longitude: location?.longitude,
+                      })
+                    }
                     style={[styles.userBadge, !hasLocation && styles.userBadgeInactive]}
                     activeOpacity={0.8}
                   >

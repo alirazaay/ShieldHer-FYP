@@ -229,6 +229,7 @@ export default function App() {
               <Stack.Screen name="NotificationSettings" component={NotificationSettings} />
               <Stack.Screen name="LocationSettings" component={LocationSettings} />
               <Stack.Screen name="UserLocationMap" component={UserLocationMapScreen} />
+              <Stack.Screen name="LiveMap" component={UserLocationMapScreen} />
               <Stack.Screen name="GroupLocationMap" component={GroupLocationMapScreen} />
               <Stack.Screen name="AlertHistory" component={AlertHistoryScreen} />
               <Stack.Screen name="AlertTimeline" component={AlertTimelineScreen} />

@@ -11,9 +11,11 @@ const TAG = '[notificationService]';
 
 // Get Expo project ID from config
 const expoConfig = Constants.expoConfig?.extra || Constants.manifest?.extra || {};
-const EXPO_PROJECT_ID = expoConfig.expoProjectId;
+const EXPO_PROJECT_ID = expoConfig.expoProjectId || expoConfig?.eas?.projectId;
 const HAS_ANDROID_GOOGLE_SERVICES = Boolean(
-  Constants.expoConfig?.android?.googleServicesFile || Constants.manifest?.android?.googleServicesFile
+  Constants.expoConfig?.android?.googleServicesFile ||
+  Constants.manifest?.android?.googleServicesFile ||
+  expoConfig.hasAndroidGoogleServices
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -107,7 +109,11 @@ export async function registerForPushNotifications(userId) {
         nativeFcmToken = nativeTokenData.data;
       }
     } catch (nativeTokenError) {
-      logger.warn(TAG, 'Unable to fetch native FCM token:', nativeTokenError?.message || nativeTokenError);
+      logger.warn(
+        TAG,
+        'Unable to fetch native FCM token:',
+        nativeTokenError?.message || nativeTokenError
+      );
     }
 
     logger.info(TAG, 'Got push token:', token?.slice(0, 30) + '...');

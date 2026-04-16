@@ -11,3 +11,13 @@ cp .env.example .env
 
 2. Replace placeholder values in `.env` with your project configuration.
 3. Never commit `.env` to version control.
+
+## Android Push Notifications (Optional)
+
+For Android push token registration in local dev builds, place your Firebase Android config at:
+
+./google-services.json
+
+Then rebuild the Android dev client:
+
+npx expo run:android

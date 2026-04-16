@@ -1,9 +1,16 @@
 module.exports = {
   devServer: (devServerConfig) => {
+    const existingSetupMiddlewares = devServerConfig.setupMiddlewares;
     const onBeforeSetupMiddleware = devServerConfig.onBeforeSetupMiddleware;
     const onAfterSetupMiddleware = devServerConfig.onAfterSetupMiddleware;
 
     devServerConfig.setupMiddlewares = (middlewares, devServer) => {
+      let resolvedMiddlewares = middlewares;
+
+      if (typeof existingSetupMiddlewares === 'function') {
+        resolvedMiddlewares = existingSetupMiddlewares(middlewares, devServer) || middlewares;
+      }
+
       if (typeof onBeforeSetupMiddleware === 'function') {
         onBeforeSetupMiddleware(devServer);
       }
@@ -12,7 +19,7 @@ module.exports = {
         onAfterSetupMiddleware(devServer);
       }
 
-      return middlewares;
+      return resolvedMiddlewares;
     };
 
     delete devServerConfig.onBeforeSetupMiddleware;

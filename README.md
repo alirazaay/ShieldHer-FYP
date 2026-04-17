@@ -237,8 +237,8 @@ ShieldHer-FYP/
 
 # 👨‍💻 Author
 
-**Stark**
-Final Year Project – Computer Science / Software Engineering
+**Ali Raza**
+Final Year Project – Computer Science 
 
 ---
 

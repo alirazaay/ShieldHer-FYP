@@ -58,8 +58,12 @@ enableScreens();
 // ─────────────────────────────────────────────────────────────────────────────
 export const navigationRef = createNavigationContainerRef();
 
+// Navigator must be created at module scope — creating inside the component
+// body causes a new navigator instance on every render, which resets
+// navigation state and leaks memory.
+const Stack = createNativeStackNavigator();
+
 export default function App() {
-  const Stack = createNativeStackNavigator();
 
   // Refs to hold cleanup functions so they survive re-renders
   const cleanupForegroundHandler = useRef(null);

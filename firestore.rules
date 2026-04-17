@@ -55,7 +55,7 @@ service cloud.firestore {
     }
 
     // Police/authority role helper.
-    // Supports either custom claims or role in users/{uid}.
+    // Supports custom claims, role in users/{uid}, OR profile in policeUsers/{uid}.
     function isPolice() {
       return isAuthenticated() && (
         request.auth.token.isPolice == true ||
@@ -67,7 +67,8 @@ service cloud.firestore {
             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'police' ||
             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'authority'
           )
-        )
+        ) ||
+        exists(/databases/$(database)/documents/policeUsers/$(request.auth.uid))
       );
     }
 
@@ -112,8 +113,9 @@ service cloud.firestore {
 
     // 1. Users Collection
     match /users/{userId} {
-      // User can read their own profile; connected guardians can also read
-      allow read: if isUserOwner(userId) || isGuardianOf(userId);
+      // User can read their own profile; connected guardians can also read;
+      // police can read any user profile for emergency response context.
+      allow read: if isUserOwner(userId) || isGuardianOf(userId) || isPolice();
       // Only the profile owner has write capabilities
       allow write: if isUserOwner(userId);
 
@@ -124,6 +126,8 @@ service cloud.firestore {
         allow read, write: if isUserOwner(userId);
         // Guardian can read their own guardian relationship
         allow read: if isAuthenticated() && request.auth.uid == guardianId;
+        // Police can read guardians for emergency context
+        allow read: if isPolice();
         // Guardian can create/update relationship during invite acceptance.
         allow create, update: if
           request.resource.data.inviteId is string &&
@@ -154,11 +158,11 @@ service cloud.firestore {
 
     // 2. Alerts Collection
     match /alerts/{alertId} {
-      // Read: owner, linked guardians, or police/authority for escalated alerts
+      // Read: owner, linked guardians, or police/authority (all alerts for police)
       allow read: if isAuthenticated() && (
         isOwner(resource.data) ||
         isGuardian(resource.data) ||
-        (isPolice() && isEscalatedAlert(resource.data))
+        isPolice()
       );
 
       // Create: only the owner can create, with required schema fields.
@@ -185,7 +189,8 @@ service cloud.firestore {
             'resolvedAt',
             'cancelledAt',
             'guardianResponse',
-            'escalationLevel'
+            'escalationLevel',
+            'updatedAt'
           ])
         ) ||
         (
@@ -196,7 +201,19 @@ service cloud.firestore {
             'respondedAt',
             'resolvedBy',
             'resolvedAt',
-            'guardianResponse'
+            'guardianResponse',
+            'updatedAt'
+          ])
+        ) ||
+        (
+          isPolice() &&
+          onlyAllowedFieldsChanged([
+            'status',
+            'respondedBy',
+            'respondedAt',
+            'resolvedBy',
+            'resolvedAt',
+            'updatedAt'
           ])
         )
       ) &&
@@ -233,7 +250,7 @@ service cloud.firestore {
         }
 
         // Read: Owner or guardians can read timeline events
-        allow read: if isAuthenticated() && isTimelineAuthorized();
+        allow read: if isAuthenticated() && (isTimelineAuthorized() || isPolice());
 
         // Write: Owner or guardians can create timeline events
         // (Cloud Functions Admin SDK bypasses these rules anyway)
@@ -319,11 +336,53 @@ service cloud.firestore {
       allow read: if isAuthenticated() &&
         exists(/databases/$(database)/documents/users/$(resource.data.userId)/guardians/$(request.auth.uid));
 
-      // Read: police/authority operators can read escalated police alerts
+      // Read: police/authority operators can read all police alerts
       allow read: if isPolice();
 
-      // No client-side writes – only Cloud Functions create/update these
-      allow create, update, delete: if false;
+      // Police can update police alerts (assign units, close cases)
+      allow update: if isPolice() &&
+        request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          'status',
+          'assignedUnitId',
+          'assignedAt',
+          'respondedBy',
+          'closedAt',
+          'closedBy',
+          'acknowledged',
+          'updatedAt'
+        ]);
+
+      // Only Cloud Functions create/delete police alerts
+      allow create, delete: if false;
+    }
+
+    // 5b. Police Units Collection
+    // Managed by police dashboard for dispatch operations
+    match /policeUnits/{unitId} {
+      // Police can read all units
+      allow read: if isPolice();
+
+      // Police can create new units
+      allow create: if isPolice();
+
+      // Police can update unit status (dispatch, free up, etc.)
+      allow update: if isPolice();
+
+      // Police can delete units
+      allow delete: if isPolice();
+    }
+
+    // 5c. Police Users Collection
+    // Stores police officer profiles (used for isPolice() fallback check)
+    match /policeUsers/{policeUserId} {
+      // Police user can read their own profile
+      allow read: if isAuthenticated() && request.auth.uid == policeUserId;
+
+      // Police user can write their own profile
+      allow write: if isAuthenticated() && request.auth.uid == policeUserId;
+
+      // Other police can read profiles (for team management)
+      allow read: if isPolice();
     }
 
     // 6. Guardian Alert Inbox (delivery/ack state)

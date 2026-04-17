@@ -66,22 +66,33 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Sign up — creates Auth user + policeUsers Firestore document
+  // Sign up — creates Auth user + writes profile to both collections.
+  // `users/{uid}` is required by Firestore security rules (isPolice() check).
+  // `policeUsers/{uid}` is kept for backward compatibility with legacy queries.
   const signup = async (email, password, profileData) => {
     setAuthError(null);
     try {
       const result = await createUserWithEmailAndPassword(auth, email, password);
-      // Create police profile document
-      await setDoc(doc(db, 'policeUsers', result.user.uid), {
+
+      const profilePayload = {
         uid: result.user.uid,
         name: profileData.name,
+        fullName: profileData.name,
         email: email,
+        phone: profileData.contact,
         contact: profileData.contact,
         station: profileData.location,
         rank: profileData.rank,
-        role: 'officer',
+        role: 'police',
         createdAt: serverTimestamp(),
-      });
+      };
+
+      // Write to users collection (required for Firestore isPolice() rule)
+      await setDoc(doc(db, 'users', result.user.uid), profilePayload);
+
+      // Also write to policeUsers for backward compatibility
+      await setDoc(doc(db, 'policeUsers', result.user.uid), profilePayload);
+
       return result.user;
     } catch (error) {
       const message = getAuthErrorMessage(error.code);

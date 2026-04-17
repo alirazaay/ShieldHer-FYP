@@ -1,11 +1,22 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { NativeModules, NativeEventEmitter, PermissionsAndroid, Platform } from 'react-native';
+import { DeviceEventEmitter, NativeModules, PermissionsAndroid, Platform } from 'react-native';
 
-const { ScreamDetection } = NativeModules;
-// Use the default emitter to avoid RN warning checks against module listener stubs.
-const emitter = new NativeEventEmitter();
+const ScreamDetectionModule = NativeModules.ScreamDetectionModule || NativeModules.ScreamDetection;
+const THRESHOLD = 0.65;
 
-const THRESHOLD = 0.75;
+function extractProbability(event) {
+  if (typeof event === 'number') {
+    return Number.isFinite(event) ? event : 0;
+  }
+
+  if (event && typeof event === 'object') {
+    const value =
+      event.probability ?? event.confidence ?? event.prob ?? event.value ?? event.score ?? 0;
+    return Number.isFinite(Number(value)) ? Number(value) : 0;
+  }
+
+  return 0;
+}
 
 export function useScreamDetection({
   onAutoDetect,
@@ -19,7 +30,8 @@ export function useScreamDetection({
   const [lastProb, setLastProb] = useState(null);
   const [permissionGranted, setPermissionGranted] = useState(false);
 
-  const subscriptionRef = useRef(null);
+  const screamSubscriptionRef = useRef(null);
+  const errorSubscriptionRef = useRef(null);
   const autoRunningRef = useRef(false);
 
   const requestPermission = useCallback(async () => {
@@ -28,36 +40,79 @@ export function useScreamDetection({
       return true;
     }
 
-    const granted = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO, {
-      title: 'Microphone Permission',
-      message: 'ShieldHer needs microphone access for AI scream detection.',
-      buttonPositive: 'Allow',
-    });
+    try {
+      const granted = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO, {
+        title: 'Microphone Permission Required',
+        message: 'ShieldHer needs microphone access to detect distress sounds and protect you.',
+        buttonPositive: 'Grant Permission',
+        buttonNegative: 'Cancel',
+      });
 
-    const ok = granted === PermissionsAndroid.RESULTS.GRANTED;
-    setPermissionGranted(ok);
-    return ok;
+      const ok = granted === PermissionsAndroid.RESULTS.GRANTED;
+      setPermissionGranted(ok);
+
+      if (ok) {
+        console.log('useScreamDetection: microphone permission granted');
+      } else {
+        console.log('useScreamDetection: microphone permission denied');
+      }
+
+      return ok;
+    } catch (error) {
+      console.error('useScreamDetection: permission request failed:', error);
+      setPermissionGranted(false);
+      return false;
+    }
   }, []);
 
-  const removeSubscription = useCallback(() => {
-    subscriptionRef.current?.remove();
-    subscriptionRef.current = null;
+  const removeSubscriptions = useCallback(() => {
+    screamSubscriptionRef.current?.remove();
+    errorSubscriptionRef.current?.remove();
+    screamSubscriptionRef.current = null;
+    errorSubscriptionRef.current = null;
+  }, []);
+
+  const callNativeStart = useCallback(() => {
+    if (typeof ScreamDetectionModule?.startDetection === 'function') {
+      ScreamDetectionModule.startDetection();
+      return true;
+    }
+
+    if (typeof ScreamDetectionModule?.startAutoDetection === 'function') {
+      ScreamDetectionModule.startAutoDetection();
+      return true;
+    }
+
+    return false;
+  }, []);
+
+  const callNativeStop = useCallback(() => {
+    if (typeof ScreamDetectionModule?.stopDetection === 'function') {
+      ScreamDetectionModule.stopDetection();
+      return true;
+    }
+
+    if (typeof ScreamDetectionModule?.stopAutoDetection === 'function') {
+      ScreamDetectionModule.stopAutoDetection();
+      return true;
+    }
+
+    return false;
   }, []);
 
   const stopAutoDetection = useCallback(() => {
-    if (!ScreamDetection?.stopAutoDetection) {
-      return;
+    const stopped = callNativeStop();
+    if (!stopped) {
+      console.warn('useScreamDetection: no native stop method found');
     }
 
-    ScreamDetection.stopAutoDetection();
-    removeSubscription();
     autoRunningRef.current = false;
     setIsAutoRunning(false);
-  }, [removeSubscription]);
+  }, [callNativeStop]);
 
   const startAutoDetection = useCallback(async () => {
-    if (!ScreamDetection?.startAutoDetection || !emitter) {
-      console.error('[ShieldHer] ScreamDetection native module is unavailable.');
+    if (!ScreamDetectionModule) {
+      console.error('useScreamDetection: ScreamDetection native module is unavailable');
       return;
     }
 
@@ -66,37 +121,20 @@ export function useScreamDetection({
       return;
     }
 
-    ScreamDetection.startAutoDetection();
+    console.log('useScreamDetection: calling native start detection');
+    const started = callNativeStart();
+    if (!started) {
+      console.error('useScreamDetection: no native start method found');
+      return;
+    }
+
     autoRunningRef.current = true;
     setIsAutoRunning(true);
-
-    removeSubscription();
-    subscriptionRef.current = emitter.addListener('ScreamDetected', async (value) => {
-      const prob = Number(value);
-      const safeProb = Number.isFinite(prob) ? prob : 0;
-      const payload = {
-        prob: safeProb,
-        confidence: safeProb,
-        isScream: safeProb >= THRESHOLD,
-        source: 'AUTO',
-        timestamp: Date.now(),
-      };
-
-      setLastProb(safeProb);
-
-      if (safeProb >= THRESHOLD && onAutoDetect) {
-        await Promise.resolve(onAutoDetect({ prob: safeProb, timestamp: payload.timestamp }));
-      }
-
-      if (safeProb >= THRESHOLD && onScreamDetected) {
-        await Promise.resolve(onScreamDetected(payload));
-      }
-    });
-  }, [onAutoDetect, onScreamDetected, removeSubscription, requestPermission]);
+  }, [callNativeStart, requestPermission]);
 
   const onHoldStart = useCallback(async () => {
-    if (!ScreamDetection?.startManualRecording) {
-      console.error('[ShieldHer] startManualRecording is unavailable.');
+    if (!ScreamDetectionModule) {
+      console.error('useScreamDetection: native module unavailable for manual recording');
       return;
     }
 
@@ -105,18 +143,43 @@ export function useScreamDetection({
       return;
     }
 
-    await ScreamDetection.startManualRecording();
-    setIsManualRecording(true);
-  }, [requestPermission]);
+    try {
+      if (typeof ScreamDetectionModule.startManualRecording === 'function') {
+        await ScreamDetectionModule.startManualRecording();
+      } else {
+        const started = callNativeStart();
+        if (!started) {
+          console.error('useScreamDetection: no manual/start method found');
+          return;
+        }
+      }
+
+      console.log('useScreamDetection: manual recording started');
+      setIsManualRecording(true);
+    } catch (error) {
+      console.error('useScreamDetection: start manual recording failed:', error);
+    }
+  }, [callNativeStart, requestPermission]);
 
   const onHoldEnd = useCallback(async () => {
-    if (!isManualRecording || !ScreamDetection?.stopManualRecording) {
+    if (!isManualRecording) {
       return null;
     }
 
     setIsManualRecording(false);
+
     try {
-      const result = await ScreamDetection.stopManualRecording();
+      let result;
+      if (typeof ScreamDetectionModule?.stopManualRecording === 'function') {
+        result = await ScreamDetectionModule.stopManualRecording();
+      } else {
+        callNativeStop();
+        result = { maxProb: Number(lastProb || 0), avgProb: Number(lastProb || 0), windowCount: 1, triggered: Number(lastProb || 0) >= THRESHOLD };
+      }
+
+      if (result?.maxProb != null) {
+        setLastProb(Number(result.maxProb));
+      }
 
       if (onManualResult) {
         await Promise.resolve(onManualResult(result));
@@ -124,22 +187,62 @@ export function useScreamDetection({
 
       if (result?.triggered && onScreamDetected) {
         const prob = Number(result?.maxProb || 0);
-        const payload = {
-          prob,
-          confidence: prob,
-          isScream: prob >= THRESHOLD,
-          source: 'MANUAL',
-          timestamp: Date.now(),
-        };
-        await Promise.resolve(onScreamDetected(payload));
+        await Promise.resolve(
+          onScreamDetected({
+            prob,
+            confidence: prob,
+            isScream: prob >= THRESHOLD,
+            source: 'MANUAL',
+            timestamp: Date.now(),
+          })
+        );
       }
 
       return result;
-    } catch (e) {
-      console.error('[ShieldHer] Manual recording error:', e);
+    } catch (error) {
+      console.error('useScreamDetection: stop manual recording failed:', error);
       return null;
     }
-  }, [isManualRecording, onManualResult, onScreamDetected]);
+  }, [callNativeStop, isManualRecording, lastProb, onManualResult, onScreamDetected]);
+
+  useEffect(() => {
+    console.log('useScreamDetection: setting up event listeners');
+    console.log('useScreamDetection: native module available =', Boolean(ScreamDetectionModule));
+
+    removeSubscriptions();
+
+    screamSubscriptionRef.current = DeviceEventEmitter.addListener('ScreamDetected', async (event) => {
+      console.log('useScreamDetection: SCREAM event received:', event);
+
+      const prob = extractProbability(event);
+      setLastProb(prob);
+
+      const payload = {
+        prob,
+        confidence: prob,
+        isScream: prob >= THRESHOLD,
+        source: 'AUTO',
+        timestamp: event?.timestamp || Date.now(),
+      };
+
+      if (prob >= THRESHOLD && onAutoDetect) {
+        await Promise.resolve(onAutoDetect({ prob, timestamp: payload.timestamp }));
+      }
+
+      if (prob >= THRESHOLD && onScreamDetected) {
+        await Promise.resolve(onScreamDetected(payload));
+      }
+    });
+
+    errorSubscriptionRef.current = DeviceEventEmitter.addListener('DetectionError', (event) => {
+      console.error('useScreamDetection: detection error event:', event);
+    });
+
+    return () => {
+      console.log('useScreamDetection: cleaning up event listeners');
+      removeSubscriptions();
+    };
+  }, [onAutoDetect, onScreamDetected, removeSubscriptions]);
 
   useEffect(() => {
     if (!enabled || !continuous) {
@@ -150,16 +253,16 @@ export function useScreamDetection({
     return () => {
       stopAutoDetection();
     };
-  }, [enabled, continuous, startAutoDetection, stopAutoDetection]);
+  }, [continuous, enabled, startAutoDetection, stopAutoDetection]);
 
   useEffect(() => {
     return () => {
       if (autoRunningRef.current) {
         stopAutoDetection();
       }
-      removeSubscription();
+      removeSubscriptions();
     };
-  }, [removeSubscription, stopAutoDetection]);
+  }, [removeSubscriptions, stopAutoDetection]);
 
   return {
     isAutoRunning,
@@ -171,7 +274,6 @@ export function useScreamDetection({
     onHoldStart,
     onHoldEnd,
     requestPermission,
-    // Compatibility exports for existing screens still using the older hook API.
     startDetection: startAutoDetection,
     stopDetection: stopAutoDetection,
     startListening: onHoldStart,

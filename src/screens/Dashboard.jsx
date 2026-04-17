@@ -9,6 +9,8 @@ import {
   Animated,
   ActivityIndicator,
   Alert,
+  PermissionsAndroid,
+  Platform,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -271,6 +273,60 @@ const Dashboard = ({ navigation }) => {
     onManualResult: handleManualResult,
   });
 
+  const requestAudioPermission = useCallback(async () => {
+    if (Platform.OS !== 'android') return true;
+
+    try {
+      const granted = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+        {
+          title: 'Microphone Permission Required',
+          message: 'ShieldHer needs microphone access to detect distress sounds and protect you.',
+          buttonPositive: 'Grant Permission',
+          buttonNegative: 'Cancel',
+        }
+      );
+
+      if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+        console.log('Dashboard: microphone permission granted');
+        return true;
+      }
+
+      console.log('Dashboard: microphone permission denied');
+      Alert.alert(
+        'Permission Required',
+        'ShieldHer cannot detect distress sounds without microphone access. Please grant permission in Settings.',
+        [{ text: 'OK' }]
+      );
+      return false;
+    } catch (err) {
+      console.error('Dashboard: permission request error:', err);
+      return false;
+    }
+  }, []);
+
+  const handleStartAIDetection = useCallback(async () => {
+    if (isAutoRunning) {
+      stopAutoDetection();
+      return;
+    }
+
+    const hasPermission = await requestAudioPermission();
+    if (!hasPermission) return;
+
+    console.log('Dashboard: starting AI detection...');
+    await startAutoDetection();
+  }, [isAutoRunning, requestAudioPermission, startAutoDetection, stopAutoDetection]);
+
+  const handleVoiceTrigger = useCallback(async () => {
+    const hasPermission = await requestAudioPermission();
+    if (!hasPermission) return false;
+
+    console.log('Dashboard: starting voice trigger...');
+    await onHoldStart();
+    return true;
+  }, [onHoldStart, requestAudioPermission]);
+
   const openLogout = () => {
     setLogoutVisible(true);
     Animated.parallel([
@@ -296,8 +352,8 @@ const Dashboard = ({ navigation }) => {
       message: 'Recording your voice sample...',
       type: 'warning',
     });
-    await onHoldStart();
-  }, [onHoldStart]);
+    await handleVoiceTrigger();
+  }, [handleVoiceTrigger]);
 
   const handleVoicePressOut = useCallback(async () => {
     await onHoldEnd();
@@ -320,7 +376,7 @@ const Dashboard = ({ navigation }) => {
   const voiceLastResult =
     lastProb == null
       ? 'No sample yet'
-      : Number(lastProb) >= 0.75
+      : Number(lastProb) >= 0.65
         ? 'Distress detected'
         : 'No distress';
 
@@ -496,7 +552,7 @@ const Dashboard = ({ navigation }) => {
 
         <TouchableOpacity
           activeOpacity={0.9}
-          onPress={isAutoRunning ? stopAutoDetection : startAutoDetection}
+          onPress={handleStartAIDetection}
           disabled={sosLoading}
           style={[styles.voiceBtn, sosLoading && styles.voiceBtnDisabled]}
         >

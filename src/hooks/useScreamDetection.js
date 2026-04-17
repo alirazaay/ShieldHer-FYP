@@ -32,6 +32,7 @@ export function useScreamDetection({
 
   const screamSubscriptionRef = useRef(null);
   const errorSubscriptionRef = useRef(null);
+  const telemetrySubscriptionRef = useRef(null);
   const autoRunningRef = useRef(false);
 
   const requestPermission = useCallback(async () => {
@@ -68,8 +69,10 @@ export function useScreamDetection({
   const removeSubscriptions = useCallback(() => {
     screamSubscriptionRef.current?.remove();
     errorSubscriptionRef.current?.remove();
+    telemetrySubscriptionRef.current?.remove();
     screamSubscriptionRef.current = null;
     errorSubscriptionRef.current = null;
+    telemetrySubscriptionRef.current = null;
   }, []);
 
   const callNativeStart = useCallback(() => {
@@ -113,6 +116,11 @@ export function useScreamDetection({
   const startAutoDetection = useCallback(async () => {
     if (!ScreamDetectionModule) {
       console.error('useScreamDetection: ScreamDetection native module is unavailable');
+      return;
+    }
+
+    if (autoRunningRef.current) {
+      console.log('useScreamDetection: auto detection already running, ignoring duplicate start');
       return;
     }
 
@@ -236,6 +244,15 @@ export function useScreamDetection({
 
     errorSubscriptionRef.current = DeviceEventEmitter.addListener('DetectionError', (event) => {
       console.error('useScreamDetection: detection error event:', event);
+    });
+
+    telemetrySubscriptionRef.current = DeviceEventEmitter.addListener('DetectionTelemetry', (event) => {
+      const prob = Number(event?.probability ?? 0);
+      const mode = event?.inputMode || 'unknown';
+      const threshold = Number(event?.threshold ?? THRESHOLD);
+      console.log(
+        `useScreamDetection: telemetry mode=${mode} prob=${prob.toFixed(4)} threshold=${threshold.toFixed(2)}`
+      );
     });
 
     return () => {

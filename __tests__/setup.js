@@ -165,6 +165,8 @@ jest.mock('@react-native-community/netinfo', () => ({
 // ─────────────────────────────────────────────────────────────────────────────
 jest.mock('react-native-callkeep', () => ({
   setup: jest.fn(() => Promise.resolve()),
+  supportConnectionService: jest.fn(() => Promise.resolve(true)),
+  checkPhoneAccountEnabled: jest.fn(() => Promise.resolve(true)),
   setAvailable: jest.fn(),
   displayIncomingCall: jest.fn(() => Promise.resolve()),
   endCall: jest.fn(),

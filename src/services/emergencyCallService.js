@@ -1,7 +1,10 @@
 import RNCallKeep from 'react-native-callkeep';
+import { PermissionsAndroid, Platform } from 'react-native';
 import logger from '../utils/logger';
 
 const TAG = '[emergencyCallService]';
+
+const ANDROID_CALLKEEP_API_LEVEL = 26;
 
 let initialized = false;
 let listenersBound = false;
@@ -29,7 +32,7 @@ const callKeepOptions = {
     alertDescription: 'Emergency calls need call permissions to display incoming SOS screens.',
     cancelButton: 'Cancel',
     okButton: 'Allow',
-    selfManaged: false,
+    selfManaged: true,
     additionalPermissions: [],
     foregroundService: {
       channelId: 'shieldher-emergency-calls',
@@ -39,6 +42,52 @@ const callKeepOptions = {
     },
   },
 };
+
+async function ensureAndroidCallKeepPermissions() {
+  if (Platform.OS !== 'android') {
+    return true;
+  }
+
+  if (!PermissionsAndroid?.PERMISSIONS || !PermissionsAndroid?.requestMultiple) {
+    return true;
+  }
+
+  const requiredPermissions = [PermissionsAndroid.PERMISSIONS.RECORD_AUDIO];
+  const optionalPermissions = [];
+
+  if (PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS && Platform.Version >= 33) {
+    optionalPermissions.push(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+  }
+
+  const requestedPermissions = [...requiredPermissions, ...optionalPermissions];
+  let results = {};
+
+  try {
+    results = await PermissionsAndroid.requestMultiple(requestedPermissions);
+  } catch (error) {
+    logger.warn(TAG, 'Failed requesting call permissions, disabling CallKeep:', error);
+    return false;
+  }
+
+  const deniedRequired = requiredPermissions.filter(
+    (permission) => results[permission] !== PermissionsAndroid.RESULTS.GRANTED
+  );
+
+  if (deniedRequired.length > 0) {
+    logger.warn(TAG, 'Required call permissions denied, disabling CallKeep:', deniedRequired);
+    return false;
+  }
+
+  const deniedOptional = optionalPermissions.filter(
+    (permission) => results[permission] !== PermissionsAndroid.RESULTS.GRANTED
+  );
+
+  if (deniedOptional.length > 0) {
+    logger.warn(TAG, 'Optional call permissions denied:', deniedOptional);
+  }
+
+  return true;
+}
 
 function bindCallKeepListeners() {
   if (listenersBound) {
@@ -80,9 +129,43 @@ export async function initializeEmergencyCallService({ onAccept, onDecline } = {
     return true;
   }
 
+  if (Platform.OS === 'android') {
+    const supportConnectionService =
+      typeof RNCallKeep.supportConnectionService === 'function'
+        ? await RNCallKeep.supportConnectionService()
+        : true;
+
+    if (!supportConnectionService) {
+      logger.warn(TAG, 'ConnectionService unsupported on this device, using in-app fallback');
+      return false;
+    }
+
+    if (Platform.Version < ANDROID_CALLKEEP_API_LEVEL) {
+      logger.warn(TAG, 'Android version does not support self-managed CallKeep, using fallback');
+      return false;
+    }
+
+    const hasPermissions = await ensureAndroidCallKeepPermissions();
+    if (!hasPermissions) {
+      return false;
+    }
+  }
+
   try {
     await RNCallKeep.setup(callKeepOptions);
     RNCallKeep.setAvailable(true);
+
+    if (Platform.OS === 'android') {
+      const enabled =
+        typeof RNCallKeep.checkPhoneAccountEnabled === 'function'
+          ? await RNCallKeep.checkPhoneAccountEnabled()
+          : true;
+
+      if (!enabled) {
+        logger.warn(TAG, 'Phone account not enabled yet; continuing with in-app fallback behavior');
+      }
+    }
+
     bindCallKeepListeners();
     initialized = true;
     logger.info(TAG, 'CallKeep initialized');

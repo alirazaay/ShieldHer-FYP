@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import {
   ScrollView,
   View,
@@ -8,6 +8,7 @@ import {
   Modal,
   Animated,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -24,6 +25,7 @@ import {
 import { getSafetyModeState } from '../services/profile';
 import { startLocationTracking, stopLocationTracking } from '../services/locationListener';
 import { useScreamDetection } from '../hooks/useScreamDetection';
+import { classifyProb, HARASSMENT_TIERS, logHarassmentEvent } from '../services/harassmentLogger';
 import logger from '../utils/logger';
 
 const TAG = '[Dashboard]';
@@ -43,6 +45,7 @@ const Dashboard = ({ navigation }) => {
   const [sosLoading, setSosLoading] = useState(false);
   const [sosError, setSosError] = useState(null);
   const [sosMessage, setSosMessage] = useState(null);
+  const [detectionAlert, setDetectionAlert] = useState(null); // { tier, prob }
 
 
   // Escalation state – tracks whether current user's alert has been escalated to authorities
@@ -134,7 +137,7 @@ const Dashboard = ({ navigation }) => {
     }
   }, [sosError, sosMessage]);
 
-  const triggerSosFromScream = async (analysis, source = 'manual') => {
+  const triggerSOS = useCallback(async ({ reason, prob }) => {
     try {
       setSosLoading(true);
       setSosError(null);
@@ -156,13 +159,14 @@ const Dashboard = ({ navigation }) => {
 
       const location = await fetchUserLocation(currentUser.uid);
       const dispatchResult = await dispatchSOSAlert(currentUser.uid, location, {
-        triggerType: source === 'auto' ? 'AI' : 'manual',
+        triggerType: 'AI',
+        source: reason,
+        confidence: prob,
       });
 
       if (dispatchResult.success) {
-        const confidenceText = Number(analysis?.confidence || 0).toFixed(2);
         setSosMessage({
-          message: `Scream detected (${confidenceText}) - SOS triggered via ${source}.`,
+          message: `SOS triggered (${reason}) at ${(Number(prob || 0) * 100).toFixed(0)}% confidence.`,
           type: dispatchResult.deliveryStatus === 'pending_retry' ? 'warning' : 'success',
         });
       } else {
@@ -180,37 +184,84 @@ const Dashboard = ({ navigation }) => {
     } finally {
       setSosLoading(false);
     }
-  };
+  }, [navigation]);
+
+  const handleAutoDetect = useCallback(async ({ prob }) => {
+    const tier = classifyProb(prob);
+    if (!tier) return;
+
+    console.log(`[ShieldHer] prob=${Number(prob).toFixed(3)} tier=${tier}`);
+    await logHarassmentEvent({ prob, source: 'AUTO', location: null });
+
+    if (tier === 'MILD') {
+      logger.info(TAG, 'Mild detection logged silently');
+      return;
+    }
+
+    if (tier === 'MODERATE') {
+      const tierLabel = HARASSMENT_TIERS[tier]?.label || tier;
+      setDetectionAlert({ tier, prob });
+
+      Alert.alert(
+        `${tierLabel} Distress Detected`,
+        `Confidence: ${(Number(prob) * 100).toFixed(0)}%. Do you want to trigger SOS?`,
+        [
+          {
+            text: 'Dismiss',
+            style: 'cancel',
+            onPress: () => setDetectionAlert(null),
+          },
+          {
+            text: 'Send SOS',
+            style: 'destructive',
+            onPress: async () => {
+              setDetectionAlert(null);
+              await triggerSOS({ reason: 'AI_MODERATE', prob });
+            },
+          },
+        ],
+        { cancelable: true }
+      );
+      return;
+    }
+
+    setDetectionAlert({ tier, prob });
+    logger.warn(TAG, 'HIGH tier detected; auto-triggering SOS');
+    await triggerSOS({ reason: 'AI_AUTO_HIGH', prob });
+  }, [triggerSOS]);
+
+  const handleManualResult = useCallback(async (result) => {
+    if (!result?.triggered) {
+      Alert.alert('Recording Complete', 'No distress detected in your recording.');
+      return;
+    }
+
+    const prob = Number(result.maxProb || 0);
+    await logHarassmentEvent({ prob, source: 'MANUAL', location: null });
+
+    const tier = classifyProb(prob);
+    const tierLabel = HARASSMENT_TIERS[tier]?.label || tier;
+    Alert.alert(
+      'Distress Detected in Recording',
+      `Level: ${tierLabel} (${(prob * 100).toFixed(0)}%). SOS has been triggered.`
+    );
+
+    await triggerSOS({ reason: 'MANUAL_HOLD', prob });
+  }, [triggerSOS]);
 
   const {
-    startListening,
-    stopListening,
-    isListening: isVoiceListening,
-    isAnalyzing: isVoiceAnalyzing,
-    result: voiceResult,
-    cooldownState: voiceCooldownState,
-    error: voiceDetectionError,
+    isAutoRunning,
+    isManualRecording,
+    lastProb,
+    permissionGranted,
+    startAutoDetection,
+    stopAutoDetection,
+    onHoldStart,
+    onHoldEnd,
   } = useScreamDetection({
-    enabled: isSafetyModeEnabled,
-    continuous: isSafetyModeEnabled,
-    config: {
-      confidenceThreshold: 0.75,
-      intervalMs: 2000,
-      cooldownMs: 60000,
-    },
-    onScreamDetected: async (analysis) => {
-      await triggerSosFromScream(analysis, 'auto');
-    },
+    onAutoDetect: handleAutoDetect,
+    onManualResult: handleManualResult,
   });
-
-  useEffect(() => {
-    if (!voiceDetectionError) return;
-
-    setSosError({
-      message: voiceDetectionError.message || 'Voice detection failed',
-      type: 'error',
-    });
-  }, [voiceDetectionError]);
 
   const openLogout = () => {
     setLogoutVisible(true);
@@ -233,52 +284,40 @@ const Dashboard = ({ navigation }) => {
     navigation.navigate('SOSCountdownScreen');
   };
 
-  const handleVoicePressIn = async () => {
+  const handleVoicePressIn = useCallback(async () => {
     setSosError(null);
     setSosMessage({
-      message: 'Listening for distress...',
+      message: 'Recording your voice sample...',
       type: 'warning',
     });
-    await startListening();
-  };
+    await onHoldStart();
+  }, [onHoldStart]);
 
-  const handleVoicePressOut = async () => {
-    const analysis = await stopListening();
-    if (!analysis) return;
-
-    if (analysis.isScream || Number(analysis.confidence || 0) > 0.75) {
-      await triggerSosFromScream(analysis, 'manual');
-      return;
-    }
-
-    setSosMessage({
-      message: 'No threat detected',
-      type: 'success',
-    });
-  };
+  const handleVoicePressOut = useCallback(async () => {
+    await onHoldEnd();
+  }, [onHoldEnd]);
 
   const voiceStatus = (() => {
-    if (voiceCooldownState?.isCoolingDown) {
-      return `Cooldown ${Math.ceil((voiceCooldownState.remainingMs || 0) / 1000)}s`;
+    if (isManualRecording) {
+      return 'Recording manual sample...';
     }
-    if (isVoiceAnalyzing) {
-      return 'Analyzing audio...';
-    }
-    if (isVoiceListening) {
-      return 'Listening...';
+    if (isAutoRunning) {
+      return 'Auto detection active';
     }
     if (isSafetyModeEnabled) {
-      return 'Armed (auto scan every 2s)';
+      return 'Safety Mode ON';
     }
     return 'Idle';
   })();
 
-  const voiceLastConfidence = Number(voiceResult?.confidence || 0).toFixed(2);
-  const voiceLastResult = voiceResult
-    ? voiceResult.isScream || Number(voiceResult.confidence || 0) > 0.75
-      ? 'Scream detected'
-      : 'No threat'
-    : 'No sample yet';
+  const voiceLastConfidence =
+    lastProb == null ? 'N/A' : Number(lastProb).toFixed(2);
+  const voiceLastResult =
+    lastProb == null
+      ? 'No sample yet'
+      : Number(lastProb) >= 0.75
+        ? 'Distress detected'
+        : 'No distress';
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -450,7 +489,27 @@ const Dashboard = ({ navigation }) => {
           </View>
         )}
 
-        {/* Voice trigger button */}
+        <TouchableOpacity
+          activeOpacity={0.9}
+          onPress={isAutoRunning ? stopAutoDetection : startAutoDetection}
+          disabled={sosLoading}
+          style={[styles.voiceBtn, sosLoading && styles.voiceBtnDisabled]}
+        >
+          <MaterialCommunityIcons
+            name={isAutoRunning ? 'ear-hearing' : 'ear-hearing-off'}
+            size={18}
+            color="#fff"
+            style={{ marginRight: 10 }}
+          />
+          <View style={styles.voiceTextWrap}>
+            <Text style={styles.voiceText}>
+              {isAutoRunning ? 'Stop AI Detection' : 'Start AI Detection'}
+            </Text>
+            <Text style={styles.voiceSubText}>Threshold: 0.75</Text>
+          </View>
+        </TouchableOpacity>
+
+        {/* Manual hold-to-record button */}
         <TouchableOpacity
           activeOpacity={0.9}
           onPressIn={handleVoicePressIn}
@@ -459,16 +518,16 @@ const Dashboard = ({ navigation }) => {
           style={[styles.voiceBtn, sosLoading && styles.voiceBtnDisabled]}
         >
           <MaterialCommunityIcons
-            name={isVoiceListening ? 'microphone' : 'microphone-outline'}
+            name={isManualRecording ? 'microphone' : 'microphone-outline'}
             size={18}
             color="#fff"
             style={{ marginRight: 10 }}
           />
           <View style={styles.voiceTextWrap}>
             <Text style={styles.voiceText}>
-              {isVoiceListening ? 'Listening...' : 'Hold To Activate Voice Trigger'}
+              {isManualRecording ? 'Recording... Release to Analyse' : 'Hold to Record Voice'}
             </Text>
-            {isSafetyModeEnabled && <Text style={styles.voiceSubText}>Auto mode is running</Text>}
+            {isAutoRunning && <Text style={styles.voiceSubText}>Auto mode is running</Text>}
           </View>
         </TouchableOpacity>
 
@@ -481,6 +540,14 @@ const Dashboard = ({ navigation }) => {
           <View style={styles.voiceHealthRowMuted}>
             <Text style={styles.voiceHealthMuted}>Last result: {voiceLastResult}</Text>
             <Text style={styles.voiceHealthMuted}>Confidence: {voiceLastConfidence}</Text>
+          </View>
+          <View style={styles.voiceHealthRowMuted}>
+            <Text style={styles.voiceHealthMuted}>
+              Mic permission: {permissionGranted ? 'Granted' : 'Not granted'}
+            </Text>
+            <Text style={styles.voiceHealthMuted}>
+              Alert state: {detectionAlert?.tier || 'None'}
+            </Text>
           </View>
         </View>
 

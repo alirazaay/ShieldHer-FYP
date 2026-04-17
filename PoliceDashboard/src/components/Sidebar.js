@@ -82,15 +82,6 @@ function Sidebar() {
           </div>
         )}
 
-        <button
-          className="menu-item logout-btn"
-          onClick={handleLogoutClick}
-          style={{ marginBottom: '15px' }}
-        >
-          <span className="menu-icon">🚪</span>
-          <span>LOGOUT</span>
-        </button>
-
         <div className="menu">
           {menuItems.map((item, index) => (
             <Link
@@ -102,6 +93,15 @@ function Sidebar() {
               <span>{item.label}</span>
             </Link>
           ))}
+
+          <button
+            className="menu-item logout-btn"
+            onClick={handleLogoutClick}
+            style={{ marginTop: '15px' }}
+          >
+            <span className="menu-icon">🚪</span>
+            <span>LOGOUT</span>
+          </button>
         </div>
       </div>
 

@@ -122,7 +122,7 @@ function EmergencyPage() {
       } else {
         showToast('No guardians found for this user', 'warning');
       }
-    } catch (error) {
+    } catch {
       showToast('Failed to fetch guardian info', 'error');
     }
   };

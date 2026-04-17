@@ -15,7 +15,7 @@ function LogoutConfirmModal({ isOpen, onCancel }) {
     try {
       await logout();
       navigate('/');
-    } catch (err) {
+    } catch {
       setError('Failed to log out. Please try again.');
       setIsLoading(false);
     }

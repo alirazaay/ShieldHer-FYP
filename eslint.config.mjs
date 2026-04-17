@@ -10,10 +10,14 @@ export default [
   {
     ignores: [
       'node_modules/',
+      'PoliceDashboard/node_modules/',
       'android/',
       'ios/',
       '.expo/',
+      'build/',
+      'PoliceDashboard/build/',
       'dist/',
+      'coverage/',
       'web-build/',
       'functions/node_modules/',
       'functions/',
@@ -49,6 +53,10 @@ export default [
         window: 'readonly',
         document: 'readonly',
         navigator: 'readonly',
+        Notification: 'readonly',
+        Audio: 'readonly',
+        Blob: 'readonly',
+        URL: 'readonly',
         fetch: 'readonly',
         console: 'readonly',
         setTimeout: 'readonly',
@@ -98,7 +106,7 @@ export default [
       'no-var': 'error',
 
       // Prettier integration
-      'prettier/prettier': ['warn', {}, { usePrettierrc: true }],
+      'prettier/prettier': ['warn', { endOfLine: 'auto' }, { usePrettierrc: true }],
     },
   },
 
@@ -117,6 +125,11 @@ export default [
         afterAll: 'readonly',
         test: 'readonly',
       },
+    },
+    rules: {
+      // Test files often keep a /* global ... */ banner for readability.
+      // This overlaps with globals above and should not fail lint.
+      'no-redeclare': 'off',
     },
   },
 ];

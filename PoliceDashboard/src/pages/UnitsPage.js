@@ -120,7 +120,7 @@ function UnitsPage() {
       {filteredUnits.length === 0 ? (
         <div className="card" style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
           <div style={{ fontSize: '48px', marginBottom: '10px' }}>🚓</div>
-          <p>No units found. Click "+ Add New Unit" to create one.</p>
+          <p>No units found. Click &quot;+ Add New Unit&quot; to create one.</p>
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>

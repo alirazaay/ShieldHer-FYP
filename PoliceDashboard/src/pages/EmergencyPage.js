@@ -4,7 +4,6 @@ import {
   subscribeToAlerts,
   getUserById,
   getUserGuardians,
-  updateAlertStatus,
   resolveAlert,
   formatTimestamp,
 } from '../services/firestoreService';

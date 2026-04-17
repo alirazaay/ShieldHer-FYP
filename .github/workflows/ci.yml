@@ -22,8 +22,17 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
       - name: Install dependencies
         run: npm ci
+
+      - name: Expo doctor
+        run: npx --yes expo-doctor
 
       - name: Lint
         run: npm run lint
@@ -38,7 +47,15 @@ jobs:
         run: npm run test:functions
 
       - name: Firestore emulator rules tests
+        env:
+          REQUIRE_FIRESTORE_EMULATOR: 'true'
         run: npm run test:rules:emulator
 
       - name: Coverage report
         run: npm run test:coverage
+
+      - name: Install Police Dashboard dependencies
+        run: npm ci --prefix PoliceDashboard
+
+      - name: Build Police Dashboard
+        run: npm run build --prefix PoliceDashboard

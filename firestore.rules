@@ -72,6 +72,17 @@ service cloud.firestore {
       );
     }
 
+    // Guard privileged profile fields from client-side self-escalation.
+    function hasPrivilegedUserFields(data) {
+      return data.role != null || data.isPolice != null || data.permissions != null;
+    }
+
+    function privilegedUserFieldsUnchanged() {
+      return request.resource.data.role == resource.data.role &&
+        request.resource.data.isPolice == resource.data.isPolice &&
+        request.resource.data.permissions == resource.data.permissions;
+    }
+
     // Reusable helper to constrain mutable fields on updates.
     function onlyAllowedFieldsChanged(allowedKeys) {
       return request.resource.data.diff(resource.data).changedKeys().hasOnly(allowedKeys);
@@ -116,8 +127,16 @@ service cloud.firestore {
       // User can read their own profile; connected guardians can also read;
       // police can read any user profile for emergency response context.
       allow read: if isUserOwner(userId) || isGuardianOf(userId) || isPolice();
-      // Only the profile owner has write capabilities
-      allow write: if isUserOwner(userId);
+      // Owner can create profile except privileged authorization fields.
+      allow create: if isUserOwner(userId) &&
+        !hasPrivilegedUserFields(request.resource.data);
+
+      // Owner can update profile, but cannot mutate privileged authorization fields.
+      allow update: if isUserOwner(userId) &&
+        privilegedUserFieldsUnchanged();
+
+      // Owner can delete their own profile.
+      allow delete: if isUserOwner(userId);
 
       // 1a. Guardians Subcollection
       // Stores guardians linked to this user
@@ -169,9 +188,13 @@ service cloud.firestore {
       // Supports ownerId (new) and userId (legacy client compatibility).
       allow create: if isAuthenticated() &&
         hasRequiredAlertCreateFields() &&
+        (request.resource.data.ownerId is string || request.resource.data.userId is string) &&
+        (!(request.resource.data.ownerId is string) || request.resource.data.ownerId == request.auth.uid) &&
+        (!(request.resource.data.userId is string) || request.resource.data.userId == request.auth.uid) &&
         (
-          (request.resource.data.ownerId is string && request.resource.data.ownerId == request.auth.uid) ||
-          (request.resource.data.userId is string && request.resource.data.userId == request.auth.uid)
+          !(request.resource.data.ownerId is string) ||
+          !(request.resource.data.userId is string) ||
+          request.resource.data.ownerId == request.resource.data.userId
         );
 
       // Update: tightly controlled mutable surface.
@@ -378,8 +401,8 @@ service cloud.firestore {
       // Police user can read their own profile
       allow read: if isAuthenticated() && request.auth.uid == policeUserId;
 
-      // Police user can write their own profile
-      allow write: if isAuthenticated() && request.auth.uid == policeUserId;
+      // Creation and mutation are backend-only to prevent role escalation.
+      allow create, update, delete: if false;
 
       // Other police can read profiles (for team management)
       allow read: if isPolice();

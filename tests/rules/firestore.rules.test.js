@@ -1,4 +1,4 @@
-/* global describe, it, expect, beforeAll, afterAll, beforeEach */
+/* global describe, it, beforeAll, afterAll, beforeEach */
 
 const fs = require('fs');
 const path = require('path');
@@ -13,6 +13,7 @@ const PROJECT_ID = 'demo-shieldher';
 
 let testEnv;
 let isFirestoreEmulatorAvailable = true;
+const requireEmulator = process.env.REQUIRE_FIRESTORE_EMULATOR === 'true';
 
 async function seedData(seedFn) {
   await testEnv.withSecurityRulesDisabled(async (context) => {
@@ -32,6 +33,11 @@ describe('Firestore security rules', () => {
     } catch (error) {
       const message = String(error?.message || error);
       if (message.includes('host and port of the firestore emulator must be specified')) {
+        if (requireEmulator) {
+          throw new Error(
+            '[firestore.rules.test] Firestore emulator is required but not available. Ensure Java 21+ is installed and emulator is started.'
+          );
+        }
         isFirestoreEmulatorAvailable = false;
         console.warn(
           '[firestore.rules.test] Firestore emulator not detected. Skipping rules tests. Run: npm run test:rules:emulator'
@@ -176,5 +182,28 @@ describe('Firestore security rules', () => {
 
     const policeDb = testEnv.authenticatedContext('police-1', { role: 'police' }).firestore();
     await assertSucceeds(getDoc(doc(policeDb, 'alerts', 'alert-5')));
+  });
+
+  it('blocks users from self-assigning police role in their profile', async () => {
+    if (!isFirestoreEmulatorAvailable) return;
+    const userDb = testEnv.authenticatedContext('user-role-1').firestore();
+
+    await assertFails(
+      setDoc(doc(userDb, 'users', 'user-role-1'), {
+        fullName: 'Role Escalation Attempt',
+        role: 'police',
+      })
+    );
+  });
+
+  it('blocks users from creating policeUsers documents', async () => {
+    if (!isFirestoreEmulatorAvailable) return;
+    const userDb = testEnv.authenticatedContext('user-police-doc-1').firestore();
+
+    await assertFails(
+      setDoc(doc(userDb, 'policeUsers', 'user-police-doc-1'), {
+        displayName: 'Unauthorized Police Record',
+      })
+    );
   });
 });

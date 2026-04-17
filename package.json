@@ -18,7 +18,7 @@
     "test:integration": "jest --runInBand tests/integration",
     "test:functions": "jest --runInBand tests/functions",
     "test:rules": "jest --runInBand tests/rules",
-    "test:rules:emulator": "firebase emulators:exec --only firestore --project demo-shieldher \"npm run test:rules\"",
+    "test:rules:emulator": "node scripts/run-rules-emulator.js",
     "test:ci": "npm run test:unit && npm run test:integration && npm run test:functions",
     "secrets:scan": "node scripts/secret-scan.js",
     "secrets:scan:staged": "node scripts/secret-scan.js --staged",
@@ -56,6 +56,15 @@
     "react-native-screens": "~4.16.0"
   },
   "private": true,
+  "expo": {
+    "doctor": {
+      "reactNativeDirectoryCheck": {
+        "exclude": [
+          "react-native-callkeep"
+        ]
+      }
+    }
+  },
   "devDependencies": {
     "@eslint/js": "^9.25.0",
     "@firebase/rules-unit-testing": "^5.0.0",

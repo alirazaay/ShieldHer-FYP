@@ -28,6 +28,7 @@ Rules tests use Firebase Emulator Suite with `@firebase/rules-unit-testing`.
 
 ### Full rules validation
 - Use `npm run test:rules:emulator` for full rules enforcement checks.
+- Firebase Emulator Suite requires Java 21+ on recent `firebase-tools` versions.
 - This command runs `firebase emulators:exec --only firestore ...` and executes all assertions against live emulator state.
 
 ## CI Pipeline Commands

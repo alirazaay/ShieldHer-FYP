@@ -55,7 +55,7 @@ function ForgotPasswordPage() {
                 <div style={{ fontSize: '48px', marginBottom: '15px' }}>✉️</div>
                 <h3 className="forgot-password-step-title">Check Your Email</h3>
                 <p style={{ color: '#666', fontSize: '14px', lineHeight: '1.6', marginBottom: '20px' }}>
-                  We've sent a password reset link to <strong>{email}</strong>. 
+                  We&apos;ve sent a password reset link to <strong>{email}</strong>. 
                   Please check your inbox and follow the instructions.
                 </p>
                 <button
@@ -70,7 +70,7 @@ function ForgotPasswordPage() {
             <form onSubmit={handleSubmit} className="forgot-password-form">
               <h3 className="forgot-password-step-title">Enter Your Email</h3>
               <p style={{ color: '#666', fontSize: '13px', marginBottom: '15px' }}>
-                We'll send you a link to reset your password.
+                We&apos;ll send you a link to reset your password.
               </p>
               <label className="forgot-password-label">Email Address</label>
               <input

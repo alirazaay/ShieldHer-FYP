@@ -86,7 +86,7 @@ function DashboardPage() {
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h1 className="page-title">Welcome Back, {officerName}</h1>
-          <p className="page-subtitle">Here's what's happening with ShieldHer today</p>
+          <p className="page-subtitle">Here&apos;s what&apos;s happening with ShieldHer today</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
           <div style={{ 

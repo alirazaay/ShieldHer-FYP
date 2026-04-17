@@ -66,6 +66,7 @@ export default {
     },
 
     plugins: [
+      'expo-dev-client',
       'expo-speech-recognition',
       [
         'expo-location',

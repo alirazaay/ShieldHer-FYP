@@ -41,9 +41,9 @@ function safeErrorMessage(error) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const EXPO_PUSH_API = 'https://exp.host/--/push/v2/send';
-const SOS_PUSH_TITLE = '🚨 EMERGENCY! User needs help';
+const SOS_PUSH_TITLE = '🚨 Emergency SOS Alert';
 const SOS_SMS_FALLBACK_DELAY_MS =
-  process.env.NODE_ENV === 'test'
+  process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID != null
     ? 0
     : Number.isFinite(Number(process.env.SOS_SMS_FALLBACK_DELAY_MS))
       ? Number(process.env.SOS_SMS_FALLBACK_DELAY_MS)

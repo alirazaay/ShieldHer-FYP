@@ -43,7 +43,8 @@ function LoginPage() {
           <div className="login-shield">🛡️</div>
           <h2 className="login-heading">POLICE COMMAND & CONTROL</h2>
           <p className="login-subheading">
-            Protecting Our Communities.<br />
+            Protecting Our Communities.
+            <br />
             Secure Their Future
           </p>
         </div>
@@ -53,15 +54,17 @@ function LoginPage() {
           <p className="login-app-subtitle">Police Portal</p>
           <form onSubmit={handleLogin} className="login-form">
             {error && (
-              <div style={{
-                background: '#ffe5e5',
-                color: '#ff0000',
-                padding: '10px 15px',
-                borderRadius: '8px',
-                fontSize: '13px',
-                marginBottom: '15px',
-                fontWeight: '500',
-              }}>
+              <div
+                style={{
+                  background: '#ffe5e5',
+                  color: '#ff0000',
+                  padding: '10px 15px',
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                  marginBottom: '15px',
+                  fontWeight: '500',
+                }}
+              >
                 {error}
               </div>
             )}

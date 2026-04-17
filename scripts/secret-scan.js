@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-/* eslint-disable no-console */
 
 const fs = require('fs');
 const path = require('path');
@@ -8,13 +7,23 @@ const { execSync } = require('child_process');
 const ROOT = process.cwd();
 const STAGED_ONLY = process.argv.includes('--staged');
 
-const IGNORED_FILES = new Set([
-  '.env.example',
-  'package-lock.json',
-]);
+const IGNORED_FILES = new Set(['.env.example', 'package-lock.json']);
 
 const IGNORED_EXTENSIONS = new Set([
-  '.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.pdf', '.zip', '.db', '.mp3', '.mp4', '.wav', '.ttf', '.otf',
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.gif',
+  '.webp',
+  '.svg',
+  '.pdf',
+  '.zip',
+  '.db',
+  '.mp3',
+  '.mp4',
+  '.wav',
+  '.ttf',
+  '.otf',
 ]);
 
 const SECRET_PATTERNS = [
@@ -36,7 +45,8 @@ const SECRET_PATTERNS = [
   },
   {
     label: 'Potential hardcoded secret assignment',
-    regex: /(?:API_KEY|AUTH_TOKEN|SECRET_KEY|ACCESS_TOKEN|PRIVATE_KEY)\s*[:=]\s*["'][^"']{16,}["']/g,
+    regex:
+      /(?:API_KEY|AUTH_TOKEN|SECRET_KEY|ACCESS_TOKEN|PRIVATE_KEY)\s*[:=]\s*["'][^"']{16,}["']/g,
   },
 ];
 
@@ -50,7 +60,8 @@ function getCandidateFiles() {
 function shouldScanFile(relPath) {
   if (IGNORED_FILES.has(relPath)) return false;
   if (relPath.startsWith('node_modules/')) return false;
-  if (relPath.startsWith('android/build/') || relPath.startsWith('android/app/build/')) return false;
+  if (relPath.startsWith('android/build/') || relPath.startsWith('android/app/build/'))
+    return false;
 
   const ext = path.extname(relPath).toLowerCase();
   if (IGNORED_EXTENSIONS.has(ext)) return false;
@@ -107,7 +118,9 @@ function main() {
   });
 
   if (findings.length === 0) {
-    console.log(`[secret-scan] OK: no potential secrets found (${STAGED_ONLY ? 'staged' : 'tracked'} files).`);
+    console.log(
+      `[secret-scan] OK: no potential secrets found (${STAGED_ONLY ? 'staged' : 'tracked'} files).`
+    );
     return;
   }
 
@@ -115,7 +128,9 @@ function main() {
   findings.forEach((f) => {
     console.error(`- ${f.file}:${f.line} [${f.label}] ${f.preview}`);
   });
-  console.error('[secret-scan] Commit blocked. Remove secrets or move them to environment variables.');
+  console.error(
+    '[secret-scan] Commit blocked. Remove secrets or move them to environment variables.'
+  );
   process.exit(1);
 }
 

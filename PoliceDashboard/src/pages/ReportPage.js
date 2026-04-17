@@ -50,7 +50,7 @@ function ReportPage() {
       color: '#10b981',
     },
     {
-      count: alertStats ? (alertStats.active + alertStats.escalated + alertStats.responded) : 0,
+      count: alertStats ? alertStats.active + alertStats.escalated + alertStats.responded : 0,
       label: 'Active Cases',
       subtitle: 'In progress',
       icon: '⏱️',
@@ -103,10 +103,12 @@ function ReportPage() {
 
       // Generate CSV
       const csvHeaders = 'Alert ID,Status,Type,Latitude,Longitude,Created At\n';
-      const csvRows = alerts.map((a) => {
-        const created = a.createdAt ? formatDate(a.createdAt) : 'N/A';
-        return `"${a.id}","${a.status}","${a.type || a.alertType || 'N/A'}","${a.latitude || ''}","${a.longitude || ''}","${created}"`;
-      }).join('\n');
+      const csvRows = alerts
+        .map((a) => {
+          const created = a.createdAt ? formatDate(a.createdAt) : 'N/A';
+          return `"${a.id}","${a.status}","${a.type || a.alertType || 'N/A'}","${a.latitude || ''}","${a.longitude || ''}","${created}"`;
+        })
+        .join('\n');
 
       const blob = new Blob([csvHeaders + csvRows], { type: 'text/csv' });
       const url = URL.createObjectURL(blob);
@@ -134,7 +136,16 @@ function ReportPage() {
         <h1 className="page-title">📊 Reports & Analytics</h1>
         <p className="page-subtitle">View statistics and generate reports</p>
         <div style={{ display: 'flex', gap: '15px', alignItems: 'center', marginTop: '20px' }}>
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', background: '#f5f5f5', borderRadius: '8px', padding: '10px' }}>
+          <div
+            style={{
+              flex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              background: '#f5f5f5',
+              borderRadius: '8px',
+              padding: '10px',
+            }}
+          >
             <input
               type="date"
               value={startDate}
@@ -143,7 +154,16 @@ function ReportPage() {
             />
           </div>
           <span style={{ color: '#666' }}>to</span>
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', background: '#f5f5f5', borderRadius: '8px', padding: '10px' }}>
+          <div
+            style={{
+              flex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              background: '#f5f5f5',
+              borderRadius: '8px',
+              padding: '10px',
+            }}
+          >
             <input
               type="date"
               value={endDate}
@@ -173,16 +193,28 @@ function ReportPage() {
                 {stat.icon}
               </div>
             </div>
-            <div style={{ fontSize: '36px', fontWeight: 'bold', marginBottom: '5px' }}>{stat.count}</div>
-            <div style={{ fontSize: '15px', fontWeight: '600', marginBottom: '3px' }}>{stat.label}</div>
+            <div style={{ fontSize: '36px', fontWeight: 'bold', marginBottom: '5px' }}>
+              {stat.count}
+            </div>
+            <div style={{ fontSize: '15px', fontWeight: '600', marginBottom: '3px' }}>
+              {stat.label}
+            </div>
             <div style={{ fontSize: '12px', color: '#666' }}>{stat.subtitle}</div>
           </div>
         ))}
       </div>
 
       <div>
-        <h2 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '20px' }}>Generate Reports</h2>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
+        <h2 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '20px' }}>
+          Generate Reports
+        </h2>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+            gap: '20px',
+          }}
+        >
           {reports.map((report, index) => (
             <div key={index} className="card">
               <div
@@ -200,8 +232,12 @@ function ReportPage() {
               >
                 {report.icon}
               </div>
-              <h3 style={{ fontSize: '17px', fontWeight: 'bold', marginBottom: '10px' }}>{report.title}</h3>
-              <p style={{ fontSize: '13px', color: '#666', marginBottom: '20px', lineHeight: '1.5' }}>
+              <h3 style={{ fontSize: '17px', fontWeight: 'bold', marginBottom: '10px' }}>
+                {report.title}
+              </h3>
+              <p
+                style={{ fontSize: '13px', color: '#666', marginBottom: '20px', lineHeight: '1.5' }}
+              >
                 {report.description}
               </p>
               <button

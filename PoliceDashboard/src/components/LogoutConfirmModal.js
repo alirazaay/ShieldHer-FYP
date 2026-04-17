@@ -21,11 +21,14 @@ function LogoutConfirmModal({ isOpen, onCancel }) {
     }
   };
 
-  const handleKeyDown = useCallback((event) => {
-    if (event.key === 'Escape' && isOpen) {
-      onCancel();
-    }
-  }, [isOpen, onCancel]);
+  const handleKeyDown = useCallback(
+    (event) => {
+      if (event.key === 'Escape' && isOpen) {
+        onCancel();
+      }
+    },
+    [isOpen, onCancel]
+  );
 
   useEffect(() => {
     document.addEventListener('keydown', handleKeyDown);
@@ -42,22 +45,14 @@ function LogoutConfirmModal({ isOpen, onCancel }) {
         </div>
         <h2 className="modal-title">Confirm Logout</h2>
         <p className="modal-message">Are you sure you want to log out of your ShieldHer session?</p>
-        
+
         {error && <p className="modal-error">{error}</p>}
-        
+
         <div className="modal-buttons">
-          <button 
-            className="btn-cancel" 
-            onClick={onCancel} 
-            disabled={isLoading}
-          >
+          <button className="btn-cancel" onClick={onCancel} disabled={isLoading}>
             Cancel
           </button>
-          <button 
-            className="btn-logout" 
-            onClick={handleLogout} 
-            disabled={isLoading}
-          >
+          <button className="btn-logout" onClick={handleLogout} disabled={isLoading}>
             {isLoading ? 'Logging out...' : 'Yes, Log Out'}
           </button>
         </div>

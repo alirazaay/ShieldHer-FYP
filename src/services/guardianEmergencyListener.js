@@ -1,12 +1,17 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
-import { collection, doc, onSnapshot, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
+import {
+  collection,
+  doc,
+  onSnapshot,
+  query,
+  serverTimestamp,
+  updateDoc,
+  where,
+} from 'firebase/firestore';
 import { db } from '../config/firebase';
 import logger from '../utils/logger';
-import {
-  initializeEmergencyCallService,
-  showIncomingEmergencyCall,
-} from './emergencyCallService';
+import { initializeEmergencyCallService, showIncomingEmergencyCall } from './emergencyCallService';
 import { startEmergencyAlarm, stopEmergencyAlarm } from './emergencyAlarmService';
 
 const TAG = '[guardianEmergencyListener]';
@@ -182,21 +187,25 @@ async function replayCachedAlerts() {
 
 function bindNotificationListeners() {
   if (!notificationReceivedSub) {
-    notificationReceivedSub = Notifications.addNotificationReceivedListener(async (notification) => {
-      const payload = normalizeEmergencyPayload(notification?.request?.content?.data);
-      if (!payload) return;
+    notificationReceivedSub = Notifications.addNotificationReceivedListener(
+      async (notification) => {
+        const payload = normalizeEmergencyPayload(notification?.request?.content?.data);
+        if (!payload) return;
 
-      await handleEmergencyPayload(payload, 'foreground');
-    });
+        await handleEmergencyPayload(payload, 'foreground');
+      }
+    );
   }
 
   if (!notificationResponseSub) {
-    notificationResponseSub = Notifications.addNotificationResponseReceivedListener(async (response) => {
-      const payload = normalizeEmergencyPayload(response?.notification?.request?.content?.data);
-      if (!payload) return;
+    notificationResponseSub = Notifications.addNotificationResponseReceivedListener(
+      async (response) => {
+        const payload = normalizeEmergencyPayload(response?.notification?.request?.content?.data);
+        if (!payload) return;
 
-      await handleEmergencyPayload(payload, 'response');
-    });
+        await handleEmergencyPayload(payload, 'response');
+      }
+    );
   }
 }
 

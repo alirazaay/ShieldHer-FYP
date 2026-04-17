@@ -2,7 +2,10 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { acceptIncomingEmergency, declineIncomingEmergency } from '../services/guardianEmergencyListener';
+import {
+  acceptIncomingEmergency,
+  declineIncomingEmergency,
+} from '../services/guardianEmergencyListener';
 
 export default function IncomingSOSCallScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
@@ -25,7 +28,9 @@ export default function IncomingSOSCallScreen({ navigation, route }) {
   };
 
   return (
-    <SafeAreaView style={[styles.safe, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 20 }]}>
+    <SafeAreaView
+      style={[styles.safe, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 20 }]}
+    >
       <View style={styles.content}>
         <MaterialCommunityIcons name="phone-alert" size={72} color="#fff" />
         <Text style={styles.label}>Incoming Emergency Alert</Text>

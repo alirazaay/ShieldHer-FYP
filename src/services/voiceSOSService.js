@@ -82,13 +82,17 @@ class VoiceSOSService {
       const location = await getCurrentLocation();
       if (location && this._currentUserId) {
         // Use dispatchSOSAlert for offline-aware SOS with SMS fallback
-        const result = await dispatchSOSAlert(this._currentUserId, {
-          latitude: location.latitude,
-          longitude: location.longitude,
-          accuracy: location.accuracy,
-        }, {
-          triggerType: 'AI',
-        });
+        const result = await dispatchSOSAlert(
+          this._currentUserId,
+          {
+            latitude: location.latitude,
+            longitude: location.longitude,
+            accuracy: location.accuracy,
+          },
+          {
+            triggerType: 'AI',
+          }
+        );
 
         if (result.success) {
           logger.info('[VoiceSOSService]', `Voice-triggered SOS dispatched via ${result.method}!`);

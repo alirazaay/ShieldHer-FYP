@@ -88,7 +88,11 @@ export async function initializeEmergencyCallService({ onAccept, onDecline } = {
     logger.info(TAG, 'CallKeep initialized');
     return true;
   } catch (error) {
-    logger.warn(TAG, 'CallKeep initialization failed, using in-app fallback:', error?.message || error);
+    logger.warn(
+      TAG,
+      'CallKeep initialization failed, using in-app fallback:',
+      error?.message || error
+    );
     return false;
   }
 }
@@ -104,13 +108,7 @@ export async function showIncomingEmergencyCall(payload) {
   try {
     activeCalls.set(callUUID, payload);
 
-    await RNCallKeep.displayIncomingCall(
-      callUUID,
-      'ShieldHer SOS',
-      callerName,
-      'generic',
-      true
-    );
+    await RNCallKeep.displayIncomingCall(callUUID, 'ShieldHer SOS', callerName, 'generic', true);
 
     logger.warn(TAG, 'Incoming emergency call displayed', {
       alertId: payload?.alertId,

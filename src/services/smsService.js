@@ -27,7 +27,9 @@ async function sendSilentSMS(phoneNumbers, message) {
     if (!SmsModule) {
       // Native module not linked (e.g. Expo Go). Surface the error so the
       // caller can decide whether to fall back to the composer.
-      throw new Error('SmsModule native module is not available. Rebuild the app with `npx expo run:android`.');
+      throw new Error(
+        'SmsModule native module is not available. Rebuild the app with `npx expo run:android`.'
+      );
     }
 
     // SmsModule.sendSMS resolves with { sent, failed, errors }
@@ -46,10 +48,7 @@ async function sendSilentSMS(phoneNumbers, message) {
   return {
     sent: composerSent,
     failed: phoneNumbers.length - composerSent,
-    errors:
-      composerResult.result === 'cancelled'
-        ? 'SMS composer was cancelled by the user'
-        : '',
+    errors: composerResult.result === 'cancelled' ? 'SMS composer was cancelled by the user' : '',
   };
 }
 
@@ -283,7 +282,10 @@ export async function sendEmergencySMSToGuardians(userId, location, userName = n
       }
 
       if (summary.sent > 0) {
-        logger.info(TAG, `Emergency SMS sent to ${summary.sent} of ${phoneNumbers.length} guardian(s)`);
+        logger.info(
+          TAG,
+          `Emergency SMS sent to ${summary.sent} of ${phoneNumbers.length} guardian(s)`
+        );
       } else {
         logger.warn(TAG, 'No SMS messages were delivered in this batch');
       }

@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-/* eslint-disable no-console */
 
 const fs = require('fs');
 const { execSync } = require('child_process');
@@ -47,7 +46,10 @@ function main() {
   }
 
   if (fs.existsSync('.env')) {
-    warn('.env file exists locally', 'ensure it is not committed and values are rotated if ever exposed');
+    warn(
+      '.env file exists locally',
+      'ensure it is not committed and values are rotated if ever exposed'
+    );
   } else {
     pass('.env file not found in working tree');
   }
@@ -55,7 +57,10 @@ function main() {
   const historyCheck = run('git rev-list --all -- .env');
   if (typeof historyCheck === 'string' && historyCheck.length > 0) {
     issues += 1;
-    warn('.env found in git history', 'perform history rewrite and force-push per incident response plan');
+    warn(
+      '.env found in git history',
+      'perform history rewrite and force-push per incident response plan'
+    );
   } else {
     pass('.env not found in git history');
   }
@@ -68,7 +73,9 @@ function main() {
     fail('Secret scan failed', secretScan.message || 'unknown error');
   }
 
-  console.log(`\nSecurity status summary: ${issues === 0 ? 'healthy' : 'action required'} (${issues} issue(s)).`);
+  console.log(
+    `\nSecurity status summary: ${issues === 0 ? 'healthy' : 'action required'} (${issues} issue(s)).`
+  );
   process.exit(issues === 0 ? 0 : 1);
 }
 

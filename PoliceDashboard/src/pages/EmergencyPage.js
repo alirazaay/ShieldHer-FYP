@@ -18,7 +18,11 @@ function EmergencyPage() {
   const [activeFilter, setActiveFilter] = useState('All Alerts');
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
-  const [dispatchModal, setDispatchModal] = useState({ open: false, alertId: null, policeAlertId: null });
+  const [dispatchModal, setDispatchModal] = useState({
+    open: false,
+    alertId: null,
+    policeAlertId: null,
+  });
 
   const filters = ['All Alerts', 'Critical', 'Responded', 'Resolved'];
 
@@ -133,11 +137,21 @@ function EmergencyPage() {
         <h1 className="page-title">🚨 Emergency Alerts</h1>
         <p className="page-subtitle">
           Monitor and manage all emergency situations in real-time
-          {alerts.length > 0 && <span style={{ marginLeft: '10px', fontWeight: '600' }}>({alerts.length} total)</span>}
+          {alerts.length > 0 && (
+            <span style={{ marginLeft: '10px', fontWeight: '600' }}>({alerts.length} total)</span>
+          )}
         </p>
       </div>
 
-      <div style={{ marginBottom: '20px', display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+      <div
+        style={{
+          marginBottom: '20px',
+          display: 'flex',
+          gap: '10px',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+        }}
+      >
         <span style={{ fontWeight: '600', marginRight: '10px' }}>Filter by:</span>
         {filters.map((filter, index) => (
           <button
@@ -171,7 +185,9 @@ function EmergencyPage() {
       {filteredAlerts.length === 0 ? (
         <div className="card" style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
           <div style={{ fontSize: '48px', marginBottom: '10px' }}>📭</div>
-          <p>No alerts found {activeFilter !== 'All Alerts' ? `for "${activeFilter}" filter` : ''}</p>
+          <p>
+            No alerts found {activeFilter !== 'All Alerts' ? `for "${activeFilter}" filter` : ''}
+          </p>
         </div>
       ) : (
         filteredAlerts.map((alert) => {
@@ -185,7 +201,9 @@ function EmergencyPage() {
               className="card"
               style={{ borderLeft: `6px solid ${statusInfo.color}` }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
+              <div
+                style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}
+              >
                 <span className="badge" style={{ backgroundColor: statusInfo.color }}>
                   {statusInfo.label}
                 </span>
@@ -195,11 +213,15 @@ function EmergencyPage() {
               </div>
 
               <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '12px' }}>
-                {alert.status === 'active' || alert.status === 'escalated' ? 'Safety Concern' : 'Emergency'} — {userData?.fullName || uid || 'Unknown User'}
+                {alert.status === 'active' || alert.status === 'escalated'
+                  ? 'Safety Concern'
+                  : 'Emergency'}{' '}
+                — {userData?.fullName || uid || 'Unknown User'}
               </h3>
 
               <div style={{ marginBottom: '8px', fontSize: '13px', color: '#333' }}>
-                📍 {alert.latitude && alert.longitude
+                📍{' '}
+                {alert.latitude && alert.longitude
                   ? `${Number(alert.latitude).toFixed(4)}, ${Number(alert.longitude).toFixed(4)}`
                   : 'Location not available'}
               </div>
@@ -220,7 +242,9 @@ function EmergencyPage() {
                   <>
                     <button
                       className="button button-danger"
-                      onClick={() => setDispatchModal({ open: true, alertId: alert.id, policeAlertId: null })}
+                      onClick={() =>
+                        setDispatchModal({ open: true, alertId: alert.id, policeAlertId: null })
+                      }
                     >
                       🚨 Dispatch Unit Now
                     </button>
@@ -244,10 +268,7 @@ function EmergencyPage() {
                 )}
                 {alert.status === 'responded' && (
                   <>
-                    <button
-                      className="button button-success"
-                      onClick={() => handleResolve(alert)}
-                    >
+                    <button className="button button-success" onClick={() => handleResolve(alert)}>
                       ✓ Case Closed
                     </button>
                     <button

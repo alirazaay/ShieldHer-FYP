@@ -44,27 +44,31 @@ function Sidebar() {
 
         {/* Officer profile in sidebar */}
         {policeProfile && (
-          <div style={{
-            padding: '12px 15px',
-            margin: '0 5px 15px',
-            background: '#fff',
-            borderRadius: '8px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-          }}>
-            <div style={{
-              width: '36px',
-              height: '36px',
-              borderRadius: '50%',
-              background: '#4318ff',
+          <div
+            style={{
+              padding: '12px 15px',
+              margin: '0 5px 15px',
+              background: '#fff',
+              borderRadius: '8px',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              color: 'white',
-              fontSize: '13px',
-              fontWeight: 'bold',
-            }}>
+              gap: '10px',
+            }}
+          >
+            <div
+              style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: '50%',
+                background: '#4318ff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'white',
+                fontSize: '13px',
+                fontWeight: 'bold',
+              }}
+            >
               {getInitials()}
             </div>
             <div>
@@ -101,10 +105,7 @@ function Sidebar() {
         </div>
       </div>
 
-      <LogoutConfirmModal 
-        isOpen={showLogoutModal} 
-        onCancel={() => setShowLogoutModal(false)}
-      />
+      <LogoutConfirmModal isOpen={showLogoutModal} onCancel={() => setShowLogoutModal(false)} />
     </>
   );
 }

@@ -34,37 +34,42 @@ export function subscribeToAlerts(callback, statusFilter = null) {
     q = query(collection(db, 'alerts'), orderBy('createdAt', 'desc'));
   }
 
-  return onSnapshot(q, (snapshot) => {
-    const alerts = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
-    callback(alerts);
-  }, (error) => {
-    console.error('Error subscribing to alerts:', error);
-    callback([]);
-  });
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const alerts = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      callback(alerts);
+    },
+    (error) => {
+      console.error('Error subscribing to alerts:', error);
+      callback([]);
+    }
+  );
 }
 
 /**
  * Subscribe to police-escalated alerts (real-time)
  */
 export function subscribeToPoliceAlerts(callback) {
-  const q = query(
-    collection(db, 'policeAlerts'),
-    orderBy('escalatedAt', 'desc')
-  );
+  const q = query(collection(db, 'policeAlerts'), orderBy('escalatedAt', 'desc'));
 
-  return onSnapshot(q, (snapshot) => {
-    const alerts = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
-    callback(alerts);
-  }, (error) => {
-    console.error('Error subscribing to policeAlerts:', error);
-    callback([]);
-  });
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const alerts = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      callback(alerts);
+    },
+    (error) => {
+      console.error('Error subscribing to policeAlerts:', error);
+      callback([]);
+    }
+  );
 }
 
 /**
@@ -73,16 +78,20 @@ export function subscribeToPoliceAlerts(callback) {
 export function subscribeToUsers(callback) {
   const q = query(collection(db, 'users'));
 
-  return onSnapshot(q, (snapshot) => {
-    const users = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
-    callback(users);
-  }, (error) => {
-    console.error('Error subscribing to users:', error);
-    callback([]);
-  });
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const users = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      callback(users);
+    },
+    (error) => {
+      console.error('Error subscribing to users:', error);
+      callback([]);
+    }
+  );
 }
 
 /**
@@ -91,16 +100,20 @@ export function subscribeToUsers(callback) {
 export function subscribeToPoliceUnits(callback) {
   const q = query(collection(db, 'policeUnits'));
 
-  return onSnapshot(q, (snapshot) => {
-    const units = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
-    callback(units);
-  }, (error) => {
-    console.error('Error subscribing to policeUnits:', error);
-    callback([]);
-  });
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const units = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      callback(units);
+    },
+    (error) => {
+      console.error('Error subscribing to policeUnits:', error);
+      callback([]);
+    }
+  );
 }
 
 // ============================================================
@@ -144,9 +157,7 @@ export async function getAlertById(alertId) {
  */
 export async function getUserGuardians(userId) {
   try {
-    const guardiansSnapshot = await getDocs(
-      collection(db, 'users', userId, 'guardians')
-    );
+    const guardiansSnapshot = await getDocs(collection(db, 'users', userId, 'guardians'));
     return guardiansSnapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
@@ -331,26 +342,30 @@ export async function resolveAlert(alertId, policeAlertId, unitId, officerUid) {
 export function subscribeToAlertStats(callback) {
   const q = query(collection(db, 'alerts'));
 
-  return onSnapshot(q, (snapshot) => {
-    const stats = {
-      active: 0,
-      responded: 0,
-      resolved: 0,
-      escalated: 0,
-      cancelled: 0,
-      total: snapshot.size,
-    };
-    snapshot.docs.forEach((doc) => {
-      const data = doc.data();
-      if (stats[data.status] !== undefined) {
-        stats[data.status]++;
-      }
-    });
-    callback(stats);
-  }, (error) => {
-    console.error('Error subscribing to alert stats:', error);
-    callback({ active: 0, responded: 0, resolved: 0, escalated: 0, cancelled: 0, total: 0 });
-  });
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const stats = {
+        active: 0,
+        responded: 0,
+        resolved: 0,
+        escalated: 0,
+        cancelled: 0,
+        total: snapshot.size,
+      };
+      snapshot.docs.forEach((doc) => {
+        const data = doc.data();
+        if (stats[data.status] !== undefined) {
+          stats[data.status]++;
+        }
+      });
+      callback(stats);
+    },
+    (error) => {
+      console.error('Error subscribing to alert stats:', error);
+      callback({ active: 0, responded: 0, resolved: 0, escalated: 0, cancelled: 0, total: 0 });
+    }
+  );
 }
 
 /**

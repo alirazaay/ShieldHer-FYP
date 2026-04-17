@@ -64,7 +64,6 @@ export const navigationRef = createNavigationContainerRef();
 const Stack = createNativeStackNavigator();
 
 export default function App() {
-
   // Refs to hold cleanup functions so they survive re-renders
   const cleanupForegroundHandler = useRef(null);
   const cleanupTokenRefresh = useRef(null);
@@ -192,7 +191,12 @@ export default function App() {
       }
       const navTarget = handleNotificationNavigation(response);
       if (navTarget && navigationRef.isReady()) {
-        logger.info(TAG, 'Navigating from launch notification:', navTarget.screen, navTarget.params);
+        logger.info(
+          TAG,
+          'Navigating from launch notification:',
+          navTarget.screen,
+          navTarget.params
+        );
         // Small delay to ensure Navigator is mounted
         setTimeout(() => {
           if (navigationRef.isReady()) {

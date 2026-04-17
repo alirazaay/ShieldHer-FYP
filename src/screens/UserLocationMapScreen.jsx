@@ -18,10 +18,7 @@ import logger from '../utils/logger';
 const TAG = '[UserLocationMapScreen]';
 
 function hasValidCoordinates(location) {
-  return (
-    Number.isFinite(location?.latitude) &&
-    Number.isFinite(location?.longitude)
-  );
+  return Number.isFinite(location?.latitude) && Number.isFinite(location?.longitude);
 }
 
 const UserLocationMapScreen = ({ navigation, route }) => {
@@ -46,8 +43,7 @@ const UserLocationMapScreen = ({ navigation, route }) => {
   const mapRef = useRef(null);
   const locationSubscriptionRef = useRef(null);
 
-  const hasRouteCoordinates =
-    Number.isFinite(routeLatitude) && Number.isFinite(routeLongitude);
+  const hasRouteCoordinates = Number.isFinite(routeLatitude) && Number.isFinite(routeLongitude);
 
   const extractAlertLocation = (alertData = {}) => {
     const lat = Number(alertData?.latitude ?? alertData?.location?.latitude ?? NaN);

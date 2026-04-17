@@ -21,7 +21,9 @@ function Toast() {
 
   useEffect(() => {
     toastListener = addToast;
-    return () => { toastListener = null; };
+    return () => {
+      toastListener = null;
+    };
   }, [addToast]);
 
   const getToastStyle = (type) => {
@@ -54,26 +56,33 @@ function Toast() {
 
   const getIcon = (type) => {
     switch (type) {
-      case 'success': return '✓';
-      case 'error': return '✕';
-      case 'warning': return '⚠';
-      case 'info': return 'ℹ';
-      default: return '';
+      case 'success':
+        return '✓';
+      case 'error':
+        return '✕';
+      case 'warning':
+        return '⚠';
+      case 'info':
+        return 'ℹ';
+      default:
+        return '';
     }
   };
 
   if (toasts.length === 0) return null;
 
   return (
-    <div style={{
-      position: 'fixed',
-      top: '20px',
-      right: '20px',
-      zIndex: 10000,
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '10px',
-    }}>
+    <div
+      style={{
+        position: 'fixed',
+        top: '20px',
+        right: '20px',
+        zIndex: 10000,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '10px',
+      }}
+    >
       {toasts.map((toast) => (
         <div
           key={toast.id}

@@ -4,20 +4,34 @@ global.__DEV__ = true;
 
 const otpStore = {};
 
-jest.mock('firebase-functions/v2/firestore', () => ({
-  onDocumentCreated: jest.fn((_, handler) => handler),
-  onDocumentUpdated: jest.fn((_, handler) => handler),
-}), { virtual: true });
+jest.mock(
+  'firebase-functions/v2/firestore',
+  () => ({
+    onDocumentCreated: jest.fn((_, handler) => handler),
+    onDocumentUpdated: jest.fn((_, handler) => handler),
+  }),
+  { virtual: true }
+);
 
-jest.mock('firebase-functions/v2/https', () => ({
-  onRequest: jest.fn((_, handler) => handler),
-}), { virtual: true });
+jest.mock(
+  'firebase-functions/v2/https',
+  () => ({
+    onRequest: jest.fn((_, handler) => handler),
+  }),
+  { virtual: true }
+);
 
-jest.mock('firebase-functions/v2/scheduler', () => ({
-  onSchedule: jest.fn((_, handler) => handler),
-}), { virtual: true });
+jest.mock(
+  'firebase-functions/v2/scheduler',
+  () => ({
+    onSchedule: jest.fn((_, handler) => handler),
+  }),
+  { virtual: true }
+);
 
-jest.mock('axios', () => ({ post: jest.fn(async () => ({ data: { data: [] } })) }), { virtual: true });
+jest.mock('axios', () => ({ post: jest.fn(async () => ({ data: { data: [] } })) }), {
+  virtual: true,
+});
 
 jest.mock('../../functions/escalationService', () => ({
   enqueueEscalation: jest.fn(async () => {}),
@@ -26,69 +40,81 @@ jest.mock('../../functions/escalationService', () => ({
 
 jest.mock('firebase-admin/app', () => ({ initializeApp: jest.fn() }), { virtual: true });
 
-jest.mock('firebase-admin/firestore', () => ({
-  getFirestore: jest.fn(() => ({
-    collection: (name) => {
-      if (name !== 'otpCodes') {
+jest.mock(
+  'firebase-admin/firestore',
+  () => ({
+    getFirestore: jest.fn(() => ({
+      collection: (name) => {
+        if (name !== 'otpCodes') {
+          return {
+            doc: () => ({
+              get: async () => ({ exists: false, data: () => ({}) }),
+              set: async () => {},
+              delete: async () => {},
+            }),
+          };
+        }
+
         return {
-          doc: () => ({
-            get: async () => ({ exists: false, data: () => ({}) }),
-            set: async () => {},
-            delete: async () => {},
+          doc: (id) => ({
+            get: async () => {
+              const existing = otpStore[id];
+              return {
+                exists: !!existing,
+                data: () => existing || {},
+              };
+            },
+            set: async (payload) => {
+              otpStore[id] = {
+                ...(otpStore[id] || {}),
+                ...payload,
+              };
+            },
+            update: async (payload) => {
+              const current = otpStore[id] || {};
+              const next = { ...current };
+              Object.keys(payload || {}).forEach((key) => {
+                const value = payload[key];
+                if (
+                  value &&
+                  typeof value === 'object' &&
+                  Object.prototype.hasOwnProperty.call(value, '__incrementBy')
+                ) {
+                  next[key] = Number(next[key] || 0) + Number(value.__incrementBy);
+                } else {
+                  next[key] = value;
+                }
+              });
+              otpStore[id] = next;
+            },
+            delete: async () => {
+              delete otpStore[id];
+            },
           }),
         };
-      }
-
-      return {
-        doc: (id) => ({
-          get: async () => {
-            const existing = otpStore[id];
-            return {
-              exists: !!existing,
-              data: () => existing || {},
-            };
-          },
-          set: async (payload) => {
-            otpStore[id] = {
-              ...(otpStore[id] || {}),
-              ...payload,
-            };
-          },
-          update: async (payload) => {
-            const current = otpStore[id] || {};
-            const next = { ...current };
-            Object.keys(payload || {}).forEach((key) => {
-              const value = payload[key];
-              if (value && typeof value === 'object' && Object.prototype.hasOwnProperty.call(value, '__incrementBy')) {
-                next[key] = Number(next[key] || 0) + Number(value.__incrementBy);
-              } else {
-                next[key] = value;
-              }
-            });
-            otpStore[id] = next;
-          },
-          delete: async () => {
-            delete otpStore[id];
-          },
-        }),
-      };
+      },
+    })),
+    FieldValue: {
+      serverTimestamp: jest.fn(() => new Date()),
+      increment: jest.fn((n) => ({ __incrementBy: n })),
     },
-  })),
-  FieldValue: {
-    serverTimestamp: jest.fn(() => new Date()),
-    increment: jest.fn((n) => ({ __incrementBy: n })),
-  },
-}), { virtual: true });
+  }),
+  { virtual: true }
+);
 
-jest.mock('firebase-admin/auth', () => ({
-  getAuth: jest.fn(() => ({
-    getUserByPhoneNumber: jest.fn(async () => {
-      throw Object.assign(new Error('not found'), { code: 'auth/user-not-found' });
-    }),
-    createUser: jest.fn(async () => ({ uid: 'uid-new' })),
-    createCustomToken: jest.fn(async () => 'custom-token'),
-  })),
-}), { virtual: true });
+jest.mock(
+  'firebase-admin/auth',
+  () => ({
+    getAuth: jest.fn(() => ({
+      getUserByPhoneNumber: jest.fn(async () => {
+        throw Object.assign(new Error('not found'), { code: 'auth/user-not-found' });
+      }),
+      createUser: jest.fn(async () => ({ uid: 'uid-new' })),
+      createCustomToken: jest.fn(async () => 'custom-token'),
+    })),
+  }),
+  { virtual: true }
+);
 
 function createResponse() {
   const res = {

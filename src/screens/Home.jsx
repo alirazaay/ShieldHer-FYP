@@ -55,82 +55,85 @@ const Home = ({ navigation }) => {
     }
   }, []);
 
-  const handleScreamDetected = useCallback(async (data) => {
-    try {
-      if (!autoSosEnabled) return;
+  const handleScreamDetected = useCallback(
+    async (data) => {
+      try {
+        if (!autoSosEnabled) return;
 
-      console.log('Scream Detected');
-      logger.warn(TAG, 'Scream Detected', {
-        confidence: data?.confidence ?? null,
-        source: data?.source ?? 'unknown',
-      });
-
-      const now = Date.now();
-      if (now - lastAutoSosTriggerRef.current < AUTO_SOS_COOLDOWN_MS) {
-        logger.info(TAG, 'Auto SOS skipped due to AI cooldown window');
-        return;
-      }
-
-      setAiTriggerLoading(true);
-
-      const user = auth.currentUser;
-      if (!user) {
-        logger.warn(TAG, 'Auto SOS skipped: user not authenticated');
-        return;
-      }
-
-      // Respect cooldown to avoid repeated auto-triggers.
-      const hasActiveAlert = await checkActiveAlert(user.uid);
-      if (hasActiveAlert) {
-        logger.info(TAG, 'Scream trigger ignored: active alert cooldown');
-        return;
-      }
-
-      // Prefer live device location; fall back to the last Firestore location.
-      let location = await getCurrentLocation();
-      if (!location) {
-        location = await fetchUserLocation(user.uid);
-      }
-
-      if (!location?.latitude || !location?.longitude) {
-        logger.warn(TAG, 'Auto SOS skipped: location not available yet');
-        Alert.alert('Auto SOS', 'Location not available yet');
-        return;
-      }
-
-      const detectedAt = Date.now();
-
-      const result = await dispatchSOSAlert(user.uid, location, {
-        triggerType: 'AI',
-        source: 'AI_DETECTION',
-        detectedAt,
-      });
-
-      if (result.success) {
-        lastAutoSosTriggerRef.current = now;
-        console.log('Auto SOS Triggered');
-        logger.warn(TAG, 'AI SOS dispatched', {
-          method: result.method,
+        console.log('Scream Detected');
+        logger.warn(TAG, 'Scream Detected', {
           confidence: data?.confidence ?? null,
           source: data?.source ?? 'unknown',
+        });
+
+        const now = Date.now();
+        if (now - lastAutoSosTriggerRef.current < AUTO_SOS_COOLDOWN_MS) {
+          logger.info(TAG, 'Auto SOS skipped due to AI cooldown window');
+          return;
+        }
+
+        setAiTriggerLoading(true);
+
+        const user = auth.currentUser;
+        if (!user) {
+          logger.warn(TAG, 'Auto SOS skipped: user not authenticated');
+          return;
+        }
+
+        // Respect cooldown to avoid repeated auto-triggers.
+        const hasActiveAlert = await checkActiveAlert(user.uid);
+        if (hasActiveAlert) {
+          logger.info(TAG, 'Scream trigger ignored: active alert cooldown');
+          return;
+        }
+
+        // Prefer live device location; fall back to the last Firestore location.
+        let location = await getCurrentLocation();
+        if (!location) {
+          location = await fetchUserLocation(user.uid);
+        }
+
+        if (!location?.latitude || !location?.longitude) {
+          logger.warn(TAG, 'Auto SOS skipped: location not available yet');
+          Alert.alert('Auto SOS', 'Location not available yet');
+          return;
+        }
+
+        const detectedAt = Date.now();
+
+        const result = await dispatchSOSAlert(user.uid, location, {
+          triggerType: 'AI',
+          source: 'AI_DETECTION',
           detectedAt,
-          userId: user.uid,
-          latitude: location.latitude,
-          longitude: location.longitude,
         });
-        Alert.alert('Auto SOS', 'Auto SOS Triggered');
-      } else {
-        logger.error(TAG, 'AI SOS failed', {
-          error: result.error,
-          confidence: data?.confidence ?? null,
-        });
+
+        if (result.success) {
+          lastAutoSosTriggerRef.current = now;
+          console.log('Auto SOS Triggered');
+          logger.warn(TAG, 'AI SOS dispatched', {
+            method: result.method,
+            confidence: data?.confidence ?? null,
+            source: data?.source ?? 'unknown',
+            detectedAt,
+            userId: user.uid,
+            latitude: location.latitude,
+            longitude: location.longitude,
+          });
+          Alert.alert('Auto SOS', 'Auto SOS Triggered');
+        } else {
+          logger.error(TAG, 'AI SOS failed', {
+            error: result.error,
+            confidence: data?.confidence ?? null,
+          });
+        }
+      } catch (err) {
+        logger.error(TAG, 'SOS trigger failed', err);
+      } finally {
+        setAiTriggerLoading(false);
       }
-    } catch (err) {
-      logger.error(TAG, 'SOS trigger failed', err);
-    } finally {
-      setAiTriggerLoading(false);
-    }
-  }, [autoSosEnabled]);
+    },
+    [autoSosEnabled]
+  );
 
   // AI detection pipeline with confidence threshold + multi-frame validation
   const {

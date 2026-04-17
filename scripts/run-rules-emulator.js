@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 const { spawnSync } = require('child_process');
 
 function getJavaMajorVersion() {
@@ -42,8 +41,7 @@ const javaMajor = getJavaMajorVersion();
 
 if (javaMajor == null || javaMajor < 21) {
   const found = javaMajor == null ? 'not found' : `v${javaMajor}`;
-  const message =
-    `[rules] Firestore emulator requires Java 21+. Detected ${found}.`;
+  const message = `[rules] Firestore emulator requires Java 21+. Detected ${found}.`;
 
   if (isStrict) {
     console.error(`${message} Failing because strict mode is enabled.`);
@@ -55,5 +53,7 @@ if (javaMajor == null || javaMajor < 21) {
 }
 
 process.exit(
-  runCommand('firebase emulators:exec --only firestore --project demo-shieldher "npm run test:rules"')
+  runCommand(
+    'firebase emulators:exec --only firestore --project demo-shieldher "npm run test:rules"'
+  )
 );

@@ -1,12 +1,5 @@
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Alert,
-  ActivityIndicator,
-} from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { auth } from '../config/firebase';
@@ -34,40 +27,36 @@ const AlertActiveScreen = ({ navigation, route }) => {
       return;
     }
 
-    Alert.alert(
-      'Cancel Emergency Alert',
-      'Are you safe? Cancelling will notify your guardians.',
-      [
-        { text: 'Keep Alert Active', style: 'cancel' },
-        {
-          text: 'Cancel Emergency',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const currentUser = auth.currentUser;
-              if (!currentUser) {
-                navigation.replace('Login');
-                return;
-              }
-
-              setCancelError(null);
-              setIsCancelling(true);
-              await cancelAlert(alertId, currentUser.uid);
-
-              Alert.alert(
-                'Emergency Cancelled',
-                'Your guardians have been notified that the alert was cancelled.',
-                [{ text: 'OK', onPress: () => navigation.navigate('Dashboard') }]
-              );
-            } catch (error) {
-              setCancelError(getAlertLifecycleErrorMessage(error));
-            } finally {
-              setIsCancelling(false);
+    Alert.alert('Cancel Emergency Alert', 'Are you safe? Cancelling will notify your guardians.', [
+      { text: 'Keep Alert Active', style: 'cancel' },
+      {
+        text: 'Cancel Emergency',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            const currentUser = auth.currentUser;
+            if (!currentUser) {
+              navigation.replace('Login');
+              return;
             }
-          },
+
+            setCancelError(null);
+            setIsCancelling(true);
+            await cancelAlert(alertId, currentUser.uid);
+
+            Alert.alert(
+              'Emergency Cancelled',
+              'Your guardians have been notified that the alert was cancelled.',
+              [{ text: 'OK', onPress: () => navigation.navigate('Dashboard') }]
+            );
+          } catch (error) {
+            setCancelError(getAlertLifecycleErrorMessage(error));
+          } finally {
+            setIsCancelling(false);
+          }
         },
-      ]
-    );
+      },
+    ]);
   };
 
   return (

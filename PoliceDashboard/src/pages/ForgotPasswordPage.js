@@ -37,7 +37,8 @@ function ForgotPasswordPage() {
           <div className="forgot-password-shield">🛡️</div>
           <h2 className="forgot-password-heading">POLICE COMMAND & CONTROL</h2>
           <p className="forgot-password-subheading">
-            Protecting Our Communities.<br />
+            Protecting Our Communities.
+            <br />
             Secure Their Future
           </p>
         </div>
@@ -48,20 +49,26 @@ function ForgotPasswordPage() {
 
           {success ? (
             <div className="forgot-password-form">
-              <div style={{
-                textAlign: 'center',
-                padding: '20px 0',
-              }}>
+              <div
+                style={{
+                  textAlign: 'center',
+                  padding: '20px 0',
+                }}
+              >
                 <div style={{ fontSize: '48px', marginBottom: '15px' }}>✉️</div>
                 <h3 className="forgot-password-step-title">Check Your Email</h3>
-                <p style={{ color: '#666', fontSize: '14px', lineHeight: '1.6', marginBottom: '20px' }}>
-                  We&apos;ve sent a password reset link to <strong>{email}</strong>. 
-                  Please check your inbox and follow the instructions.
-                </p>
-                <button
-                  className="forgot-password-button"
-                  onClick={() => navigate('/login')}
+                <p
+                  style={{
+                    color: '#666',
+                    fontSize: '14px',
+                    lineHeight: '1.6',
+                    marginBottom: '20px',
+                  }}
                 >
+                  We&apos;ve sent a password reset link to <strong>{email}</strong>. Please check
+                  your inbox and follow the instructions.
+                </p>
+                <button className="forgot-password-button" onClick={() => navigate('/login')}>
                   Back to Login
                 </button>
               </div>

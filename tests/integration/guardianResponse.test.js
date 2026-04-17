@@ -2,23 +2,39 @@
 
 global.__DEV__ = true;
 
-jest.mock('firebase-functions/v2/firestore', () => ({
-  onDocumentCreated: jest.fn((_, handler) => handler),
-  onDocumentUpdated: jest.fn((_, handler) => handler),
-}), { virtual: true });
+jest.mock(
+  'firebase-functions/v2/firestore',
+  () => ({
+    onDocumentCreated: jest.fn((_, handler) => handler),
+    onDocumentUpdated: jest.fn((_, handler) => handler),
+  }),
+  { virtual: true }
+);
 
-jest.mock('firebase-functions/v2/https', () => ({
-  onRequest: jest.fn((_, handler) => handler),
-}), { virtual: true });
+jest.mock(
+  'firebase-functions/v2/https',
+  () => ({
+    onRequest: jest.fn((_, handler) => handler),
+  }),
+  { virtual: true }
+);
 
-jest.mock('firebase-functions/v2/scheduler', () => ({
-  onSchedule: jest.fn((_, handler) => handler),
-}), { virtual: true });
+jest.mock(
+  'firebase-functions/v2/scheduler',
+  () => ({
+    onSchedule: jest.fn((_, handler) => handler),
+  }),
+  { virtual: true }
+);
 
 const mockAxiosPost = jest.fn(async () => ({ data: { data: [{ status: 'ok' }] } }));
-jest.mock('axios', () => ({
-  post: (...args) => mockAxiosPost(...args),
-}), { virtual: true });
+jest.mock(
+  'axios',
+  () => ({
+    post: (...args) => mockAxiosPost(...args),
+  }),
+  { virtual: true }
+);
 
 const mockEnqueueEscalation = jest.fn(async () => {});
 const mockProcessDueEscalations = jest.fn(async () => ({ processed: 0, escalated: 0 }));
@@ -83,26 +99,38 @@ const makeDbMock = () => {
 
 const mockGetFirestore = jest.fn(() => makeDbMock());
 
-jest.mock('firebase-admin/app', () => ({
-  initializeApp: jest.fn(),
-}), { virtual: true });
+jest.mock(
+  'firebase-admin/app',
+  () => ({
+    initializeApp: jest.fn(),
+  }),
+  { virtual: true }
+);
 
-jest.mock('firebase-admin/firestore', () => ({
-  getFirestore: () => mockGetFirestore(),
-  FieldValue: {
-    serverTimestamp: jest.fn(() => new Date()),
-  },
-}), { virtual: true });
+jest.mock(
+  'firebase-admin/firestore',
+  () => ({
+    getFirestore: () => mockGetFirestore(),
+    FieldValue: {
+      serverTimestamp: jest.fn(() => new Date()),
+    },
+  }),
+  { virtual: true }
+);
 
-jest.mock('firebase-admin/auth', () => ({
-  getAuth: jest.fn(() => ({
-    createCustomToken: jest.fn(async () => 'custom-token'),
-    getUserByPhoneNumber: jest.fn(async () => {
-      throw Object.assign(new Error('not found'), { code: 'auth/user-not-found' });
-    }),
-    createUser: jest.fn(async () => ({ uid: 'new-user' })),
-  })),
-}), { virtual: true });
+jest.mock(
+  'firebase-admin/auth',
+  () => ({
+    getAuth: jest.fn(() => ({
+      createCustomToken: jest.fn(async () => 'custom-token'),
+      getUserByPhoneNumber: jest.fn(async () => {
+        throw Object.assign(new Error('not found'), { code: 'auth/user-not-found' });
+      }),
+      createUser: jest.fn(async () => ({ uid: 'new-user' })),
+    })),
+  }),
+  { virtual: true }
+);
 
 describe('guardian notification integration', () => {
   beforeEach(() => {

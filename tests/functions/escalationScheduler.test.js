@@ -70,7 +70,10 @@ describe('Cloud Function scheduler escalation logic', () => {
         if (name === 'users') {
           return {
             doc: () => ({
-              get: async () => ({ exists: true, data: () => ({ fullName: 'Nadia', phone: '+923001112233' }) }),
+              get: async () => ({
+                exists: true,
+                data: () => ({ fullName: 'Nadia', phone: '+923001112233' }),
+              }),
             }),
           };
         }

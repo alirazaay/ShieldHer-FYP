@@ -2,23 +2,39 @@
 
 global.__DEV__ = true;
 
-jest.mock('firebase-functions/v2/firestore', () => ({
-  onDocumentCreated: jest.fn((_, handler) => handler),
-  onDocumentUpdated: jest.fn((_, handler) => handler),
-}), { virtual: true });
+jest.mock(
+  'firebase-functions/v2/firestore',
+  () => ({
+    onDocumentCreated: jest.fn((_, handler) => handler),
+    onDocumentUpdated: jest.fn((_, handler) => handler),
+  }),
+  { virtual: true }
+);
 
-jest.mock('firebase-functions/v2/https', () => ({
-  onRequest: jest.fn((_, handler) => handler),
-}), { virtual: true });
+jest.mock(
+  'firebase-functions/v2/https',
+  () => ({
+    onRequest: jest.fn((_, handler) => handler),
+  }),
+  { virtual: true }
+);
 
-jest.mock('firebase-functions/v2/scheduler', () => ({
-  onSchedule: jest.fn((_, handler) => handler),
-}), { virtual: true });
+jest.mock(
+  'firebase-functions/v2/scheduler',
+  () => ({
+    onSchedule: jest.fn((_, handler) => handler),
+  }),
+  { virtual: true }
+);
 
 const mockAxiosPost = jest.fn(async () => ({ data: { data: [{ status: 'ok' }] } }));
-jest.mock('axios', () => ({
-  post: (...args) => mockAxiosPost(...args),
-}), { virtual: true });
+jest.mock(
+  'axios',
+  () => ({
+    post: (...args) => mockAxiosPost(...args),
+  }),
+  { virtual: true }
+);
 
 const mockEnqueueEscalation = jest.fn(async () => {});
 const mockProcessDueEscalations = jest.fn(async () => ({ processed: 0, escalated: 0 }));
@@ -55,7 +71,9 @@ function mockBuildDbMock() {
               if (sub === 'guardians' && id === 'u1') {
                 return {
                   get: async () => ({
-                    docs: [{ id: 'g1', data: () => ({ status: 'active', isRegisteredUser: true }) }],
+                    docs: [
+                      { id: 'g1', data: () => ({ status: 'active', isRegisteredUser: true }) },
+                    ],
                   }),
                 };
               }
@@ -72,42 +90,61 @@ function mockBuildDbMock() {
       }
 
       return {
-        doc: () => ({ set: async () => {}, get: async () => ({ exists: false, data: () => ({}) }) }),
+        doc: () => ({
+          set: async () => {},
+          get: async () => ({ exists: false, data: () => ({}) }),
+        }),
       };
     },
   };
 }
 
-jest.mock('firebase-admin/app', () => ({
-  initializeApp: jest.fn(),
-}), { virtual: true });
+jest.mock(
+  'firebase-admin/app',
+  () => ({
+    initializeApp: jest.fn(),
+  }),
+  { virtual: true }
+);
 
-jest.mock('firebase-admin/firestore', () => ({
-  getFirestore: jest.fn(() => mockBuildDbMock()),
-  FieldValue: {
-    serverTimestamp: jest.fn(() => new Date()),
-  },
-}), { virtual: true });
+jest.mock(
+  'firebase-admin/firestore',
+  () => ({
+    getFirestore: jest.fn(() => mockBuildDbMock()),
+    FieldValue: {
+      serverTimestamp: jest.fn(() => new Date()),
+    },
+  }),
+  { virtual: true }
+);
 
-jest.mock('firebase-admin/auth', () => ({
-  getAuth: jest.fn(() => ({
-    createCustomToken: jest.fn(async () => 'token'),
-    getUserByPhoneNumber: jest.fn(async () => {
-      throw Object.assign(new Error('no user'), { code: 'auth/user-not-found' });
-    }),
-    createUser: jest.fn(async () => ({ uid: 'u-created' })),
-  })),
-}), { virtual: true });
-
-jest.mock('firebase-admin/messaging', () => ({
-  getMessaging: jest.fn(() => ({
-    sendEachForMulticast: jest.fn(async () => ({
-      successCount: 1,
-      failureCount: 0,
-      responses: [{ success: true }],
+jest.mock(
+  'firebase-admin/auth',
+  () => ({
+    getAuth: jest.fn(() => ({
+      createCustomToken: jest.fn(async () => 'token'),
+      getUserByPhoneNumber: jest.fn(async () => {
+        throw Object.assign(new Error('no user'), { code: 'auth/user-not-found' });
+      }),
+      createUser: jest.fn(async () => ({ uid: 'u-created' })),
     })),
-  })),
-}), { virtual: true });
+  }),
+  { virtual: true }
+);
+
+jest.mock(
+  'firebase-admin/messaging',
+  () => ({
+    getMessaging: jest.fn(() => ({
+      sendEachForMulticast: jest.fn(async () => ({
+        successCount: 1,
+        failureCount: 0,
+        responses: [{ success: true }],
+      })),
+    })),
+  }),
+  { virtual: true }
+);
 
 describe('Cloud Function: onAlertCreated', () => {
   let logSpy;
@@ -146,11 +183,7 @@ describe('Cloud Function: onAlertCreated', () => {
     const payload = mockAxiosPost.mock.calls[0][1];
     expect(payload[0].to).toBe('ExponentPushToken[g1]');
 
-    const combinedLogs = [
-      ...logSpy.mock.calls,
-      ...warnSpy.mock.calls,
-      ...errorSpy.mock.calls,
-    ]
+    const combinedLogs = [...logSpy.mock.calls, ...warnSpy.mock.calls, ...errorSpy.mock.calls]
       .flat()
       .map((entry) => String(entry))
       .join(' ');
@@ -175,11 +208,7 @@ describe('Cloud Function: onAlertCreated', () => {
     const payload = mockAxiosPost.mock.calls[0][1];
     expect(payload[0].title).toBe('Emergency Cancelled');
 
-    const combinedLogs = [
-      ...logSpy.mock.calls,
-      ...warnSpy.mock.calls,
-      ...errorSpy.mock.calls,
-    ]
+    const combinedLogs = [...logSpy.mock.calls, ...warnSpy.mock.calls, ...errorSpy.mock.calls]
       .flat()
       .map((entry) => String(entry))
       .join(' ');
@@ -202,11 +231,7 @@ describe('Cloud Function: onAlertCreated', () => {
 
     expect(mockAxiosPost).not.toHaveBeenCalled();
 
-    const combinedLogs = [
-      ...logSpy.mock.calls,
-      ...warnSpy.mock.calls,
-      ...errorSpy.mock.calls,
-    ]
+    const combinedLogs = [...logSpy.mock.calls, ...warnSpy.mock.calls, ...errorSpy.mock.calls]
       .flat()
       .map((entry) => String(entry))
       .join(' ');
@@ -230,11 +255,7 @@ describe('Cloud Function: onAlertCreated', () => {
 
     expect(mockAxiosPost).toHaveBeenCalledTimes(1);
 
-    const combinedLogs = [
-      ...logSpy.mock.calls,
-      ...warnSpy.mock.calls,
-      ...errorSpy.mock.calls,
-    ]
+    const combinedLogs = [...logSpy.mock.calls, ...warnSpy.mock.calls, ...errorSpy.mock.calls]
       .flat()
       .map((entry) => String(entry))
       .join(' ');

@@ -41,7 +41,7 @@ function DashboardPage() {
   const stats = [
     {
       icon: '🚨',
-      count: alertStats ? (alertStats.active + alertStats.escalated) : '—',
+      count: alertStats ? alertStats.active + alertStats.escalated : '—',
       title: 'Active Emergencies',
       subtitle: `${alertStats?.escalated || 0} escalated to police`,
       color: '#ff4444',
@@ -79,28 +79,40 @@ function DashboardPage() {
 
   const officerName = policeProfile?.name || 'Officer';
   const station = policeProfile?.station || 'HQ';
-  const initials = officerName.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
+  const initials = officerName
+    .split(' ')
+    .map((n) => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
 
   return (
     <>
-      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div
+        className="page-header"
+        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+      >
         <div>
           <h1 className="page-title">Welcome Back, {officerName}</h1>
           <p className="page-subtitle">Here&apos;s what&apos;s happening with ShieldHer today</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-          <div style={{ 
-            width: '50px', 
-            height: '50px', 
-            borderRadius: '50%', 
-            background: '#4318ff',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'white',
-            fontSize: '20px',
-            fontWeight: 'bold'
-          }}>{initials}</div>
+          <div
+            style={{
+              width: '50px',
+              height: '50px',
+              borderRadius: '50%',
+              background: '#4318ff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'white',
+              fontSize: '20px',
+              fontWeight: 'bold',
+            }}
+          >
+            {initials}
+          </div>
           <div>
             <div style={{ fontWeight: 'bold', fontSize: '14px' }}>{officerName}</div>
             <div style={{ fontSize: '12px', color: '#666' }}>{station}</div>

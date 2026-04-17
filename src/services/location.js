@@ -173,9 +173,7 @@ export async function requestFullLocationPermissions() {
   return {
     foregroundGranted: true,
     backgroundGranted: background.granted,
-    message: background.granted
-      ? null
-      : background.message,
+    message: background.granted ? null : background.message,
   };
 }
 

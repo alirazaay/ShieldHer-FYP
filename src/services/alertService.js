@@ -364,8 +364,7 @@ export async function dispatchSOSAlert(userId, location, options = {}) {
 
     const triggerType = normalizeTriggerType(options.triggerType);
     const metadata = {
-      source:
-        options.source || (triggerType === 'AI' ? 'AI_DETECTION' : null),
+      source: options.source || (triggerType === 'AI' ? 'AI_DETECTION' : null),
       detectedAt: Number(options.detectedAt || 0) || null,
     };
 

@@ -23,10 +23,7 @@ import logger from '../utils/logger';
 const TAG = '[GroupLocationMapScreen]';
 
 function hasValidCoordinates(location) {
-  return (
-    Number.isFinite(location?.latitude) &&
-    Number.isFinite(location?.longitude)
-  );
+  return Number.isFinite(location?.latitude) && Number.isFinite(location?.longitude);
 }
 
 const GroupLocationMapScreen = ({ navigation }) => {

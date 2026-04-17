@@ -47,7 +47,6 @@ const Dashboard = ({ navigation }) => {
   const [sosMessage, setSosMessage] = useState(null);
   const [detectionAlert, setDetectionAlert] = useState(null); // { tier, prob }
 
-
   // Escalation state – tracks whether current user's alert has been escalated to authorities
   const [escalationState, setEscalationState] = useState(null); // null | 'pending' | 'escalated'
 
@@ -137,117 +136,126 @@ const Dashboard = ({ navigation }) => {
     }
   }, [sosError, sosMessage]);
 
-  const triggerSOS = useCallback(async ({ reason, prob }) => {
-    try {
-      setSosLoading(true);
-      setSosError(null);
+  const triggerSOS = useCallback(
+    async ({ reason, prob }) => {
+      try {
+        setSosLoading(true);
+        setSosError(null);
 
-      const currentUser = auth.currentUser;
-      if (!currentUser) {
-        navigation?.replace('Login');
-        return;
-      }
+        const currentUser = auth.currentUser;
+        if (!currentUser) {
+          navigation?.replace('Login');
+          return;
+        }
 
-      const hasActiveAlert = await checkActiveAlert(currentUser.uid);
-      if (hasActiveAlert) {
-        setSosError({
-          message: 'An alert was recently sent. Please wait before sending another.',
-          type: 'warning',
+        const hasActiveAlert = await checkActiveAlert(currentUser.uid);
+        if (hasActiveAlert) {
+          setSosError({
+            message: 'An alert was recently sent. Please wait before sending another.',
+            type: 'warning',
+          });
+          return;
+        }
+
+        const location = await fetchUserLocation(currentUser.uid);
+        const dispatchResult = await dispatchSOSAlert(currentUser.uid, location, {
+          triggerType: 'AI',
+          source: reason,
+          confidence: prob,
         });
-        return;
-      }
 
-      const location = await fetchUserLocation(currentUser.uid);
-      const dispatchResult = await dispatchSOSAlert(currentUser.uid, location, {
-        triggerType: 'AI',
-        source: reason,
-        confidence: prob,
-      });
-
-      if (dispatchResult.success) {
-        setSosMessage({
-          message: `SOS triggered (${reason}) at ${(Number(prob || 0) * 100).toFixed(0)}% confidence.`,
-          type: dispatchResult.deliveryStatus === 'pending_retry' ? 'warning' : 'success',
-        });
-      } else {
+        if (dispatchResult.success) {
+          setSosMessage({
+            message: `SOS triggered (${reason}) at ${(Number(prob || 0) * 100).toFixed(0)}% confidence.`,
+            type: dispatchResult.deliveryStatus === 'pending_retry' ? 'warning' : 'success',
+          });
+        } else {
+          setSosError({
+            message: dispatchResult.error || 'Failed to send alert. Please try again.',
+            type: 'error',
+          });
+        }
+      } catch (error) {
+        logger.error(TAG, 'Voice-triggered SOS error:', error);
         setSosError({
-          message: dispatchResult.error || 'Failed to send alert. Please try again.',
+          message: getAlertErrorMessage(error),
           type: 'error',
         });
+      } finally {
+        setSosLoading(false);
       }
-    } catch (error) {
-      logger.error(TAG, 'Voice-triggered SOS error:', error);
-      setSosError({
-        message: getAlertErrorMessage(error),
-        type: 'error',
-      });
-    } finally {
-      setSosLoading(false);
-    }
-  }, [navigation]);
+    },
+    [navigation]
+  );
 
-  const handleAutoDetect = useCallback(async ({ prob }) => {
-    const tier = classifyProb(prob);
-    if (!tier) return;
+  const handleAutoDetect = useCallback(
+    async ({ prob }) => {
+      const tier = classifyProb(prob);
+      if (!tier) return;
 
-    console.log(`[ShieldHer] prob=${Number(prob).toFixed(3)} tier=${tier}`);
-    await logHarassmentEvent({ prob, source: 'AUTO', location: null });
+      console.log(`[ShieldHer] prob=${Number(prob).toFixed(3)} tier=${tier}`);
+      await logHarassmentEvent({ prob, source: 'AUTO', location: null });
 
-    if (tier === 'MILD') {
-      logger.info(TAG, 'Mild detection logged silently');
-      return;
-    }
+      if (tier === 'MILD') {
+        logger.info(TAG, 'Mild detection logged silently');
+        return;
+      }
 
-    if (tier === 'MODERATE') {
-      const tierLabel = HARASSMENT_TIERS[tier]?.label || tier;
-      setDetectionAlert({ tier, prob });
+      if (tier === 'MODERATE') {
+        const tierLabel = HARASSMENT_TIERS[tier]?.label || tier;
+        setDetectionAlert({ tier, prob });
 
-      Alert.alert(
-        `${tierLabel} Distress Detected`,
-        `Confidence: ${(Number(prob) * 100).toFixed(0)}%. Do you want to trigger SOS?`,
-        [
-          {
-            text: 'Dismiss',
-            style: 'cancel',
-            onPress: () => setDetectionAlert(null),
-          },
-          {
-            text: 'Send SOS',
-            style: 'destructive',
-            onPress: async () => {
-              setDetectionAlert(null);
-              await triggerSOS({ reason: 'AI_MODERATE', prob });
+        Alert.alert(
+          `${tierLabel} Distress Detected`,
+          `Confidence: ${(Number(prob) * 100).toFixed(0)}%. Do you want to trigger SOS?`,
+          [
+            {
+              text: 'Dismiss',
+              style: 'cancel',
+              onPress: () => setDetectionAlert(null),
             },
-          },
-        ],
-        { cancelable: true }
+            {
+              text: 'Send SOS',
+              style: 'destructive',
+              onPress: async () => {
+                setDetectionAlert(null);
+                await triggerSOS({ reason: 'AI_MODERATE', prob });
+              },
+            },
+          ],
+          { cancelable: true }
+        );
+        return;
+      }
+
+      setDetectionAlert({ tier, prob });
+      logger.warn(TAG, 'HIGH tier detected; auto-triggering SOS');
+      await triggerSOS({ reason: 'AI_AUTO_HIGH', prob });
+    },
+    [triggerSOS]
+  );
+
+  const handleManualResult = useCallback(
+    async (result) => {
+      if (!result?.triggered) {
+        Alert.alert('Recording Complete', 'No distress detected in your recording.');
+        return;
+      }
+
+      const prob = Number(result.maxProb || 0);
+      await logHarassmentEvent({ prob, source: 'MANUAL', location: null });
+
+      const tier = classifyProb(prob);
+      const tierLabel = HARASSMENT_TIERS[tier]?.label || tier;
+      Alert.alert(
+        'Distress Detected in Recording',
+        `Level: ${tierLabel} (${(prob * 100).toFixed(0)}%). SOS has been triggered.`
       );
-      return;
-    }
 
-    setDetectionAlert({ tier, prob });
-    logger.warn(TAG, 'HIGH tier detected; auto-triggering SOS');
-    await triggerSOS({ reason: 'AI_AUTO_HIGH', prob });
-  }, [triggerSOS]);
-
-  const handleManualResult = useCallback(async (result) => {
-    if (!result?.triggered) {
-      Alert.alert('Recording Complete', 'No distress detected in your recording.');
-      return;
-    }
-
-    const prob = Number(result.maxProb || 0);
-    await logHarassmentEvent({ prob, source: 'MANUAL', location: null });
-
-    const tier = classifyProb(prob);
-    const tierLabel = HARASSMENT_TIERS[tier]?.label || tier;
-    Alert.alert(
-      'Distress Detected in Recording',
-      `Level: ${tierLabel} (${(prob * 100).toFixed(0)}%). SOS has been triggered.`
-    );
-
-    await triggerSOS({ reason: 'MANUAL_HOLD', prob });
-  }, [triggerSOS]);
+      await triggerSOS({ reason: 'MANUAL_HOLD', prob });
+    },
+    [triggerSOS]
+  );
 
   const {
     isAutoRunning,
@@ -277,8 +285,6 @@ const Dashboard = ({ navigation }) => {
       Animated.timing(scale, { toValue: 0.95, duration: 120, useNativeDriver: true }),
     ]).start(() => setLogoutVisible(false));
   };
-
-
 
   const handleSosPress = () => {
     navigation.navigate('SOSCountdownScreen');
@@ -310,8 +316,7 @@ const Dashboard = ({ navigation }) => {
     return 'Idle';
   })();
 
-  const voiceLastConfidence =
-    lastProb == null ? 'N/A' : Number(lastProb).toFixed(2);
+  const voiceLastConfidence = lastProb == null ? 'N/A' : Number(lastProb).toFixed(2);
   const voiceLastResult =
     lastProb == null
       ? 'No sample yet'
@@ -571,8 +576,6 @@ const Dashboard = ({ navigation }) => {
         </View>
       </ScrollView>
 
-
-
       {/* Logout Modal Overlay */}
       <Modal transparent visible={logoutVisible} animationType="none" onRequestClose={closeLogout}>
         <Animated.View style={[styles.modalBackdrop, { opacity }]}>
@@ -816,7 +819,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 24,
   },
-
 
   modalCardWrap: {
     width: '82%',

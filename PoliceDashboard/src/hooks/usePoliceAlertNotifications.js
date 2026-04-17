@@ -36,11 +36,7 @@ function buildNotificationText(alert) {
 }
 
 export default function usePoliceAlertNotifications(options = {}) {
-  const {
-    alarmSrc = DEFAULT_ALARM_SRC,
-    onAcceptAlert,
-    onDismissAlert,
-  } = options;
+  const { alarmSrc = DEFAULT_ALARM_SRC, onAcceptAlert, onDismissAlert } = options;
 
   const [activeAlert, setActiveAlert] = useState(null);
   const [queuedAlerts, setQueuedAlerts] = useState([]);
@@ -132,9 +128,7 @@ export default function usePoliceAlertNotifications(options = {}) {
   const vibrateDevice = useCallback((alert) => {
     if (typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') return;
 
-    const pattern = isCriticalAlert(alert)
-      ? [300, 120, 300, 120, 600]
-      : [200, 100, 200];
+    const pattern = isCriticalAlert(alert) ? [300, 120, 300, 120, 600] : [200, 100, 200];
 
     navigator.vibrate(pattern);
   }, []);

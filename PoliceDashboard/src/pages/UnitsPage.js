@@ -1,8 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import {
-  subscribeToPoliceUnits,
-  updateUnitStatus,
-} from '../services/firestoreService';
+import { subscribeToPoliceUnits, updateUnitStatus } from '../services/firestoreService';
 import AddUnitModal from '../components/AddUnitModal';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { showToast } from '../components/Toast';
@@ -26,28 +23,50 @@ function UnitsPage() {
   const filteredUnits = useMemo(() => {
     if (activeFilter === 'All Units') return units;
     const statusMap = {
-      'Available': 'available',
-      'Dispatched': 'dispatched',
+      Available: 'available',
+      Dispatched: 'dispatched',
       'On Emergency': 'on_emergency',
     };
     return units.filter((u) => u.status === statusMap[activeFilter]);
   }, [units, activeFilter]);
 
   const stats = [
-    { label: 'Available', count: units.filter((u) => u.status === 'available').length, color: '#10b981' },
-    { label: 'Dispatched', count: units.filter((u) => u.status === 'dispatched').length, color: '#ffa500' },
-    { label: 'On Emergency', count: units.filter((u) => u.status === 'on_emergency' || u.status === 'on_scene').length, color: '#ff4444' },
-    { label: 'Offline', count: units.filter((u) => u.status === 'offline').length, color: '#8b5cf6' },
+    {
+      label: 'Available',
+      count: units.filter((u) => u.status === 'available').length,
+      color: '#10b981',
+    },
+    {
+      label: 'Dispatched',
+      count: units.filter((u) => u.status === 'dispatched').length,
+      color: '#ffa500',
+    },
+    {
+      label: 'On Emergency',
+      count: units.filter((u) => u.status === 'on_emergency' || u.status === 'on_scene').length,
+      color: '#ff4444',
+    },
+    {
+      label: 'Offline',
+      count: units.filter((u) => u.status === 'offline').length,
+      color: '#8b5cf6',
+    },
   ];
 
   const getStatusDisplay = (status) => {
     switch (status) {
-      case 'available': return { label: 'Available', color: '#00b894', bgColor: '#e5f9f4' };
-      case 'dispatched': return { label: 'DISPATCHED', color: '#ffa500', bgColor: '#fff3e0' };
-      case 'on_emergency': return { label: 'On Emergency', color: '#ff0000', bgColor: '#ffe5e5' };
-      case 'on_scene': return { label: 'ON SCENE', color: '#4318ff', bgColor: '#e8e5ff' };
-      case 'offline': return { label: 'Offline', color: '#666', bgColor: '#f5f5f5' };
-      default: return { label: status || 'Unknown', color: '#666', bgColor: '#f5f5f5' };
+      case 'available':
+        return { label: 'Available', color: '#00b894', bgColor: '#e5f9f4' };
+      case 'dispatched':
+        return { label: 'DISPATCHED', color: '#ffa500', bgColor: '#fff3e0' };
+      case 'on_emergency':
+        return { label: 'On Emergency', color: '#ff0000', bgColor: '#ffe5e5' };
+      case 'on_scene':
+        return { label: 'ON SCENE', color: '#4318ff', bgColor: '#e8e5ff' };
+      case 'offline':
+        return { label: 'Offline', color: '#666', bgColor: '#f5f5f5' };
+      default:
+        return { label: status || 'Unknown', color: '#666', bgColor: '#f5f5f5' };
     }
   };
 
@@ -59,7 +78,11 @@ function UnitsPage() {
       } else if (unit.status === 'offline') {
         await updateUnitStatus(unit.id, 'available');
         showToast(`${unit.name} is now available`, 'success');
-      } else if (unit.status === 'dispatched' || unit.status === 'on_scene' || unit.status === 'on_emergency') {
+      } else if (
+        unit.status === 'dispatched' ||
+        unit.status === 'on_scene' ||
+        unit.status === 'on_emergency'
+      ) {
         await updateUnitStatus(unit.id, 'available', null);
         showToast(`${unit.name} is now available`, 'success');
       }
@@ -74,7 +97,10 @@ function UnitsPage() {
 
   return (
     <>
-      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div
+        className="page-header"
+        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+      >
         <div>
           <h1 className="page-title">🚓 Units Management</h1>
           <p className="page-subtitle">Monitor and coordinate all police units in the field</p>
@@ -84,11 +110,28 @@ function UnitsPage() {
         </button>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '15px', marginBottom: '25px' }}>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(4, 1fr)',
+          gap: '15px',
+          marginBottom: '25px',
+        }}
+      >
         {stats.map((stat, index) => (
           <div key={index} className="card" style={{ textAlign: 'center' }}>
-            <div style={{ width: '100%', height: '4px', background: stat.color, borderRadius: '2px', marginBottom: '15px' }} />
-            <div style={{ fontSize: '28px', fontWeight: 'bold', marginBottom: '5px' }}>{stat.count}</div>
+            <div
+              style={{
+                width: '100%',
+                height: '4px',
+                background: stat.color,
+                borderRadius: '2px',
+                marginBottom: '15px',
+              }}
+            />
+            <div style={{ fontSize: '28px', fontWeight: 'bold', marginBottom: '5px' }}>
+              {stat.count}
+            </div>
             <div style={{ fontSize: '13px', color: '#666' }}>{stat.label}</div>
           </div>
         ))}
@@ -123,20 +166,33 @@ function UnitsPage() {
           <p>No units found. Click &quot;+ Add New Unit&quot; to create one.</p>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+            gap: '20px',
+          }}
+        >
           {filteredUnits.map((unit) => {
             const statusInfo = getStatusDisplay(unit.status);
             return (
               <div key={unit.id} className="card" style={{ background: statusInfo.bgColor }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
+                <div
+                  style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}
+                >
                   <span className="badge" style={{ background: '#4318ff' }}>
                     {unit.name?.split(' ').pop()?.charAt(0) || 'U'}
                   </span>
-                  <span className="badge" style={{ background: statusInfo.color, fontSize: '10px' }}>
+                  <span
+                    className="badge"
+                    style={{ background: statusInfo.color, fontSize: '10px' }}
+                  >
                     {statusInfo.label}
                   </span>
                 </div>
-                <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '12px' }}>{unit.name}</h3>
+                <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '12px' }}>
+                  {unit.name}
+                </h3>
                 <div style={{ marginBottom: '8px', fontSize: '12px', color: '#333' }}>
                   👮 {unit.officerName || 'Unassigned'}
                 </div>
@@ -149,10 +205,18 @@ function UnitsPage() {
                   </div>
                 )}
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  {unit.status === 'on_emergency' || unit.status === 'dispatched' || unit.status === 'on_scene' ? (
+                  {unit.status === 'on_emergency' ||
+                  unit.status === 'dispatched' ||
+                  unit.status === 'on_scene' ? (
                     <button
                       className="button"
-                      style={{ flex: 1, padding: '8px', fontSize: '12px', background: '#10b981', color: '#fff' }}
+                      style={{
+                        flex: 1,
+                        padding: '8px',
+                        fontSize: '12px',
+                        background: '#10b981',
+                        color: '#fff',
+                      }}
                       onClick={() => handleStatusToggle(unit)}
                     >
                       ✓ Set Available

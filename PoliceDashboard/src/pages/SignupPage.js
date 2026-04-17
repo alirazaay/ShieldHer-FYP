@@ -110,8 +110,10 @@ function SignupPage() {
           <div className="signup-shield">🛡️</div>
           <h2 className="signup-heading">POLICE COMMAND & CONTROL</h2>
           <p className="signup-subheading">
-            Join our secure network.<br />
-            Protecting Our Communities.<br />
+            Join our secure network.
+            <br />
+            Protecting Our Communities.
+            <br />
             Secure Their Future
           </p>
         </div>
@@ -119,11 +121,9 @@ function SignupPage() {
           <div className="signup-logo">🛡️</div>
           <h1 className="signup-app-name">ShieldHer</h1>
           <p className="signup-app-subtitle">Police Portal - Sign Up</p>
-          
+
           <form onSubmit={handleSignup} className="signup-form">
-            {errors.submit && (
-              <div className="signup-error-message">{errors.submit}</div>
-            )}
+            {errors.submit && <div className="signup-error-message">{errors.submit}</div>}
 
             {/* Name Field */}
             <div className="signup-form-group">
@@ -233,11 +233,7 @@ function SignupPage() {
               {errors.rank && <span className="signup-error">{errors.rank}</span>}
             </div>
 
-            <button 
-              type="submit" 
-              className="signup-button"
-              disabled={loading}
-            >
+            <button type="submit" className="signup-button" disabled={loading}>
               {loading ? 'Creating Account...' : 'Sign Up'}
             </button>
 

@@ -39,11 +39,17 @@ function AddUnitModal({ isOpen, onClose }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '460px' }}>
+      <div
+        className="modal-content"
+        onClick={(e) => e.stopPropagation()}
+        style={{ maxWidth: '460px' }}
+      >
         <h2 className="modal-title">+ Add New Unit</h2>
         <form onSubmit={handleSubmit} style={{ marginTop: '15px' }}>
           <div style={{ marginBottom: '12px' }}>
-            <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '5px' }}>
+            <label
+              style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '5px' }}
+            >
               Unit Name *
             </label>
             <input
@@ -57,7 +63,9 @@ function AddUnitModal({ isOpen, onClose }) {
             />
           </div>
           <div style={{ marginBottom: '12px' }}>
-            <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '5px' }}>
+            <label
+              style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '5px' }}
+            >
               Officer Name *
             </label>
             <input
@@ -71,7 +79,9 @@ function AddUnitModal({ isOpen, onClose }) {
             />
           </div>
           <div style={{ marginBottom: '12px' }}>
-            <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '5px' }}>
+            <label
+              style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '5px' }}
+            >
               Officer Phone
             </label>
             <input
@@ -85,7 +95,9 @@ function AddUnitModal({ isOpen, onClose }) {
             />
           </div>
           <div style={{ marginBottom: '20px' }}>
-            <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '5px' }}>
+            <label
+              style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '5px' }}
+            >
               Station / Location
             </label>
             <input
@@ -99,7 +111,9 @@ function AddUnitModal({ isOpen, onClose }) {
             />
           </div>
           <div className="modal-buttons">
-            <button type="button" className="btn-cancel" onClick={onClose}>Cancel</button>
+            <button type="button" className="btn-cancel" onClick={onClose}>
+              Cancel
+            </button>
             <button
               type="submit"
               className="btn-logout"

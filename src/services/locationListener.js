@@ -415,12 +415,20 @@ export async function startLocationTracking(userId, options = {}) {
               if (isAlertDocMissingError(alertWriteError)) {
                 if (!missingSosAlertWriteLogged) {
                   missingSosAlertWriteLogged = true;
-                  logger.info('[locationListener]', 'SOS alert doc not available yet for live location', {
-                    alertId: activeSosAlertId,
-                  });
+                  logger.info(
+                    '[locationListener]',
+                    'SOS alert doc not available yet for live location',
+                    {
+                      alertId: activeSosAlertId,
+                    }
+                  );
                 }
               } else {
-                logger.error('[locationListener]', 'Error updating SOS alert location:', alertWriteError);
+                logger.error(
+                  '[locationListener]',
+                  'Error updating SOS alert location:',
+                  alertWriteError
+                );
               }
             }
           }

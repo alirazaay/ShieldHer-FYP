@@ -105,7 +105,10 @@ export async function enqueuePendingAlert(alert) {
       ...pendingAlertsCache[existingIndex],
       ...next,
       retries: Math.min(pendingAlertsCache[existingIndex].retries, next.retries),
-      nextRetryAt: Math.min(pendingAlertsCache[existingIndex].nextRetryAt || nowTs, next.nextRetryAt),
+      nextRetryAt: Math.min(
+        pendingAlertsCache[existingIndex].nextRetryAt || nowTs,
+        next.nextRetryAt
+      ),
     };
   } else {
     pendingAlertsCache.push(next);

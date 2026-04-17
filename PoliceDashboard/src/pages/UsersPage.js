@@ -1,8 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import {
-  subscribeToUsers,
-  formatDate,
-} from '../services/firestoreService';
+import { subscribeToUsers, formatDate } from '../services/firestoreService';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { showToast } from '../components/Toast';
 
@@ -58,10 +55,7 @@ function UsersPage() {
 
   // Pagination
   const totalPages = Math.ceil(filteredUsers.length / pageSize);
-  const paginatedUsers = filteredUsers.slice(
-    (currentPage - 1) * pageSize,
-    currentPage * pageSize
-  );
+  const paginatedUsers = filteredUsers.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   // Reset to page 1 on filter change
   useEffect(() => {
@@ -102,7 +96,12 @@ function UsersPage() {
 
   const getInitials = (name) => {
     if (!name) return '?';
-    return name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
+    return name
+      .split(' ')
+      .map((n) => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
   };
 
   if (loading) {
@@ -151,23 +150,21 @@ function UsersPage() {
       </div>
 
       <div className="card">
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          paddingBottom: '15px', 
-          borderBottom: '1px solid #eee',
-          marginBottom: '20px'
-        }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            paddingBottom: '15px',
+            borderBottom: '1px solid #eee',
+            marginBottom: '20px',
+          }}
+        >
           <h3 style={{ fontWeight: 'bold' }}>Registered Users</h3>
-          <span style={{ color: '#666' }}>
-            Total: {filteredUsers.length} users
-          </span>
+          <span style={{ color: '#666' }}>Total: {filteredUsers.length} users</span>
         </div>
 
         {paginatedUsers.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '30px', color: '#666' }}>
-            No users found
-          </div>
+          <div style={{ textAlign: 'center', padding: '30px', color: '#666' }}>No users found</div>
         ) : (
           paginatedUsers.map((u, index) => {
             const name = u.fullName || u.name || 'Unknown';
@@ -226,17 +223,20 @@ function UsersPage() {
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            paddingTop: '20px',
-            marginTop: '20px',
-            borderTop: '1px solid #eee',
-          }}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              paddingTop: '20px',
+              marginTop: '20px',
+              borderTop: '1px solid #eee',
+            }}
+          >
             <span style={{ fontSize: '13px', color: '#666' }}>
               Showing {(currentPage - 1) * pageSize + 1}-
-              {Math.min(currentPage * pageSize, filteredUsers.length)} of {filteredUsers.length} users
+              {Math.min(currentPage * pageSize, filteredUsers.length)} of {filteredUsers.length}{' '}
+              users
             </span>
             <div style={{ display: 'flex', gap: '5px' }}>
               <button
@@ -253,17 +253,26 @@ function UsersPage() {
               >
                 ←
               </button>
-              <button style={{
-                padding: '8px 12px',
-                border: 'none',
-                borderRadius: '6px',
-                background: '#4318ff',
-                color: 'white',
-              }}>
+              <button
+                style={{
+                  padding: '8px 12px',
+                  border: 'none',
+                  borderRadius: '6px',
+                  background: '#4318ff',
+                  color: 'white',
+                }}
+              >
                 {currentPage}
               </button>
               {totalPages > 1 && currentPage < totalPages && (
-                <button style={{ padding: '8px 12px', border: 'none', borderRadius: '6px', background: '#f5f5f5' }}>
+                <button
+                  style={{
+                    padding: '8px 12px',
+                    border: 'none',
+                    borderRadius: '6px',
+                    background: '#f5f5f5',
+                  }}
+                >
                   ...
                 </button>
               )}

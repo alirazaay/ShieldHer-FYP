@@ -36,7 +36,11 @@ function UnitSelectorModal({ isOpen, onClose, alertId, policeAlertId }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+      <div
+        className="modal-content"
+        onClick={(e) => e.stopPropagation()}
+        style={{ maxWidth: '500px' }}
+      >
         <h2 className="modal-title">🚓 Dispatch Unit</h2>
         <p className="modal-message">Select an available unit to dispatch</p>
 
@@ -70,7 +74,9 @@ function UnitSelectorModal({ isOpen, onClose, alertId, policeAlertId }) {
         )}
 
         <div className="modal-buttons">
-          <button className="btn-cancel" onClick={onClose}>Cancel</button>
+          <button className="btn-cancel" onClick={onClose}>
+            Cancel
+          </button>
           <button
             className="btn-logout"
             onClick={handleDispatch}

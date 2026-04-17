@@ -7,11 +7,13 @@ import { initializeAuth, getReactNativePersistence } from 'firebase/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   initializeFirestore,
+  memoryLocalCache,
   persistentLocalCache,
   persistentSingleTabManager,
   setLogLevel,
   enableNetwork,
 } from 'firebase/firestore';
+import { Platform } from 'react-native';
 import { getStorage } from 'firebase/storage';
 import Constants from 'expo-constants';
 import logger from '../utils/logger';
@@ -45,15 +47,22 @@ if (!isConfigValid) {
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 logger.info(TAG, 'Firebase initialized:', app.name);
 
-// Initialize Firestore with offline persistence and long polling.
-// persistentLocalCache enables on-device IndexedDB caching so reads work
-// offline — critical for fetching guardians during emergencies.
+// Use persistent IndexedDB cache on web and memory cache on native.
+// React Native runtimes do not provide full IndexedDB support.
+const localCache =
+  Platform.OS === 'web'
+    ? persistentLocalCache({ tabManager: persistentSingleTabManager() })
+    : memoryLocalCache();
+
 const db = initializeFirestore(app, {
-  localCache: persistentLocalCache({ tabManager: persistentSingleTabManager() }),
+  localCache,
   experimentalForceLongPolling: true,
   useFetchStreams: false,
 });
-logger.info(TAG, 'Firestore initialized with offline persistence + long polling');
+logger.info(
+  TAG,
+  `Firestore initialized with ${Platform.OS === 'web' ? 'persistent' : 'memory'} cache + long polling`
+);
 
 // Initialize Firebase Auth with AsyncStorage persistence
 export const auth = initializeAuth(app, {

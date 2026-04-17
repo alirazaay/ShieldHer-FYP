@@ -2,7 +2,8 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { NativeModules, NativeEventEmitter, PermissionsAndroid, Platform } from 'react-native';
 
 const { ScreamDetection } = NativeModules;
-const emitter = ScreamDetection ? new NativeEventEmitter(ScreamDetection) : null;
+// Use the default emitter to avoid RN warning checks against module listener stubs.
+const emitter = new NativeEventEmitter();
 
 const THRESHOLD = 0.75;
 

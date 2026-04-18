@@ -6,6 +6,11 @@ const DEFAULT_THRESHOLD = 0.003;
 let lastGlobalScreamEventKey = null;
 let lastGlobalScreamEventAt = 0;
 
+export const WAVEFORM_INPUT_MODES = {
+  NORMALIZED: 'normalized',
+  PCM16_FLOAT: 'pcm16_float',
+};
+
 function extractProbability(event) {
   if (typeof event === 'number') {
     return Number.isFinite(event) ? event : 0;
@@ -18,6 +23,47 @@ function extractProbability(event) {
   }
 
   return 0;
+}
+
+function ensureNativeDebugMethod(methodName) {
+  if (!ScreamDetectionModule || typeof ScreamDetectionModule[methodName] !== 'function') {
+    throw new Error(`useScreamDetection: native debug method '${methodName}' is unavailable`);
+  }
+}
+
+export async function setNativeWaveformInputMode(mode) {
+  ensureNativeDebugMethod('setWaveformInputMode');
+  const result = await ScreamDetectionModule.setWaveformInputMode(mode);
+  console.log('useScreamDetection: native waveform input mode updated:', result);
+  return result;
+}
+
+export async function setNativeWaveformModeComparisonEnabled(enabled) {
+  ensureNativeDebugMethod('setWaveformModeComparisonEnabled');
+  const result = await ScreamDetectionModule.setWaveformModeComparisonEnabled(Boolean(enabled));
+  console.log('useScreamDetection: alternate waveform comparison updated:', result);
+  return result;
+}
+
+export async function getNativeWaveformDebugConfig() {
+  ensureNativeDebugMethod('getWaveformDebugConfig');
+  return ScreamDetectionModule.getWaveformDebugConfig();
+}
+
+export async function runNativeDebugWavInference(filePath) {
+  ensureNativeDebugMethod('runDebugWavInference');
+  const result = await ScreamDetectionModule.runDebugWavInference(filePath);
+  console.log('useScreamDetection: native debug WAV inference:', result);
+  return result;
+}
+
+if (__DEV__ && typeof globalThis !== 'undefined') {
+  globalThis.ShieldHerScreamDebug = {
+    getWaveformDebugConfig: getNativeWaveformDebugConfig,
+    runDebugWavInference: runNativeDebugWavInference,
+    setWaveformInputMode: setNativeWaveformInputMode,
+    setWaveformModeComparisonEnabled: setNativeWaveformModeComparisonEnabled,
+  };
 }
 
 export function useScreamDetection({
@@ -42,6 +88,7 @@ export function useScreamDetection({
   const telemetrySubscriptionRef = useRef(null);
   const modelInfoSubscriptionRef = useRef(null);
   const autoRunningRef = useRef(false);
+  const manualRunningRef = useRef(false);
 
   const requestPermission = useCallback(async () => {
     if (Platform.OS !== 'android') {
@@ -50,12 +97,15 @@ export function useScreamDetection({
     }
 
     try {
-      const granted = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO, {
-        title: 'Microphone Permission Required',
-        message: 'ShieldHer needs microphone access to detect distress sounds and protect you.',
-        buttonPositive: 'Grant Permission',
-        buttonNegative: 'Cancel',
-      });
+      const granted = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+        {
+          title: 'Microphone Permission Required',
+          message: 'ShieldHer needs microphone access to detect distress sounds and protect you.',
+          buttonPositive: 'Grant Permission',
+          buttonNegative: 'Cancel',
+        }
+      );
 
       const ok = granted === PermissionsAndroid.RESULTS.GRANTED;
       setPermissionGranted(ok);
@@ -126,39 +176,55 @@ export function useScreamDetection({
   const startAutoDetection = useCallback(async () => {
     if (!ScreamDetectionModule) {
       console.error('useScreamDetection: ScreamDetection native module is unavailable');
-      return;
+      return false;
     }
 
     if (autoRunningRef.current) {
       console.log('useScreamDetection: auto detection already running, ignoring duplicate start');
-      return;
+      return false;
+    }
+
+    if (manualRunningRef.current) {
+      console.warn('useScreamDetection: auto detection blocked while manual recording is active');
+      return false;
     }
 
     const ok = await requestPermission();
     if (!ok) {
-      return;
+      return false;
     }
 
     console.log('useScreamDetection: calling native start detection');
     const started = callNativeStart();
     if (!started) {
       console.error('useScreamDetection: no native start method found');
-      return;
+      return false;
     }
 
     autoRunningRef.current = true;
     setIsAutoRunning(true);
+    return true;
   }, [callNativeStart, requestPermission]);
 
   const onHoldStart = useCallback(async () => {
     if (!ScreamDetectionModule) {
       console.error('useScreamDetection: native module unavailable for manual recording');
-      return;
+      return false;
+    }
+
+    if (autoRunningRef.current) {
+      console.warn('useScreamDetection: manual recording blocked while auto detection is active');
+      return false;
+    }
+
+    if (manualRunningRef.current) {
+      console.log('useScreamDetection: manual recording already running, ignoring duplicate start');
+      return false;
     }
 
     const ok = await requestPermission();
     if (!ok) {
-      return;
+      return false;
     }
 
     try {
@@ -168,14 +234,18 @@ export function useScreamDetection({
         const started = callNativeStart();
         if (!started) {
           console.error('useScreamDetection: no manual/start method found');
-          return;
+          return false;
         }
       }
 
       console.log('useScreamDetection: manual recording started');
+      manualRunningRef.current = true;
       setIsManualRecording(true);
+      return true;
     } catch (error) {
       console.error('useScreamDetection: start manual recording failed:', error);
+      manualRunningRef.current = false;
+      return false;
     }
   }, [callNativeStart, requestPermission]);
 
@@ -225,8 +295,10 @@ export function useScreamDetection({
     } catch (error) {
       console.error('useScreamDetection: stop manual recording failed:', error);
       return null;
+    } finally {
+      manualRunningRef.current = false;
     }
-  }, [callNativeStop, isManualRecording, lastProb, onManualResult, onScreamDetected]);
+  }, [callNativeStop, isManualRecording, lastProb, onManualResult, onScreamDetected, threshold]);
 
   useEffect(() => {
     if (!listenersShouldBeActive) {
@@ -239,70 +311,95 @@ export function useScreamDetection({
 
     removeSubscriptions();
 
-    screamSubscriptionRef.current = DeviceEventEmitter.addListener('ScreamDetected', async (event) => {
-      console.log('useScreamDetection: SCREAM event received:', event);
+    screamSubscriptionRef.current = DeviceEventEmitter.addListener(
+      'ScreamDetected',
+      async (event) => {
+        console.log('useScreamDetection: SCREAM event received:', event);
 
-      const prob = extractProbability(event);
-      const eventTimestamp = Number(event?.timestamp || Date.now());
+        const prob = extractProbability(event);
+        const eventTimestamp = Number(event?.timestamp || Date.now());
 
-      const eventKey = `${eventTimestamp}-${prob.toFixed(6)}`;
-      const now = Date.now();
-      if (lastGlobalScreamEventKey === eventKey && now - lastGlobalScreamEventAt < 2000) {
-        console.log('useScreamDetection: duplicate scream event suppressed:', eventKey);
-        return;
+        const eventKey = `${eventTimestamp}-${prob.toFixed(6)}`;
+        const now = Date.now();
+        if (lastGlobalScreamEventKey === eventKey && now - lastGlobalScreamEventAt < 2000) {
+          console.log('useScreamDetection: duplicate scream event suppressed:', eventKey);
+          return;
+        }
+        lastGlobalScreamEventKey = eventKey;
+        lastGlobalScreamEventAt = now;
+
+        setLastProb(prob);
+
+        const payload = {
+          prob,
+          confidence: prob,
+          isScream: prob >= threshold,
+          source: 'AUTO',
+          timestamp: eventTimestamp,
+        };
+
+        if (prob >= threshold && onAutoDetect) {
+          await Promise.resolve(onAutoDetect({ prob, timestamp: payload.timestamp }));
+        }
+
+        if (prob >= threshold && onScreamDetected) {
+          await Promise.resolve(onScreamDetected(payload));
+        }
       }
-      lastGlobalScreamEventKey = eventKey;
-      lastGlobalScreamEventAt = now;
-
-      setLastProb(prob);
-
-      const payload = {
-        prob,
-        confidence: prob,
-        isScream: prob >= threshold,
-        source: 'AUTO',
-        timestamp: eventTimestamp,
-      };
-
-      if (prob >= threshold && onAutoDetect) {
-        await Promise.resolve(onAutoDetect({ prob, timestamp: payload.timestamp }));
-      }
-
-      if (prob >= threshold && onScreamDetected) {
-        await Promise.resolve(onScreamDetected(payload));
-      }
-    });
+    );
 
     errorSubscriptionRef.current = DeviceEventEmitter.addListener('DetectionError', (event) => {
       console.error('useScreamDetection: detection error event:', event);
     });
 
-    telemetrySubscriptionRef.current = DeviceEventEmitter.addListener('DetectionTelemetry', (event) => {
-      const rawProb = Number(event?.rawProb ?? event?.probability ?? 0);
-      const decisionProb = Number(event?.decisionProb ?? event?.probability ?? 0);
-      const mode = event?.inputMode || 'unknown';
-      const preprocessMode = event?.preprocessMode || 'unknown';
-      const nativeThreshold = Number(event?.nativeThreshold ?? event?.threshold ?? DEFAULT_THRESHOLD);
-      const jsThreshold = Number(event?.jsThreshold ?? threshold);
-      const rawMax = Number(event?.rawMax ?? 0);
-      const rawMin = Number(event?.rawMin ?? 0);
-      const normalized = Boolean(event?.normalized);
-      const rms = Number(event?.rms ?? 0);
-      const peak = Number(event?.peak ?? 0);
-      const meanAbs = Number(event?.meanAbs ?? 0);
-      const frameIndex = Number(event?.frameIndex ?? 0);
-      const hitsInWindow = Number(event?.hitsInWindow ?? event?.aboveThresholdCount ?? 0);
-      const decisionWindowSize = Number(event?.windowSize ?? event?.decisionWindowSize ?? 0);
-      console.log(
-        `useScreamDetection: telemetry frame=${frameIndex} mode=${mode} preprocess=${preprocessMode} rawProb=${rawProb.toFixed(8)} decisionProb=${decisionProb.toFixed(8)} rawMax=${rawMax.toFixed(8)} rawMin=${rawMin.toFixed(8)} hits=${hitsInWindow}/${decisionWindowSize} normalized=${normalized} rms=${rms.toFixed(6)} peak=${peak.toFixed(6)} meanAbs=${meanAbs.toFixed(6)} nativeThreshold=${nativeThreshold.toFixed(4)} jsThreshold=${jsThreshold.toFixed(4)}`
-      );
-    });
+    telemetrySubscriptionRef.current = DeviceEventEmitter.addListener(
+      'DetectionTelemetry',
+      (event) => {
+        const rawProb = Number(event?.rawProb ?? event?.probability ?? 0);
+        const decisionProb = Number(event?.decisionProb ?? event?.probability ?? 0);
+        const mode = event?.inputMode || 'unknown';
+        const preprocessMode = event?.preprocessMode || 'unknown';
+        const nativeThreshold = Number(
+          event?.nativeThreshold ?? event?.threshold ?? DEFAULT_THRESHOLD
+        );
+        const jsThreshold = Number(event?.jsThreshold ?? threshold);
+        const rawMax = Number(event?.rawMax ?? 0);
+        const rawMin = Number(event?.rawMin ?? 0);
+        const normalized = Boolean(event?.normalized);
+        const rms = Number(event?.rms ?? 0);
+        const peak = Number(event?.peak ?? 0);
+        const meanAbs = Number(event?.meanAbs ?? 0);
+        const frameIndex = Number(event?.frameIndex ?? 0);
+        const hitsInWindow = Number(event?.hitsInWindow ?? event?.aboveThresholdCount ?? 0);
+        const decisionWindowSize = Number(event?.windowSize ?? event?.decisionWindowSize ?? 0);
+        const waveformInputMode = String(event?.waveformInputMode || 'unknown');
+        const compareAlternateWaveformMode = Boolean(event?.compareAlternateWaveformMode);
+        const alternateWaveformInputMode =
+          event?.alternateWaveformInputMode != null
+            ? String(event.alternateWaveformInputMode)
+            : null;
+        const alternateRawProb =
+          event?.alternateRawProb != null ? Number(event.alternateRawProb) : null;
+        const alternateDecisionProb =
+          event?.alternateDecisionProb != null ? Number(event.alternateDecisionProb) : null;
+        const alternateSuffix =
+          alternateWaveformInputMode && Number.isFinite(alternateRawProb)
+            ? ` altMode=${alternateWaveformInputMode} altRawProb=${alternateRawProb.toFixed(8)} altDecisionProb=${Number(alternateDecisionProb || 0).toFixed(8)}`
+            : '';
+        console.log(
+          `useScreamDetection: telemetry frame=${frameIndex} mode=${mode} waveformMode=${waveformInputMode} preprocess=${preprocessMode} rawProb=${rawProb.toFixed(8)} decisionProb=${decisionProb.toFixed(8)} rawMax=${rawMax.toFixed(8)} rawMin=${rawMin.toFixed(8)} hits=${hitsInWindow}/${decisionWindowSize} normalized=${normalized} rms=${rms.toFixed(6)} peak=${peak.toFixed(6)} meanAbs=${meanAbs.toFixed(6)} nativeThreshold=${nativeThreshold.toFixed(4)} jsThreshold=${jsThreshold.toFixed(4)} compareAlt=${compareAlternateWaveformMode}${alternateSuffix}`
+        );
+      }
+    );
 
-    modelInfoSubscriptionRef.current = DeviceEventEmitter.addListener('DetectionModelInfo', (event) => {
-      console.log(
-        `useScreamDetection: modelInfo inputShape=${event?.inputShape} outputShape=${event?.outputShape} inputType=${event?.inputType} outputType=${event?.outputType} inputScale=${event?.inputScale} inputZero=${event?.inputZeroPoint} outputScale=${event?.outputScale} outputZero=${event?.outputZeroPoint}`
-      );
-    });
+    modelInfoSubscriptionRef.current = DeviceEventEmitter.addListener(
+      'DetectionModelInfo',
+      (event) => {
+        console.log(
+          `useScreamDetection: modelInfo inputShape=${event?.inputShape} outputShape=${event?.outputShape} inputType=${event?.inputType} outputType=${event?.outputType} inputScale=${event?.inputScale} inputZero=${event?.inputZeroPoint} outputScale=${event?.outputScale} outputZero=${event?.outputZeroPoint}`
+        );
+      }
+    );
 
     return () => {
       console.log('useScreamDetection: cleaning up event listeners');
@@ -325,6 +422,7 @@ export function useScreamDetection({
     return () => {
       callNativeStop();
       autoRunningRef.current = false;
+      manualRunningRef.current = false;
       setIsAutoRunning(false);
       removeSubscriptions();
     };
@@ -340,6 +438,10 @@ export function useScreamDetection({
     onHoldStart,
     onHoldEnd,
     requestPermission,
+    getWaveformDebugConfig: getNativeWaveformDebugConfig,
+    runDebugWavInference: runNativeDebugWavInference,
+    setWaveformInputMode: setNativeWaveformInputMode,
+    setWaveformModeComparisonEnabled: setNativeWaveformModeComparisonEnabled,
     startDetection: startAutoDetection,
     stopDetection: stopAutoDetection,
     startListening: onHoldStart,

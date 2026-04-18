@@ -306,6 +306,14 @@ const Dashboard = ({ navigation }) => {
   }, []);
 
   const handleStartAIDetection = useCallback(async () => {
+    if (isManualRecording) {
+      setSosMessage({
+        message: 'Finish the manual recording before starting AI detection.',
+        type: 'warning',
+      });
+      return;
+    }
+
     if (isAutoRunning) {
       stopAutoDetection();
       return;
@@ -316,16 +324,37 @@ const Dashboard = ({ navigation }) => {
 
     console.log('Dashboard: starting AI detection...');
     await startAutoDetection();
-  }, [isAutoRunning, requestAudioPermission, startAutoDetection, stopAutoDetection]);
+  }, [
+    isAutoRunning,
+    isManualRecording,
+    requestAudioPermission,
+    startAutoDetection,
+    stopAutoDetection,
+  ]);
 
   const handleVoiceTrigger = useCallback(async () => {
+    if (isAutoRunning) {
+      setSosMessage({
+        message: 'Stop AI detection before starting a manual recording.',
+        type: 'warning',
+      });
+      return false;
+    }
+
     const hasPermission = await requestAudioPermission();
     if (!hasPermission) return false;
 
     console.log('Dashboard: starting voice trigger...');
-    await onHoldStart();
+    const started = await onHoldStart();
+    if (!started) {
+      setSosError({
+        message: 'Manual recording could not start. Please try again.',
+        type: 'warning',
+      });
+      return false;
+    }
     return true;
-  }, [onHoldStart, requestAudioPermission]);
+  }, [isAutoRunning, onHoldStart, requestAudioPermission]);
 
   const openLogout = () => {
     setLogoutVisible(true);
@@ -566,7 +595,7 @@ const Dashboard = ({ navigation }) => {
             <Text style={styles.voiceText}>
               {isAutoRunning ? 'Stop AI Detection' : 'Start AI Detection'}
             </Text>
-            <Text style={styles.voiceSubText}>Threshold: 0.75</Text>
+            <Text style={styles.voiceSubText}>Calibration threshold: 0.0030</Text>
           </View>
         </TouchableOpacity>
 
@@ -588,7 +617,9 @@ const Dashboard = ({ navigation }) => {
             <Text style={styles.voiceText}>
               {isManualRecording ? 'Recording... Release to Analyse' : 'Hold to Record Voice'}
             </Text>
-            {isAutoRunning && <Text style={styles.voiceSubText}>Auto mode is running</Text>}
+            {isAutoRunning && (
+              <Text style={styles.voiceSubText}>Stop AI detection to use manual recording</Text>
+            )}
           </View>
         </TouchableOpacity>
 

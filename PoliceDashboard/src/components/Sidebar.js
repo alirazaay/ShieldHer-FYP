@@ -100,7 +100,7 @@ function Sidebar() {
             style={{ marginTop: '15px' }}
           >
             <span className="menu-icon">🚪</span>
-            <span>LOGOUT</span>
+            <span>Logout</span>
           </button>
         </div>
       </div>

@@ -40,6 +40,7 @@ export function useScreamDetection({
   const screamSubscriptionRef = useRef(null);
   const errorSubscriptionRef = useRef(null);
   const telemetrySubscriptionRef = useRef(null);
+  const modelInfoSubscriptionRef = useRef(null);
   const autoRunningRef = useRef(false);
 
   const requestPermission = useCallback(async () => {
@@ -77,9 +78,11 @@ export function useScreamDetection({
     screamSubscriptionRef.current?.remove();
     errorSubscriptionRef.current?.remove();
     telemetrySubscriptionRef.current?.remove();
+    modelInfoSubscriptionRef.current?.remove();
     screamSubscriptionRef.current = null;
     errorSubscriptionRef.current = null;
     telemetrySubscriptionRef.current = null;
+    modelInfoSubscriptionRef.current = null;
   }, []);
 
   const callNativeStart = useCallback(() => {
@@ -281,8 +284,17 @@ export function useScreamDetection({
       const rawMax = Number(event?.rawMax ?? 0);
       const rawMin = Number(event?.rawMin ?? 0);
       const normalized = Boolean(event?.normalized);
+      const rms = Number(event?.rms ?? 0);
+      const peak = Number(event?.peak ?? 0);
+      const meanAbs = Number(event?.meanAbs ?? 0);
       console.log(
-        `useScreamDetection: telemetry mode=${mode} prob=${prob.toFixed(4)} rawMax=${rawMax.toFixed(4)} rawMin=${rawMin.toFixed(4)} normalized=${normalized} nativeThreshold=${nativeThreshold.toFixed(2)} jsThreshold=${threshold.toFixed(2)}`
+        `useScreamDetection: telemetry mode=${mode} prob=${prob.toFixed(4)} rawMax=${rawMax.toFixed(4)} rawMin=${rawMin.toFixed(4)} normalized=${normalized} rms=${rms.toFixed(4)} peak=${peak.toFixed(4)} meanAbs=${meanAbs.toFixed(4)} nativeThreshold=${nativeThreshold.toFixed(2)} jsThreshold=${threshold.toFixed(2)}`
+      );
+    });
+
+    modelInfoSubscriptionRef.current = DeviceEventEmitter.addListener('DetectionModelInfo', (event) => {
+      console.log(
+        `useScreamDetection: modelInfo inputShape=${event?.inputShape} outputShape=${event?.outputShape} inputType=${event?.inputType} outputType=${event?.outputType} inputScale=${event?.inputScale} inputZero=${event?.inputZeroPoint} outputScale=${event?.outputScale} outputZero=${event?.outputZeroPoint}`
       );
     });
 

@@ -250,8 +250,11 @@ export function useScreamDetection({
       const prob = Number(event?.probability ?? 0);
       const mode = event?.inputMode || 'unknown';
       const threshold = Number(event?.threshold ?? THRESHOLD);
+      const rawMax = Number(event?.rawMax ?? 0);
+      const rawMin = Number(event?.rawMin ?? 0);
+      const normalized = Boolean(event?.normalized);
       console.log(
-        `useScreamDetection: telemetry mode=${mode} prob=${prob.toFixed(4)} threshold=${threshold.toFixed(2)}`
+        `useScreamDetection: telemetry mode=${mode} prob=${prob.toFixed(4)} rawMax=${rawMax.toFixed(4)} rawMin=${rawMin.toFixed(4)} normalized=${normalized} threshold=${threshold.toFixed(2)}`
       );
     });
 

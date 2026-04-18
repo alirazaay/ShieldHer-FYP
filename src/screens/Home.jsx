@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useIsFocused } from '@react-navigation/native';
 
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useScreamDetection } from '../hooks/useScreamDetection';
@@ -24,6 +25,7 @@ const AI_DETECTION_STORAGE_KEY = '@shieldher_ai_detection_enabled';
 const AUTO_SOS_COOLDOWN_MS = 60000;
 
 const Home = ({ navigation }) => {
+  const isFocused = useIsFocused();
   const [autoSosEnabled, setAutoSosEnabled] = useState(false);
   const [autoSosInitialized, setAutoSosInitialized] = useState(false);
   const lastAutoSosTriggerRef = useRef(0);
@@ -142,11 +144,9 @@ const Home = ({ navigation }) => {
     pendingAlert,
     cancelPendingAlert,
     allowPendingCountdown,
-    startDetection,
-    stopDetection,
   } = useScreamDetection({
-    enabled: autoSosEnabled,
-    continuous: true,
+    enabled: autoSosInitialized && autoSosEnabled,
+    continuous: isFocused,
     onScreamDetected: handleScreamDetected,
     config: {
       confidenceThreshold: 0.8,
@@ -187,22 +187,13 @@ const Home = ({ navigation }) => {
   useEffect(() => {
     if (!autoSosInitialized) return;
 
-    if (autoSosEnabled) {
+    if (autoSosEnabled && isFocused) {
       logger.info(TAG, 'AI Detection Started');
-      startDetection();
       return;
     }
 
-    stopDetection();
     logger.info(TAG, 'AI Detection Stopped');
-  }, [autoSosEnabled, autoSosInitialized, startDetection, stopDetection]);
-
-  useEffect(
-    () => () => {
-      stopDetection();
-    },
-    [stopDetection]
-  );
+  }, [autoSosEnabled, autoSosInitialized, isFocused]);
 
   return (
     <SafeAreaView style={styles.safe}>

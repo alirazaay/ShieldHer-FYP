@@ -2,7 +2,9 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { DeviceEventEmitter, NativeModules, PermissionsAndroid, Platform } from 'react-native';
 
 const ScreamDetectionModule = NativeModules.ScreamDetectionModule || NativeModules.ScreamDetection;
-const THRESHOLD = 0.65;
+const DEFAULT_THRESHOLD = 0.65;
+let lastGlobalScreamEventKey = null;
+let lastGlobalScreamEventAt = 0;
 
 function extractProbability(event) {
   if (typeof event === 'number') {
@@ -24,7 +26,11 @@ export function useScreamDetection({
   onScreamDetected,
   enabled = false,
   continuous = false,
+  config = {},
 } = {}) {
+  const configuredThreshold = Number(config?.confidenceThreshold);
+  const threshold = Number.isFinite(configuredThreshold) ? configuredThreshold : DEFAULT_THRESHOLD;
+
   const [isAutoRunning, setIsAutoRunning] = useState(false);
   const [isManualRecording, setIsManualRecording] = useState(false);
   const [lastProb, setLastProb] = useState(null);
@@ -182,7 +188,12 @@ export function useScreamDetection({
         result = await ScreamDetectionModule.stopManualRecording();
       } else {
         callNativeStop();
-        result = { maxProb: Number(lastProb || 0), avgProb: Number(lastProb || 0), windowCount: 1, triggered: Number(lastProb || 0) >= THRESHOLD };
+        result = {
+          maxProb: Number(lastProb || 0),
+          avgProb: Number(lastProb || 0),
+          windowCount: 1,
+          triggered: Number(lastProb || 0) >= threshold,
+        };
       }
 
       if (result?.maxProb != null) {
@@ -199,7 +210,7 @@ export function useScreamDetection({
           onScreamDetected({
             prob,
             confidence: prob,
-            isScream: prob >= THRESHOLD,
+            isScream: prob >= threshold,
             source: 'MANUAL',
             timestamp: Date.now(),
           })
@@ -223,21 +234,32 @@ export function useScreamDetection({
       console.log('useScreamDetection: SCREAM event received:', event);
 
       const prob = extractProbability(event);
+      const eventTimestamp = Number(event?.timestamp || Date.now());
+
+      const eventKey = `${eventTimestamp}-${prob.toFixed(6)}`;
+      const now = Date.now();
+      if (lastGlobalScreamEventKey === eventKey && now - lastGlobalScreamEventAt < 2000) {
+        console.log('useScreamDetection: duplicate scream event suppressed:', eventKey);
+        return;
+      }
+      lastGlobalScreamEventKey = eventKey;
+      lastGlobalScreamEventAt = now;
+
       setLastProb(prob);
 
       const payload = {
         prob,
         confidence: prob,
-        isScream: prob >= THRESHOLD,
+        isScream: prob >= threshold,
         source: 'AUTO',
-        timestamp: event?.timestamp || Date.now(),
+        timestamp: eventTimestamp,
       };
 
-      if (prob >= THRESHOLD && onAutoDetect) {
+      if (prob >= threshold && onAutoDetect) {
         await Promise.resolve(onAutoDetect({ prob, timestamp: payload.timestamp }));
       }
 
-      if (prob >= THRESHOLD && onScreamDetected) {
+      if (prob >= threshold && onScreamDetected) {
         await Promise.resolve(onScreamDetected(payload));
       }
     });
@@ -249,12 +271,12 @@ export function useScreamDetection({
     telemetrySubscriptionRef.current = DeviceEventEmitter.addListener('DetectionTelemetry', (event) => {
       const prob = Number(event?.probability ?? 0);
       const mode = event?.inputMode || 'unknown';
-      const threshold = Number(event?.threshold ?? THRESHOLD);
+      const nativeThreshold = Number(event?.threshold ?? DEFAULT_THRESHOLD);
       const rawMax = Number(event?.rawMax ?? 0);
       const rawMin = Number(event?.rawMin ?? 0);
       const normalized = Boolean(event?.normalized);
       console.log(
-        `useScreamDetection: telemetry mode=${mode} prob=${prob.toFixed(4)} rawMax=${rawMax.toFixed(4)} rawMin=${rawMin.toFixed(4)} normalized=${normalized} threshold=${threshold.toFixed(2)}`
+        `useScreamDetection: telemetry mode=${mode} prob=${prob.toFixed(4)} rawMax=${rawMax.toFixed(4)} rawMin=${rawMin.toFixed(4)} normalized=${normalized} nativeThreshold=${nativeThreshold.toFixed(2)} jsThreshold=${threshold.toFixed(2)}`
       );
     });
 
@@ -262,7 +284,7 @@ export function useScreamDetection({
       console.log('useScreamDetection: cleaning up event listeners');
       removeSubscriptions();
     };
-  }, [onAutoDetect, onScreamDetected, removeSubscriptions]);
+  }, [onAutoDetect, onScreamDetected, removeSubscriptions, threshold]);
 
   useEffect(() => {
     if (!enabled || !continuous) {
@@ -300,7 +322,7 @@ export function useScreamDetection({
     stopListening: onHoldEnd,
     isListening: isManualRecording,
     isAnalyzing: false,
-    result: lastProb == null ? null : { confidence: lastProb, isScream: lastProb >= THRESHOLD },
+    result: lastProb == null ? null : { confidence: lastProb, isScream: lastProb >= threshold },
     error: null,
     detectionState: {
       isListening: isAutoRunning,

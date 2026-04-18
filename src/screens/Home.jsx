@@ -149,7 +149,7 @@ const Home = ({ navigation }) => {
     continuous: isFocused,
     onScreamDetected: handleScreamDetected,
     config: {
-      confidenceThreshold: 0.8,
+      confidenceThreshold: 0.05,
       requiredConsecutiveFrames: 3,
       validationWindowMs: 2000,
       cooldownMs: 60000,

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { DeviceEventEmitter, NativeModules, PermissionsAndroid, Platform } from 'react-native';
 
 const ScreamDetectionModule = NativeModules.ScreamDetectionModule || NativeModules.ScreamDetection;
-const DEFAULT_THRESHOLD = 0.65;
+const DEFAULT_THRESHOLD = 0.05;
 let lastGlobalScreamEventKey = null;
 let lastGlobalScreamEventAt = 0;
 
@@ -278,7 +278,8 @@ export function useScreamDetection({
     });
 
     telemetrySubscriptionRef.current = DeviceEventEmitter.addListener('DetectionTelemetry', (event) => {
-      const prob = Number(event?.probability ?? 0);
+      const rawProb = Number(event?.rawProb ?? event?.probability ?? 0);
+      const decisionProb = Number(event?.decisionProb ?? event?.probability ?? 0);
       const mode = event?.inputMode || 'unknown';
       const preprocessMode = event?.preprocessMode || 'unknown';
       const nativeThreshold = Number(event?.threshold ?? DEFAULT_THRESHOLD);
@@ -288,8 +289,11 @@ export function useScreamDetection({
       const rms = Number(event?.rms ?? 0);
       const peak = Number(event?.peak ?? 0);
       const meanAbs = Number(event?.meanAbs ?? 0);
+      const frameIndex = Number(event?.frameIndex ?? 0);
+      const aboveThresholdCount = Number(event?.aboveThresholdCount ?? 0);
+      const decisionWindowSize = Number(event?.decisionWindowSize ?? 0);
       console.log(
-        `useScreamDetection: telemetry mode=${mode} preprocess=${preprocessMode} prob=${prob.toFixed(4)} rawMax=${rawMax.toFixed(4)} rawMin=${rawMin.toFixed(4)} normalized=${normalized} rms=${rms.toFixed(4)} peak=${peak.toFixed(4)} meanAbs=${meanAbs.toFixed(4)} nativeThreshold=${nativeThreshold.toFixed(2)} jsThreshold=${threshold.toFixed(2)}`
+        `useScreamDetection: telemetry frame=${frameIndex} mode=${mode} preprocess=${preprocessMode} rawProb=${rawProb.toFixed(8)} decisionProb=${decisionProb.toFixed(8)} rawMax=${rawMax.toFixed(8)} rawMin=${rawMin.toFixed(8)} hits=${aboveThresholdCount}/${decisionWindowSize} normalized=${normalized} rms=${rms.toFixed(6)} peak=${peak.toFixed(6)} meanAbs=${meanAbs.toFixed(6)} nativeThreshold=${nativeThreshold.toFixed(2)} jsThreshold=${threshold.toFixed(2)}`
       );
     });
 
@@ -318,12 +322,12 @@ export function useScreamDetection({
 
   useEffect(() => {
     return () => {
-      if (autoRunningRef.current) {
-        stopAutoDetection();
-      }
+      callNativeStop();
+      autoRunningRef.current = false;
+      setIsAutoRunning(false);
       removeSubscriptions();
     };
-  }, [removeSubscriptions, stopAutoDetection]);
+  }, [callNativeStop, removeSubscriptions]);
 
   return {
     isAutoRunning,

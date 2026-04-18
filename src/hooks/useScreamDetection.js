@@ -35,6 +35,7 @@ export function useScreamDetection({
   const [isManualRecording, setIsManualRecording] = useState(false);
   const [lastProb, setLastProb] = useState(null);
   const [permissionGranted, setPermissionGranted] = useState(false);
+  const listenersShouldBeActive = (enabled && continuous) || isAutoRunning || isManualRecording;
 
   const screamSubscriptionRef = useRef(null);
   const errorSubscriptionRef = useRef(null);
@@ -225,6 +226,11 @@ export function useScreamDetection({
   }, [callNativeStop, isManualRecording, lastProb, onManualResult, onScreamDetected]);
 
   useEffect(() => {
+    if (!listenersShouldBeActive) {
+      removeSubscriptions();
+      return undefined;
+    }
+
     console.log('useScreamDetection: setting up event listeners');
     console.log('useScreamDetection: native module available =', Boolean(ScreamDetectionModule));
 
@@ -284,7 +290,7 @@ export function useScreamDetection({
       console.log('useScreamDetection: cleaning up event listeners');
       removeSubscriptions();
     };
-  }, [onAutoDetect, onScreamDetected, removeSubscriptions, threshold]);
+  }, [listenersShouldBeActive, onAutoDetect, onScreamDetected, removeSubscriptions, threshold]);
 
   useEffect(() => {
     if (!enabled || !continuous) {

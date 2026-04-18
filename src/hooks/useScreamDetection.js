@@ -5,6 +5,14 @@ const ScreamDetectionModule = NativeModules.ScreamDetectionModule || NativeModul
 const DEFAULT_THRESHOLD = 0.003;
 let lastGlobalScreamEventKey = null;
 let lastGlobalScreamEventAt = 0;
+let autoDebugWavRunStarted = false;
+
+const AUTO_DEBUG_WAV_DIR = '/sdcard/Android/data/com.shieldher.app/files';
+const AUTO_DEBUG_WAV_PATHS = [
+  `${AUTO_DEBUG_WAV_DIR}/shieldher_test_scream.wav`,
+  `${AUTO_DEBUG_WAV_DIR}/shieldher_test_speech.wav`,
+  `${AUTO_DEBUG_WAV_DIR}/shieldher_test_silence.wav`,
+];
 
 export const WAVEFORM_INPUT_MODES = {
   NORMALIZED: 'normalized',
@@ -417,6 +425,48 @@ export function useScreamDetection({
       stopAutoDetection();
     };
   }, [continuous, enabled, startAutoDetection, stopAutoDetection]);
+
+  useEffect(() => {
+    if (!__DEV__ || autoDebugWavRunStarted || !ScreamDetectionModule) {
+      return undefined;
+    }
+
+    autoDebugWavRunStarted = true;
+    let cancelled = false;
+
+    const runOfflineDebugValidation = async () => {
+      try {
+        console.log('useScreamDetection: starting auto offline WAV validation');
+        const configResult = await getNativeWaveformDebugConfig();
+        if (!cancelled) {
+          console.log('useScreamDetection: waveform debug config:', configResult);
+        }
+
+        for (const filePath of AUTO_DEBUG_WAV_PATHS) {
+          try {
+            const result = await runNativeDebugWavInference(filePath);
+            if (!cancelled) {
+              console.log(`useScreamDetection: offline WAV result ${filePath}`, result);
+            }
+          } catch (error) {
+            if (!cancelled) {
+              console.warn(`useScreamDetection: offline WAV skipped ${filePath}`, error);
+            }
+          }
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.warn('useScreamDetection: auto offline WAV validation failed', error);
+        }
+      }
+    };
+
+    runOfflineDebugValidation();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     return () => {

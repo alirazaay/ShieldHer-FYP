@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { DeviceEventEmitter, NativeModules, PermissionsAndroid, Platform } from 'react-native';
 
 const ScreamDetectionModule = NativeModules.ScreamDetectionModule || NativeModules.ScreamDetection;
-const DEFAULT_THRESHOLD = 0.05;
+const DEFAULT_THRESHOLD = 0.003;
 let lastGlobalScreamEventKey = null;
 let lastGlobalScreamEventAt = 0;
 
@@ -282,7 +282,8 @@ export function useScreamDetection({
       const decisionProb = Number(event?.decisionProb ?? event?.probability ?? 0);
       const mode = event?.inputMode || 'unknown';
       const preprocessMode = event?.preprocessMode || 'unknown';
-      const nativeThreshold = Number(event?.threshold ?? DEFAULT_THRESHOLD);
+      const nativeThreshold = Number(event?.nativeThreshold ?? event?.threshold ?? DEFAULT_THRESHOLD);
+      const jsThreshold = Number(event?.jsThreshold ?? threshold);
       const rawMax = Number(event?.rawMax ?? 0);
       const rawMin = Number(event?.rawMin ?? 0);
       const normalized = Boolean(event?.normalized);
@@ -290,10 +291,10 @@ export function useScreamDetection({
       const peak = Number(event?.peak ?? 0);
       const meanAbs = Number(event?.meanAbs ?? 0);
       const frameIndex = Number(event?.frameIndex ?? 0);
-      const aboveThresholdCount = Number(event?.aboveThresholdCount ?? 0);
-      const decisionWindowSize = Number(event?.decisionWindowSize ?? 0);
+      const hitsInWindow = Number(event?.hitsInWindow ?? event?.aboveThresholdCount ?? 0);
+      const decisionWindowSize = Number(event?.windowSize ?? event?.decisionWindowSize ?? 0);
       console.log(
-        `useScreamDetection: telemetry frame=${frameIndex} mode=${mode} preprocess=${preprocessMode} rawProb=${rawProb.toFixed(8)} decisionProb=${decisionProb.toFixed(8)} rawMax=${rawMax.toFixed(8)} rawMin=${rawMin.toFixed(8)} hits=${aboveThresholdCount}/${decisionWindowSize} normalized=${normalized} rms=${rms.toFixed(6)} peak=${peak.toFixed(6)} meanAbs=${meanAbs.toFixed(6)} nativeThreshold=${nativeThreshold.toFixed(2)} jsThreshold=${threshold.toFixed(2)}`
+        `useScreamDetection: telemetry frame=${frameIndex} mode=${mode} preprocess=${preprocessMode} rawProb=${rawProb.toFixed(8)} decisionProb=${decisionProb.toFixed(8)} rawMax=${rawMax.toFixed(8)} rawMin=${rawMin.toFixed(8)} hits=${hitsInWindow}/${decisionWindowSize} normalized=${normalized} rms=${rms.toFixed(6)} peak=${peak.toFixed(6)} meanAbs=${meanAbs.toFixed(6)} nativeThreshold=${nativeThreshold.toFixed(4)} jsThreshold=${jsThreshold.toFixed(4)}`
       );
     });
 

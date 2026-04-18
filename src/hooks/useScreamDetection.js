@@ -280,6 +280,7 @@ export function useScreamDetection({
     telemetrySubscriptionRef.current = DeviceEventEmitter.addListener('DetectionTelemetry', (event) => {
       const prob = Number(event?.probability ?? 0);
       const mode = event?.inputMode || 'unknown';
+      const preprocessMode = event?.preprocessMode || 'unknown';
       const nativeThreshold = Number(event?.threshold ?? DEFAULT_THRESHOLD);
       const rawMax = Number(event?.rawMax ?? 0);
       const rawMin = Number(event?.rawMin ?? 0);
@@ -288,7 +289,7 @@ export function useScreamDetection({
       const peak = Number(event?.peak ?? 0);
       const meanAbs = Number(event?.meanAbs ?? 0);
       console.log(
-        `useScreamDetection: telemetry mode=${mode} prob=${prob.toFixed(4)} rawMax=${rawMax.toFixed(4)} rawMin=${rawMin.toFixed(4)} normalized=${normalized} rms=${rms.toFixed(4)} peak=${peak.toFixed(4)} meanAbs=${meanAbs.toFixed(4)} nativeThreshold=${nativeThreshold.toFixed(2)} jsThreshold=${threshold.toFixed(2)}`
+        `useScreamDetection: telemetry mode=${mode} preprocess=${preprocessMode} prob=${prob.toFixed(4)} rawMax=${rawMax.toFixed(4)} rawMin=${rawMin.toFixed(4)} normalized=${normalized} rms=${rms.toFixed(4)} peak=${peak.toFixed(4)} meanAbs=${meanAbs.toFixed(4)} nativeThreshold=${nativeThreshold.toFixed(2)} jsThreshold=${threshold.toFixed(2)}`
       );
     });
 

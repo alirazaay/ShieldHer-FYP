@@ -502,8 +502,8 @@ const Dashboard = ({ navigation }) => {
       : 'Status: Linked'
     : 'Status: Add a guardian in profile';
 
-  const compactMode = windowHeight <= 900;
-  const ultraCompactMode = windowHeight <= 780;
+  const compactMode = windowHeight <= 940;
+  const ultraCompactMode = windowHeight <= 820;
 
   return (
     <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
@@ -833,7 +833,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 14,
-    paddingBottom: 14,
+    paddingBottom: 12,
     borderBottomLeftRadius: 18,
     borderBottomRightRadius: 18,
     shadowColor: '#000',
@@ -919,7 +919,7 @@ const styles = StyleSheet.create({
 
   overviewBanner: {
     width: '92%',
-    marginTop: 4,
+    marginTop: 8,
     backgroundColor: '#EEF2FF',
     borderColor: '#D9E1FF',
     borderWidth: 1,
@@ -963,24 +963,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'flex-start',
     paddingTop: 6,
-    paddingBottom: 28,
+    paddingBottom: 18,
     backgroundColor: '#D8D9DE',
   },
   scrollCompact: {
     paddingTop: 4,
-    paddingBottom: 12,
+    paddingBottom: 8,
   },
   sectionTitle: {
-    marginTop: 20,
+    marginTop: 18,
     fontWeight: '900',
     color: '#2D2F33',
     fontSize: 18,
   },
   sectionTitleCompact: {
-    marginTop: 14,
+    marginTop: 12,
     fontSize: 16,
   },
-  sosWrap: { marginTop: 18, alignItems: 'center', width: '100%' },
+  sosWrap: { marginTop: 14, alignItems: 'center', width: '100%' },
   sosCircle: {
     width: 170,
     height: 170,
@@ -1014,18 +1014,18 @@ const styles = StyleSheet.create({
     fontSize: 24,
   },
   warning: {
-    marginTop: 12,
+    marginTop: 10,
     color: '#3E4046',
-    fontSize: 11,
+    fontSize: 12,
     textAlign: 'center',
     width: '88%',
   },
   warningCompact: {
-    marginTop: 8,
-    fontSize: 10,
+    marginTop: 7,
+    fontSize: 11,
   },
   voiceBtn: {
-    marginTop: 16,
+    marginTop: 14,
     backgroundColor: '#3A2BF1',
     paddingVertical: 13,
     paddingHorizontal: 18,
@@ -1040,7 +1040,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   voiceBtnCompact: {
-    marginTop: 12,
+    marginTop: 10,
     paddingVertical: 10,
     borderRadius: 12,
   },
@@ -1055,7 +1055,7 @@ const styles = StyleSheet.create({
   voiceSubText: { color: 'rgba(255,255,255,0.85)', fontSize: 11, marginTop: 2 },
   voiceSubTextCompact: { fontSize: 10, marginTop: 1 },
   voiceHealthCard: {
-    marginTop: 12,
+    marginTop: 10,
     width: '92%',
     borderRadius: 14,
     backgroundColor: '#EEF2FF',
@@ -1065,7 +1065,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   voiceHealthCardCompact: {
-    marginTop: 10,
+    marginTop: 8,
     paddingHorizontal: 10,
     paddingVertical: 8,
   },
@@ -1099,14 +1099,14 @@ const styles = StyleSheet.create({
   },
 
   statusRow: {
-    marginTop: 24,
+    marginTop: 18,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'stretch',
     width: '92%',
   },
   statusRowCompact: {
-    marginTop: 16,
+    marginTop: 12,
   },
   statusCol: { width: '48%', alignItems: 'center', justifyContent: 'flex-start' },
   statusHeading: { fontSize: 12, color: '#2D2F33', marginBottom: 10, textAlign: 'center' },
@@ -1137,7 +1137,7 @@ const styles = StyleSheet.create({
   statusNoteCompact: { fontSize: 11 },
 
   overviewBannerCompact: {
-    marginTop: 2,
+    marginTop: 6,
     paddingVertical: 10,
     paddingHorizontal: 12,
   },

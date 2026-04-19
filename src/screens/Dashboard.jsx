@@ -10,6 +10,7 @@ import {
   PermissionsAndroid,
   Platform,
   RefreshControl,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -40,6 +41,7 @@ function getUserInitial(profile, firebaseUser) {
 
 const Dashboard = ({ navigation }) => {
   const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
   const [profileInitial, setProfileInitial] = useState('U');
   const [refreshing, setRefreshing] = useState(false);
   const [dashboardSnapshot, setDashboardSnapshot] = useState({
@@ -500,11 +502,14 @@ const Dashboard = ({ navigation }) => {
       : 'Status: Linked'
     : 'Status: Add a guardian in profile';
 
+  const compactMode = windowHeight <= 900;
+  const ultraCompactMode = windowHeight <= 780;
+
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
       {/* Top App Bar */}
-      {/* App bar positioned below status bar using safe area inset */}
-      <View style={[styles.appBar, { paddingTop: insets.top + 6, height: 56 + insets.top + 6 }]}>
+      {/* App bar includes status-bar inset manually to avoid double safe-area padding */}
+      <View style={[styles.appBar, { paddingTop: insets.top + 8 }]}>
         <View style={styles.appBarLeft}>
           <MaterialCommunityIcons
             name="shield-outline"
@@ -512,7 +517,10 @@ const Dashboard = ({ navigation }) => {
             color="#fff"
             style={{ marginRight: 8 }}
           />
-          <Text style={styles.brand}>ShieldHer</Text>
+          <View>
+            <Text style={styles.brand}>ShieldHer</Text>
+            <Text style={styles.appBarSub}>Personal Safety Dashboard</Text>
+          </View>
         </View>
         <View style={styles.appBarRight}>
           {/* Location Tracking Status Indicator */}
@@ -531,6 +539,7 @@ const Dashboard = ({ navigation }) => {
           <TouchableOpacity
             onPress={() => navigation?.push('Profile')}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            activeOpacity={0.85}
           >
             <View style={styles.avatar}>
               <Text style={styles.avatarText}>{profileInitial}</Text>
@@ -540,8 +549,9 @@ const Dashboard = ({ navigation }) => {
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.scroll}
+        contentContainerStyle={[styles.scroll, compactMode && styles.scrollCompact]}
         showsVerticalScrollIndicator={false}
+        scrollEnabled={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -627,7 +637,7 @@ const Dashboard = ({ navigation }) => {
           </View>
         )}
 
-        <View style={styles.overviewBanner}>
+        <View style={[styles.overviewBanner, compactMode && styles.overviewBannerCompact]}>
           <View style={styles.overviewItem}>
             <Text style={styles.overviewLabel}>Guardians Linked</Text>
             <Text style={styles.overviewValue}>{dashboardSnapshot.guardiansCount}</Text>
@@ -642,7 +652,9 @@ const Dashboard = ({ navigation }) => {
         </View>
 
         {/* Emergency Protocol */}
-        <Text style={styles.sectionTitle}>Emergency Protocol</Text>
+        <Text style={[styles.sectionTitle, compactMode && styles.sectionTitleCompact]}>
+          Emergency Protocol
+        </Text>
 
         {/* SOS big circle */}
         <TouchableOpacity
@@ -651,24 +663,33 @@ const Dashboard = ({ navigation }) => {
           style={styles.sosWrap}
           activeOpacity={0.8}
         >
-          <View style={[styles.sosCircle, sosLoading && styles.sosCircleLoading]}>
+          <View
+            style={[
+              styles.sosCircle,
+              compactMode && styles.sosCircleCompact,
+              ultraCompactMode && styles.sosCircleUltraCompact,
+              sosLoading && styles.sosCircleLoading,
+            ]}
+          >
             {sosLoading ? (
               <ActivityIndicator size="large" color="#fff" />
             ) : (
               <>
                 <MaterialCommunityIcons
                   name="alert"
-                  size={20}
+                  size={compactMode ? 18 : 20}
                   color="#fff"
                   style={styles.sosIcon}
                 />
-                <Text style={styles.sosText}>SOS</Text>
+                <Text style={[styles.sosText, compactMode && styles.sosTextCompact]}>SOS</Text>
               </>
             )}
           </View>
         </TouchableOpacity>
-        <Text style={styles.warning}>
-          Warning: Initiates contact with Guardians and Local Authorities.
+        <Text style={[styles.warning, compactMode && styles.warningCompact]}>
+          {compactMode
+            ? 'Warning: Contacts Guardians and Authorities.'
+            : 'Warning: Initiates contact with Guardians and Local Authorities.'}
         </Text>
 
         {/* Escalation Status Banner */}
@@ -686,7 +707,11 @@ const Dashboard = ({ navigation }) => {
           activeOpacity={0.9}
           onPress={handleStartAIDetection}
           disabled={sosLoading}
-          style={[styles.voiceBtn, sosLoading && styles.voiceBtnDisabled]}
+          style={[
+            styles.voiceBtn,
+            compactMode && styles.voiceBtnCompact,
+            sosLoading && styles.voiceBtnDisabled,
+          ]}
         >
           <MaterialCommunityIcons
             name={isAutoRunning ? 'ear-hearing' : 'ear-hearing-off'}
@@ -695,10 +720,12 @@ const Dashboard = ({ navigation }) => {
             style={{ marginRight: 10 }}
           />
           <View style={styles.voiceTextWrap}>
-            <Text style={styles.voiceText}>
+            <Text style={[styles.voiceText, compactMode && styles.voiceTextCompact]}>
               {isAutoRunning ? 'Stop AI Detection' : 'Start AI Detection'}
             </Text>
-            <Text style={styles.voiceSubText}>Calibration threshold: 0.0030</Text>
+            <Text style={[styles.voiceSubText, compactMode && styles.voiceSubTextCompact]}>
+              Calibration threshold: 0.0030
+            </Text>
           </View>
         </TouchableOpacity>
 
@@ -708,7 +735,11 @@ const Dashboard = ({ navigation }) => {
           onPressIn={handleVoicePressIn}
           onPressOut={handleVoicePressOut}
           disabled={sosLoading}
-          style={[styles.voiceBtn, sosLoading && styles.voiceBtnDisabled]}
+          style={[
+            styles.voiceBtn,
+            compactMode && styles.voiceBtnCompact,
+            sosLoading && styles.voiceBtnDisabled,
+          ]}
         >
           <MaterialCommunityIcons
             name={isManualRecording ? 'microphone' : 'microphone-outline'}
@@ -717,16 +748,18 @@ const Dashboard = ({ navigation }) => {
             style={{ marginRight: 10 }}
           />
           <View style={styles.voiceTextWrap}>
-            <Text style={styles.voiceText}>
+            <Text style={[styles.voiceText, compactMode && styles.voiceTextCompact]}>
               {isManualRecording ? 'Recording... Release to Analyse' : 'Hold to Record Voice'}
             </Text>
             {isAutoRunning && (
-              <Text style={styles.voiceSubText}>Stop AI detection to use manual recording</Text>
+              <Text style={[styles.voiceSubText, compactMode && styles.voiceSubTextCompact]}>
+                Stop AI detection to use manual recording
+              </Text>
             )}
           </View>
         </TouchableOpacity>
 
-        <View style={styles.voiceHealthCard}>
+        <View style={[styles.voiceHealthCard, compactMode && styles.voiceHealthCardCompact]}>
           <View style={styles.voiceHealthRow}>
             <MaterialCommunityIcons name="waveform" size={14} color="#3A2BF1" />
             <Text style={styles.voiceHealthLabel}>Voice Detection</Text>
@@ -736,32 +769,55 @@ const Dashboard = ({ navigation }) => {
             <Text style={styles.voiceHealthMuted}>Last result: {voiceLastResult}</Text>
             <Text style={styles.voiceHealthMuted}>Confidence: {voiceLastConfidence}</Text>
           </View>
-          <View style={styles.voiceHealthRowMuted}>
-            <Text style={styles.voiceHealthMuted}>
-              Mic permission: {permissionGranted ? 'Granted' : 'Not granted'}
-            </Text>
-            <Text style={styles.voiceHealthMuted}>
-              Alert state: {detectionAlert?.tier || 'None'}
-            </Text>
-          </View>
+          {compactMode ? (
+            <View style={styles.voiceHealthRowMutedSingle}>
+              <Text style={styles.voiceHealthMuted}>
+                Mic: {permissionGranted ? 'Granted' : 'Not granted'} | Alert:{' '}
+                {detectionAlert?.tier || 'None'}
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.voiceHealthRowMuted}>
+              <Text style={styles.voiceHealthMuted}>
+                Mic permission: {permissionGranted ? 'Granted' : 'Not granted'}
+              </Text>
+              <Text style={styles.voiceHealthMuted}>
+                Alert state: {detectionAlert?.tier || 'None'}
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* Status Row */}
-        <View style={styles.statusRow}>
+        <View style={[styles.statusRow, compactMode && styles.statusRowCompact]}>
           <View style={styles.statusCol}>
-            <Text style={styles.statusHeading}>Current Status Rating</Text>
-            <View style={styles.badgeCircle}>
+            <Text style={[styles.statusHeading, compactMode && styles.statusHeadingCompact]}>
+              Current Status Rating
+            </Text>
+            <View style={[styles.badgeCircle, compactMode && styles.badgeCircleCompact]}>
               <Text style={statusSummary.style}>{statusSummary.label}</Text>
               <Text style={styles.badgePct}>{statusSummary.score}</Text>
             </View>
-            <Text style={styles.statusNote}>{statusSummary.note}</Text>
+            <Text style={[styles.statusNote, compactMode && styles.statusNoteCompact]}>
+              {statusSummary.note}
+            </Text>
           </View>
           <View style={styles.statusCol}>
-            <Text style={[styles.statusHeading, styles.linkHeading]}>Primary Contact Online</Text>
-            <View style={styles.badgeCircle}>
+            <Text
+              style={[
+                styles.statusHeading,
+                styles.linkHeading,
+                compactMode && styles.statusHeadingCompact,
+              ]}
+            >
+              Primary Contact
+            </Text>
+            <View style={[styles.badgeCircle, compactMode && styles.badgeCircleCompact]}>
               <Text style={styles.badgeText}>{primaryContactBadge}</Text>
             </View>
-            <Text style={styles.statusNote}>{primaryContactStatus}</Text>
+            <Text style={[styles.statusNote, compactMode && styles.statusNoteCompact]}>
+              {primaryContactStatus}
+            </Text>
           </View>
         </View>
       </ScrollView>
@@ -770,24 +826,41 @@ const Dashboard = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#E0E0E2' },
+  safe: { flex: 1, backgroundColor: '#D8D9DE' },
   appBar: {
     backgroundColor: '#4F2CF5',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 14,
+    paddingBottom: 14,
+    borderBottomLeftRadius: 18,
+    borderBottomRightRadius: 18,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.14,
+    shadowRadius: 8,
+    elevation: 6,
   },
   appBarLeft: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   brand: { color: '#fff', fontSize: 18, fontWeight: '800' },
-  appBarRight: { flexDirection: 'row', alignItems: 'center' },
+  appBarSub: {
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 11,
+    marginTop: 2,
+  },
+  appBarRight: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   locationStatusContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 10,
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    borderRadius: 99,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
   },
   locationStatusDot: {
     width: 8,
@@ -801,15 +874,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#EF4444',
   },
   avatar: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: '#0B26FF',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 8,
   },
-  avatarText: { color: '#fff', fontWeight: '800', fontSize: 12 },
+  avatarText: { color: '#fff', fontWeight: '800', fontSize: 13 },
 
   errorToast: {
     flexDirection: 'row',
@@ -817,7 +891,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     marginHorizontal: 12,
-    marginVertical: 12,
+    marginTop: 6,
+    marginBottom: 12,
     borderRadius: 8,
     gap: 8,
   },
@@ -843,16 +918,21 @@ const styles = StyleSheet.create({
   },
 
   overviewBanner: {
-    width: '88%',
-    marginTop: 12,
+    width: '90%',
+    marginTop: -14,
     backgroundColor: '#EEF2FF',
     borderColor: '#D9E1FF',
     borderWidth: 1,
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
   },
   overviewItem: {
     flex: 1,
@@ -864,12 +944,12 @@ const styles = StyleSheet.create({
     marginHorizontal: 10,
   },
   overviewLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#535964',
     marginBottom: 2,
   },
   overviewValue: {
-    fontSize: 13,
+    fontSize: 14,
     color: '#1F2451',
     fontWeight: '800',
   },
@@ -877,46 +957,88 @@ const styles = StyleSheet.create({
   scroll: {
     flexGrow: 1,
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 18,
-    backgroundColor: '#E0E0E2',
+    justifyContent: 'flex-start',
+    paddingTop: 6,
+    paddingBottom: 28,
+    backgroundColor: '#D8D9DE',
+  },
+  scrollCompact: {
+    paddingTop: 4,
+    paddingBottom: 12,
   },
   sectionTitle: {
-    marginTop: 14,
+    marginTop: 20,
     fontWeight: '900',
     color: '#2D2F33',
+    fontSize: 18,
+  },
+  sectionTitleCompact: {
+    marginTop: 14,
     fontSize: 16,
   },
   sosWrap: { marginTop: 18, alignItems: 'center', width: '100%' },
   sosCircle: {
-    width: 150,
-    height: 150,
-    borderRadius: 75,
+    width: 170,
+    height: 170,
+    borderRadius: 85,
     backgroundColor: '#E01111',
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  sosCircleCompact: {
+    width: 138,
+    height: 138,
+    borderRadius: 69,
+  },
+  sosCircleUltraCompact: {
+    width: 122,
+    height: 122,
+    borderRadius: 61,
   },
   sosCircleLoading: {
     opacity: 0.8,
   },
   sosIcon: { position: 'absolute', top: 16 },
   sosText: { color: '#fff', fontSize: 28, fontWeight: '900', letterSpacing: 1 },
+  sosTextCompact: {
+    fontSize: 24,
+  },
   warning: {
-    marginTop: 10,
+    marginTop: 12,
     color: '#3E4046',
-    fontSize: 10,
+    fontSize: 11,
     textAlign: 'center',
-    width: '86%',
+    width: '88%',
+  },
+  warningCompact: {
+    marginTop: 8,
+    fontSize: 10,
   },
   voiceBtn: {
     marginTop: 16,
     backgroundColor: '#3A2BF1',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
+    paddingVertical: 13,
+    paddingHorizontal: 18,
+    borderRadius: 14,
     flexDirection: 'row',
     alignItems: 'center',
+    width: '90%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  voiceBtnCompact: {
+    marginTop: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
   },
   voiceBtnDisabled: {
     opacity: 0.7,
@@ -925,14 +1047,21 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   voiceText: { color: '#fff', fontWeight: '800' },
+  voiceTextCompact: { fontSize: 15 },
   voiceSubText: { color: 'rgba(255,255,255,0.85)', fontSize: 11, marginTop: 2 },
+  voiceSubTextCompact: { fontSize: 10, marginTop: 1 },
   voiceHealthCard: {
-    marginTop: 10,
-    width: '88%',
-    borderRadius: 8,
+    marginTop: 12,
+    width: '90%',
+    borderRadius: 14,
     backgroundColor: '#EEF2FF',
     borderWidth: 1,
     borderColor: '#D9E1FF',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  voiceHealthCardCompact: {
+    marginTop: 10,
     paddingHorizontal: 10,
     paddingVertical: 8,
   },
@@ -957,28 +1086,41 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
+  voiceHealthRowMutedSingle: {
+    marginTop: 4,
+  },
   voiceHealthMuted: {
     fontSize: 11,
     color: '#535964',
   },
 
   statusRow: {
-    marginTop: 28,
+    marginTop: 24,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    width: '88%',
+    width: '90%',
+  },
+  statusRowCompact: {
+    marginTop: 16,
   },
   statusCol: { width: '48%', alignItems: 'center' },
   statusHeading: { fontSize: 12, color: '#2D2F33', marginBottom: 10 },
-  linkHeading: { color: '#1E34FF', textDecorationLine: 'underline' },
+  statusHeadingCompact: { marginBottom: 8, fontSize: 11 },
+  linkHeading: { color: '#1E34FF' },
   badgeCircle: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+    width: 132,
+    height: 132,
+    borderRadius: 66,
     backgroundColor: '#3A2BF1',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 10,
+  },
+  badgeCircleCompact: {
+    width: 102,
+    height: 102,
+    borderRadius: 51,
+    marginBottom: 8,
   },
   badgeSafe: { color: '#31D159', fontWeight: '900', fontSize: 18, marginBottom: 6 },
   badgeWatch: { color: '#FACC15', fontWeight: '900', fontSize: 18, marginBottom: 6 },
@@ -986,7 +1128,14 @@ const styles = StyleSheet.create({
   badgeMuted: { color: '#D1D5DB', fontWeight: '900', fontSize: 18, marginBottom: 6 },
   badgePct: { color: '#fff', fontWeight: '900', fontSize: 16 },
   badgeText: { color: '#fff', fontWeight: '900', fontSize: 16 },
-  statusNote: { color: '#2D2F33', fontSize: 11 },
+  statusNote: { color: '#2D2F33', fontSize: 12, textAlign: 'center', paddingHorizontal: 4 },
+  statusNoteCompact: { fontSize: 11 },
+
+  overviewBannerCompact: {
+    marginTop: -10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
 
   escalationBanner: {
     flexDirection: 'row',
@@ -994,9 +1143,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#DC2626',
     paddingVertical: 12,
     paddingHorizontal: 16,
-    borderRadius: 10,
+    borderRadius: 14,
     marginTop: 16,
-    width: '88%',
+    width: '90%',
     gap: 12,
   },
   escalationTextWrap: {

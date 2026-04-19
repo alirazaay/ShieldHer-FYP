@@ -828,7 +828,7 @@ const Dashboard = ({ navigation }) => {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#D8D9DE' },
   appBar: {
-    backgroundColor: '#4F2CF5',
+    backgroundColor: '#3A2BF1',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -918,8 +918,8 @@ const styles = StyleSheet.create({
   },
 
   overviewBanner: {
-    width: '90%',
-    marginTop: -14,
+    width: '92%',
+    marginTop: 4,
     backgroundColor: '#EEF2FF',
     borderColor: '#D9E1FF',
     borderWidth: 1,
@@ -936,6 +936,8 @@ const styles = StyleSheet.create({
   },
   overviewItem: {
     flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   overviewDivider: {
     width: 1,
@@ -947,11 +949,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#535964',
     marginBottom: 2,
+    textAlign: 'center',
   },
   overviewValue: {
     fontSize: 14,
     color: '#1F2451',
     fontWeight: '800',
+    textAlign: 'center',
   },
 
   scroll: {
@@ -981,15 +985,15 @@ const styles = StyleSheet.create({
     width: 170,
     height: 170,
     borderRadius: 85,
-    backgroundColor: '#E01111',
+    backgroundColor: '#C73535',
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    elevation: 8,
+    shadowOpacity: 0.12,
+    shadowRadius: 7,
+    elevation: 5,
   },
   sosCircleCompact: {
     width: 138,
@@ -1028,7 +1032,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     flexDirection: 'row',
     alignItems: 'center',
-    width: '90%',
+    width: '92%',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.12,
@@ -1052,7 +1056,7 @@ const styles = StyleSheet.create({
   voiceSubTextCompact: { fontSize: 10, marginTop: 1 },
   voiceHealthCard: {
     marginTop: 12,
-    width: '90%',
+    width: '92%',
     borderRadius: 14,
     backgroundColor: '#EEF2FF',
     borderWidth: 1,
@@ -1098,13 +1102,14 @@ const styles = StyleSheet.create({
     marginTop: 24,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    width: '90%',
+    alignItems: 'stretch',
+    width: '92%',
   },
   statusRowCompact: {
     marginTop: 16,
   },
-  statusCol: { width: '48%', alignItems: 'center' },
-  statusHeading: { fontSize: 12, color: '#2D2F33', marginBottom: 10 },
+  statusCol: { width: '48%', alignItems: 'center', justifyContent: 'flex-start' },
+  statusHeading: { fontSize: 12, color: '#2D2F33', marginBottom: 10, textAlign: 'center' },
   statusHeadingCompact: { marginBottom: 8, fontSize: 11 },
   linkHeading: { color: '#1E34FF' },
   badgeCircle: {
@@ -1132,7 +1137,7 @@ const styles = StyleSheet.create({
   statusNoteCompact: { fontSize: 11 },
 
   overviewBannerCompact: {
-    marginTop: -10,
+    marginTop: 2,
     paddingVertical: 10,
     paddingHorizontal: 12,
   },

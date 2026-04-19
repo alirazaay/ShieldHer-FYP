@@ -3,6 +3,9 @@ import { DeviceEventEmitter, NativeModules, PermissionsAndroid, Platform } from 
 
 const ScreamDetectionModule = NativeModules.ScreamDetectionModule || NativeModules.ScreamDetection;
 const DEFAULT_THRESHOLD = 0.003;
+const DEFAULT_COOLDOWN_MS = 30000;
+const MAX_DETECTION_BUFFER_SIZE = 10;
+const HIGH_VARIANCE_THRESHOLD = 0.3;
 let lastGlobalScreamEventKey = null;
 let lastGlobalScreamEventAt = 0;
 let autoDebugWavRunStarted = false;
@@ -84,19 +87,31 @@ export function useScreamDetection({
 } = {}) {
   const configuredThreshold = Number(config?.confidenceThreshold);
   const threshold = Number.isFinite(configuredThreshold) ? configuredThreshold : DEFAULT_THRESHOLD;
+  const cooldownMs = Number.isFinite(Number(config?.cooldownMs))
+    ? Number(config.cooldownMs)
+    : DEFAULT_COOLDOWN_MS;
 
   const [isAutoRunning, setIsAutoRunning] = useState(false);
   const [isManualRecording, setIsManualRecording] = useState(false);
   const [lastProb, setLastProb] = useState(null);
   const [permissionGranted, setPermissionGranted] = useState(false);
+  const [cooldownState, setCooldownState] = useState({
+    isCoolingDown: false,
+    lastTriggerTime: 0,
+    remainingMs: 0,
+  });
+  const [detectionBuffer, setDetectionBuffer] = useState([]);
   const listenersShouldBeActive = (enabled && continuous) || isAutoRunning || isManualRecording;
 
   const screamSubscriptionRef = useRef(null);
   const errorSubscriptionRef = useRef(null);
   const telemetrySubscriptionRef = useRef(null);
   const modelInfoSubscriptionRef = useRef(null);
+  const cooldownTimerRef = useRef(null);
+  const lastTriggerTimeRef = useRef(0);
   const autoRunningRef = useRef(false);
   const manualRunningRef = useRef(false);
+  const detectionBufferRef = useRef([]);
 
   const requestPermission = useCallback(async () => {
     if (Platform.OS !== 'android') {
@@ -132,6 +147,49 @@ export function useScreamDetection({
     }
   }, []);
 
+  const startCooldown = useCallback(() => {
+    const now = Date.now();
+    lastTriggerTimeRef.current = now;
+    setCooldownState({ isCoolingDown: true, lastTriggerTime: now, remainingMs: cooldownMs });
+
+    if (cooldownTimerRef.current) {
+      clearInterval(cooldownTimerRef.current);
+    }
+
+    cooldownTimerRef.current = setInterval(() => {
+      const elapsed = Date.now() - lastTriggerTimeRef.current;
+      const remaining = Math.max(0, cooldownMs - elapsed);
+      if (remaining <= 0) {
+        clearInterval(cooldownTimerRef.current);
+        cooldownTimerRef.current = null;
+        setCooldownState({ isCoolingDown: false, lastTriggerTime: lastTriggerTimeRef.current, remainingMs: 0 });
+      } else {
+        setCooldownState({ isCoolingDown: true, lastTriggerTime: lastTriggerTimeRef.current, remainingMs: remaining });
+      }
+    }, 1000);
+  }, [cooldownMs]);
+
+  const isInCooldown = useCallback(() => {
+    return (Date.now() - lastTriggerTimeRef.current) < cooldownMs;
+  }, [cooldownMs]);
+
+  const addToDetectionBuffer = useCallback((entry) => {
+    detectionBufferRef.current = [
+      ...detectionBufferRef.current.slice(-(MAX_DETECTION_BUFFER_SIZE - 1)),
+      entry,
+    ];
+    setDetectionBuffer([...detectionBufferRef.current]);
+  }, []);
+
+  const isHighVariance = useCallback(() => {
+    const buf = detectionBufferRef.current;
+    if (buf.length < 3) return false;
+    const recentProbs = buf.slice(-5).map((e) => e.rawProb || 0);
+    const mean = recentProbs.reduce((a, b) => a + b, 0) / recentProbs.length;
+    const variance = recentProbs.reduce((a, b) => a + (b - mean) ** 2, 0) / recentProbs.length;
+    return Math.sqrt(variance) > HIGH_VARIANCE_THRESHOLD;
+  }, []);
+
   const removeSubscriptions = useCallback(() => {
     screamSubscriptionRef.current?.remove();
     errorSubscriptionRef.current?.remove();
@@ -141,6 +199,10 @@ export function useScreamDetection({
     errorSubscriptionRef.current = null;
     telemetrySubscriptionRef.current = null;
     modelInfoSubscriptionRef.current = null;
+    if (cooldownTimerRef.current) {
+      clearInterval(cooldownTimerRef.current);
+      cooldownTimerRef.current = null;
+    }
   }, []);
 
   const callNativeStart = useCallback(() => {
@@ -327,6 +389,7 @@ export function useScreamDetection({
         const prob = extractProbability(event);
         const eventTimestamp = Number(event?.timestamp || Date.now());
 
+        // Duplicate suppression
         const eventKey = `${eventTimestamp}-${prob.toFixed(6)}`;
         const now = Date.now();
         if (lastGlobalScreamEventKey === eventKey && now - lastGlobalScreamEventAt < 2000) {
@@ -336,6 +399,18 @@ export function useScreamDetection({
         lastGlobalScreamEventKey = eventKey;
         lastGlobalScreamEventAt = now;
 
+        // Cooldown enforcement
+        if (isInCooldown()) {
+          console.log('useScreamDetection: scream event suppressed (cooldown active)');
+          return;
+        }
+
+        // High-variance guard — suppress if model output is oscillating wildly
+        if (isHighVariance()) {
+          console.warn('useScreamDetection: scream event suppressed (high output variance)');
+          return;
+        }
+
         setLastProb(prob);
 
         const payload = {
@@ -343,11 +418,17 @@ export function useScreamDetection({
           confidence: prob,
           isScream: prob >= threshold,
           source: 'AUTO',
+          triggerType: 'AI',
           timestamp: eventTimestamp,
+          hitsInWindow: Number(event?.hitsInWindow || 0),
+          rms: Number(event?.rms || 0),
+          peak: Number(event?.peak || 0),
         };
 
         if (prob >= threshold && onAutoDetect) {
-          await Promise.resolve(onAutoDetect({ prob, timestamp: payload.timestamp }));
+          // Start cooldown before dispatching to prevent re-entry
+          startCooldown();
+          await Promise.resolve(onAutoDetect({ prob, timestamp: payload.timestamp, triggerType: 'AI' }));
         }
 
         if (prob >= threshold && onScreamDetected) {
@@ -394,6 +475,18 @@ export function useScreamDetection({
           alternateWaveformInputMode && Number.isFinite(alternateRawProb)
             ? ` altMode=${alternateWaveformInputMode} altRawProb=${alternateRawProb.toFixed(8)} altDecisionProb=${Number(alternateDecisionProb || 0).toFixed(8)}`
             : '';
+
+        // Track detection buffer for variance analysis
+        addToDetectionBuffer({
+          rawProb,
+          decisionProb,
+          rms,
+          peak,
+          hitsInWindow,
+          frameIndex,
+          timestamp: Date.now(),
+        });
+
         console.log(
           `useScreamDetection: telemetry frame=${frameIndex} mode=${mode} waveformMode=${waveformInputMode} preprocess=${preprocessMode} rawProb=${rawProb.toFixed(8)} decisionProb=${decisionProb.toFixed(8)} rawMax=${rawMax.toFixed(8)} rawMin=${rawMin.toFixed(8)} hits=${hitsInWindow}/${decisionWindowSize} normalized=${normalized} rms=${rms.toFixed(6)} peak=${peak.toFixed(6)} meanAbs=${meanAbs.toFixed(6)} nativeThreshold=${nativeThreshold.toFixed(4)} jsThreshold=${jsThreshold.toFixed(4)} compareAlt=${compareAlternateWaveformMode}${alternateSuffix}`
         );
@@ -503,17 +596,13 @@ export function useScreamDetection({
     detectionState: {
       isListening: isAutoRunning,
       lastConfidence: Number(lastProb || 0),
-      trailingConsecutive: 0,
-      lastEventAt: null,
+      trailingConsecutive: detectionBuffer.filter((e) => e.rawProb >= threshold).length,
+      lastEventAt: detectionBuffer.length > 0 ? detectionBuffer[detectionBuffer.length - 1].timestamp : null,
       pendingConfirmation: false,
-      detectionBuffer: [],
+      detectionBuffer,
     },
-    cooldownState: {
-      isCoolingDown: false,
-      lastTriggerTime: 0,
-      remainingMs: 0,
-    },
-    detectionBuffer: [],
+    cooldownState,
+    detectionBuffer,
     pendingAlert: {
       visible: false,
       countdownSec: 0,

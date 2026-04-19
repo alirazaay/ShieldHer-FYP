@@ -9,8 +9,10 @@ import {
   Alert,
   PermissionsAndroid,
   Platform,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
@@ -20,7 +22,8 @@ import {
   dispatchSOSAlert,
   getAlertErrorMessage,
 } from '../services/alertService';
-import { fetchUserProfile, getSafetyModeState } from '../services/profile';
+import { getSafetyModeState } from '../services/profile';
+import { fetchUserDashboardSnapshot } from '../services/dashboardService';
 import { startLocationTracking, stopLocationTracking } from '../services/locationListener';
 import { useScreamDetection } from '../hooks/useScreamDetection';
 import { classifyProb, HARASSMENT_TIERS, logHarassmentEvent } from '../services/harassmentLogger';
@@ -38,6 +41,15 @@ function getUserInitial(profile, firebaseUser) {
 const Dashboard = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const [profileInitial, setProfileInitial] = useState('U');
+  const [refreshing, setRefreshing] = useState(false);
+  const [dashboardSnapshot, setDashboardSnapshot] = useState({
+    guardiansCount: 0,
+    primaryContactName: 'No Contact',
+    hasPrimaryContact: false,
+    hasActiveAlert: false,
+    hasLiveLocation: false,
+    safetyModeEnabled: false,
+  });
 
   // Location tracking state
   const [locationTracking, setLocationTracking] = useState(false);
@@ -53,6 +65,30 @@ const Dashboard = ({ navigation }) => {
   // Escalation state – tracks whether current user's alert has been escalated to authorities
   const [escalationState, setEscalationState] = useState(null); // null | 'pending' | 'escalated'
 
+  const loadDashboardSnapshot = useCallback(async ({ isRefresh = false } = {}) => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) return;
+
+    try {
+      if (isRefresh) {
+        setRefreshing(true);
+      }
+
+      const snapshot = await fetchUserDashboardSnapshot(currentUser.uid);
+      setDashboardSnapshot(snapshot);
+      setProfileInitial(snapshot.profileInitial || getUserInitial(null, currentUser));
+      return snapshot;
+    } catch (error) {
+      logger.warn(TAG, 'Failed to load dashboard snapshot:', error);
+      setProfileInitial(getUserInitial(null, currentUser));
+      return null;
+    } finally {
+      if (isRefresh) {
+        setRefreshing(false);
+      }
+    }
+  }, []);
+
   // Location tracking initialization against Safety Mode
   useEffect(() => {
     const initializeLocationTracking = async () => {
@@ -60,16 +96,9 @@ const Dashboard = ({ navigation }) => {
         const currentUser = auth.currentUser;
         if (!currentUser) return;
 
-        try {
-          const profile = await fetchUserProfile(currentUser.uid);
-          setProfileInitial(getUserInitial(profile, currentUser));
-        } catch (profileError) {
-          logger.warn(TAG, 'Unable to load profile initial, using auth fallback:', profileError);
-          setProfileInitial(getUserInitial(null, currentUser));
-        }
-
-        // Check Safety Mode status inside Firestore
-        const isSafetyModeEnabled = await getSafetyModeState(currentUser.uid);
+        const snapshot = await loadDashboardSnapshot();
+        const isSafetyModeEnabled =
+          snapshot?.safetyModeEnabled ?? (await getSafetyModeState(currentUser.uid));
 
         if (isSafetyModeEnabled) {
           await startLocationTracking(currentUser.uid);
@@ -96,7 +125,7 @@ const Dashboard = ({ navigation }) => {
       setIsSafetyModeEnabled(false);
       logger.info(TAG, 'Dashboard unmounted: Native location and mic monitoring stopped');
     };
-  }, [navigation]);
+  }, [navigation, loadDashboardSnapshot]);
 
   // ── Escalation listener ────────────────────────────────────────────────
   // Listens to policeAlerts collection for alerts belonging to this user
@@ -127,6 +156,16 @@ const Dashboard = ({ navigation }) => {
 
     return () => unsubscribe();
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadDashboardSnapshot();
+    }, [loadDashboardSnapshot])
+  );
+
+  const handleRefreshDashboard = useCallback(async () => {
+    await loadDashboardSnapshot({ isRefresh: true });
+  }, [loadDashboardSnapshot]);
 
   // Auto-dismiss location error messages after 4 seconds
   useEffect(() => {
@@ -403,6 +442,64 @@ const Dashboard = ({ navigation }) => {
         ? 'Distress detected'
         : 'No distress';
 
+  const statusSummary = (() => {
+    if (sosLoading || dashboardSnapshot.hasActiveAlert || escalationState === 'escalated') {
+      return {
+        label: 'ALERT',
+        score: '20%',
+        note: 'Status: EMERGENCY',
+        style: styles.badgeDanger,
+      };
+    }
+
+    if (isAutoRunning) {
+      return {
+        label: 'WATCH',
+        score: '86%',
+        note: 'Status: MONITORING',
+        style: styles.badgeWatch,
+      };
+    }
+
+    if (isSafetyModeEnabled && locationTracking) {
+      return {
+        label: 'SAFE',
+        score: '100%',
+        note: 'Status: SECURE',
+        style: styles.badgeSafe,
+      };
+    }
+
+    if (isSafetyModeEnabled) {
+      return {
+        label: 'READY',
+        score: '88%',
+        note: 'Status: ARMED',
+        style: styles.badgeWatch,
+      };
+    }
+
+    return {
+      label: 'CHECK',
+      score: '62%',
+      note: 'Status: REVIEW SETTINGS',
+      style: styles.badgeMuted,
+    };
+  })();
+
+  const primaryContactBadge = dashboardSnapshot.hasPrimaryContact
+    ? String(dashboardSnapshot.primaryContactName || 'CONTACT')
+        .split(' ')[0]
+        .toUpperCase()
+        .slice(0, 8)
+    : 'N/A';
+
+  const primaryContactStatus = dashboardSnapshot.hasPrimaryContact
+    ? dashboardSnapshot.hasLiveLocation
+      ? 'Status: Live location synced'
+      : 'Status: Linked'
+    : 'Status: Add a guardian in profile';
+
   return (
     <SafeAreaView style={styles.safe}>
       {/* Top App Bar */}
@@ -442,7 +539,18 @@ const Dashboard = ({ navigation }) => {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefreshDashboard}
+            colors={['#4F2CF5']}
+            tintColor="#4F2CF5"
+          />
+        }
+      >
         {/* SOS Error/Success Toast */}
         {(sosError || sosMessage) && (
           <View
@@ -518,6 +626,20 @@ const Dashboard = ({ navigation }) => {
             </Text>
           </View>
         )}
+
+        <View style={styles.overviewBanner}>
+          <View style={styles.overviewItem}>
+            <Text style={styles.overviewLabel}>Guardians Linked</Text>
+            <Text style={styles.overviewValue}>{dashboardSnapshot.guardiansCount}</Text>
+          </View>
+          <View style={styles.overviewDivider} />
+          <View style={styles.overviewItem}>
+            <Text style={styles.overviewLabel}>Primary Contact</Text>
+            <Text style={styles.overviewValue} numberOfLines={1}>
+              {dashboardSnapshot.primaryContactName}
+            </Text>
+          </View>
+        </View>
 
         {/* Emergency Protocol */}
         <Text style={styles.sectionTitle}>Emergency Protocol</Text>
@@ -629,17 +751,17 @@ const Dashboard = ({ navigation }) => {
           <View style={styles.statusCol}>
             <Text style={styles.statusHeading}>Current Status Rating</Text>
             <View style={styles.badgeCircle}>
-              <Text style={styles.badgeSafe}>SAFE</Text>
-              <Text style={styles.badgePct}>100%</Text>
+              <Text style={statusSummary.style}>{statusSummary.label}</Text>
+              <Text style={styles.badgePct}>{statusSummary.score}</Text>
             </View>
-            <Text style={styles.statusNote}>Status **SECURE**</Text>
+            <Text style={styles.statusNote}>{statusSummary.note}</Text>
           </View>
           <View style={styles.statusCol}>
             <Text style={[styles.statusHeading, styles.linkHeading]}>Primary Contact Online</Text>
             <View style={styles.badgeCircle}>
-              <Text style={styles.badgeText}>MOM</Text>
+              <Text style={styles.badgeText}>{primaryContactBadge}</Text>
             </View>
-            <Text style={styles.statusNote}>Status **Active**</Text>
+            <Text style={styles.statusNote}>{primaryContactStatus}</Text>
           </View>
         </View>
       </ScrollView>
@@ -718,6 +840,38 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 12,
     fontWeight: '500',
+  },
+
+  overviewBanner: {
+    width: '88%',
+    marginTop: 12,
+    backgroundColor: '#EEF2FF',
+    borderColor: '#D9E1FF',
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  overviewItem: {
+    flex: 1,
+  },
+  overviewDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: '#CBD5FF',
+    marginHorizontal: 10,
+  },
+  overviewLabel: {
+    fontSize: 11,
+    color: '#535964',
+    marginBottom: 2,
+  },
+  overviewValue: {
+    fontSize: 13,
+    color: '#1F2451',
+    fontWeight: '800',
   },
 
   scroll: {
@@ -827,6 +981,9 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   badgeSafe: { color: '#31D159', fontWeight: '900', fontSize: 18, marginBottom: 6 },
+  badgeWatch: { color: '#FACC15', fontWeight: '900', fontSize: 18, marginBottom: 6 },
+  badgeDanger: { color: '#FCA5A5', fontWeight: '900', fontSize: 18, marginBottom: 6 },
+  badgeMuted: { color: '#D1D5DB', fontWeight: '900', fontSize: 18, marginBottom: 6 },
   badgePct: { color: '#fff', fontWeight: '900', fontSize: 16 },
   badgeText: { color: '#fff', fontWeight: '900', fontSize: 16 },
   statusNote: { color: '#2D2F33', fontSize: 11 },

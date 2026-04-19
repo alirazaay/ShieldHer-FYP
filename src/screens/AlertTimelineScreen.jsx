@@ -169,7 +169,7 @@ const AlertTimelineScreen = ({ navigation, route }) => {
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
           <Text style={styles.title}>Incident Timeline</Text>
-          <Text style={styles.subtitle}>{alertName}&apos;s Emergency</Text>
+          <Text style={styles.subtitle}>{`${alertName}'s Emergency`}</Text>
         </View>
         <View style={{ width: 40 }} />
       </View>
@@ -192,7 +192,7 @@ const AlertTimelineScreen = ({ navigation, route }) => {
         <View style={styles.centerContainer}>
           <MaterialCommunityIcons name="timeline-alert-outline" size={64} color="#9CA3AF" />
           <Text style={styles.emptyTitle}>No Timeline Events</Text>
-          <Text style={styles.emptySubtitle}>We couldn&apos;t find any events for this alert.</Text>
+          <Text style={styles.emptySubtitle}>We couldn't find any events for this alert.</Text>
         </View>
       ) : (
         <FlatList

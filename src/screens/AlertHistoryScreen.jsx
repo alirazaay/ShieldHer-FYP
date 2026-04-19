@@ -120,7 +120,7 @@ const AlertHistoryScreen = ({ navigation, route }) => {
         onPress={() => navigation.push('AlertTimeline', { alertId: item.id, alertName })}
       >
         <View style={styles.cardHeader}>
-          <Text style={styles.alertName}>{alertName}&apos;s Emergency</Text>
+          <Text style={styles.alertName}>{`${alertName}'s Emergency`}</Text>
           <View style={[styles.statusBadge, { backgroundColor: statusColor }]}>
             <MaterialCommunityIcons name={statusIcon} size={12} color="#fff" />
             <Text style={styles.statusText}>{statusText}</Text>

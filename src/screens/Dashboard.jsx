@@ -1,12 +1,10 @@
-import React, { useRef, useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   ScrollView,
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  Modal,
-  Animated,
   ActivityIndicator,
   Alert,
   PermissionsAndroid,
@@ -15,8 +13,6 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
-import LogoutPopup from './LogoutPopup';
-import { signOutUser } from '../services/auth';
 import { auth, db } from '../config/firebase';
 import {
   checkActiveAlert,
@@ -24,7 +20,7 @@ import {
   dispatchSOSAlert,
   getAlertErrorMessage,
 } from '../services/alertService';
-import { getSafetyModeState } from '../services/profile';
+import { fetchUserProfile, getSafetyModeState } from '../services/profile';
 import { startLocationTracking, stopLocationTracking } from '../services/locationListener';
 import { useScreamDetection } from '../hooks/useScreamDetection';
 import { classifyProb, HARASSMENT_TIERS, logHarassmentEvent } from '../services/harassmentLogger';
@@ -32,11 +28,16 @@ import logger from '../utils/logger';
 
 const TAG = '[Dashboard]';
 
+function getUserInitial(profile, firebaseUser) {
+  const nameCandidate =
+    profile?.fullName || profile?.name || firebaseUser?.displayName || firebaseUser?.email || 'U';
+  const initial = String(nameCandidate).trim().charAt(0).toUpperCase();
+  return initial || 'U';
+}
+
 const Dashboard = ({ navigation }) => {
   const insets = useSafeAreaInsets();
-  const [logoutVisible, setLogoutVisible] = useState(false);
-  const opacity = useRef(new Animated.Value(0)).current;
-  const scale = useRef(new Animated.Value(0.95)).current;
+  const [profileInitial, setProfileInitial] = useState('U');
 
   // Location tracking state
   const [locationTracking, setLocationTracking] = useState(false);
@@ -58,6 +59,14 @@ const Dashboard = ({ navigation }) => {
       try {
         const currentUser = auth.currentUser;
         if (!currentUser) return;
+
+        try {
+          const profile = await fetchUserProfile(currentUser.uid);
+          setProfileInitial(getUserInitial(profile, currentUser));
+        } catch (profileError) {
+          logger.warn(TAG, 'Unable to load profile initial, using auth fallback:', profileError);
+          setProfileInitial(getUserInitial(null, currentUser));
+        }
 
         // Check Safety Mode status inside Firestore
         const isSafetyModeEnabled = await getSafetyModeState(currentUser.uid);
@@ -356,21 +365,6 @@ const Dashboard = ({ navigation }) => {
     return true;
   }, [isAutoRunning, onHoldStart, requestAudioPermission]);
 
-  const openLogout = () => {
-    setLogoutVisible(true);
-    Animated.parallel([
-      Animated.timing(opacity, { toValue: 1, duration: 160, useNativeDriver: true }),
-      Animated.spring(scale, { toValue: 1, useNativeDriver: true, friction: 7, tension: 80 }),
-    ]).start();
-  };
-
-  const closeLogout = () => {
-    Animated.parallel([
-      Animated.timing(opacity, { toValue: 0, duration: 120, useNativeDriver: true }),
-      Animated.timing(scale, { toValue: 0.95, duration: 120, useNativeDriver: true }),
-    ]).start(() => setLogoutVisible(false));
-  };
-
   const handleSosPress = () => {
     navigation.navigate('SOSCountdownScreen');
   };
@@ -424,13 +418,6 @@ const Dashboard = ({ navigation }) => {
           <Text style={styles.brand}>ShieldHer</Text>
         </View>
         <View style={styles.appBarRight}>
-          <MaterialCommunityIcons
-            name="bell-outline"
-            size={20}
-            color="#fff"
-            style={{ marginRight: 16 }}
-          />
-
           {/* Location Tracking Status Indicator */}
           <View style={styles.locationStatusContainer}>
             <View
@@ -449,14 +436,8 @@ const Dashboard = ({ navigation }) => {
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
             <View style={styles.avatar}>
-              <Text style={styles.avatarText}>A</Text>
+              <Text style={styles.avatarText}>{profileInitial}</Text>
             </View>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={openLogout}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          >
-            <Text style={styles.logout}>Logout</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -662,29 +643,6 @@ const Dashboard = ({ navigation }) => {
           </View>
         </View>
       </ScrollView>
-
-      {/* Logout Modal Overlay */}
-      <Modal transparent visible={logoutVisible} animationType="none" onRequestClose={closeLogout}>
-        <Animated.View style={[styles.modalBackdrop, { opacity }]}>
-          <Animated.View style={[styles.modalCardWrap, { transform: [{ scale }] }]}>
-            <SafeAreaView>
-              <LogoutPopup
-                asModal
-                onCancel={closeLogout}
-                onConfirm={async () => {
-                  try {
-                    await signOutUser();
-                  } catch (e) {
-                    logger.error(TAG, 'Logout failed:', e);
-                  }
-                  closeLogout();
-                  navigation?.replace?.('Login');
-                }}
-              />
-            </SafeAreaView>
-          </Animated.View>
-        </Animated.View>
-      </Modal>
     </SafeAreaView>
   );
 };
@@ -730,7 +688,6 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   avatarText: { color: '#fff', fontWeight: '800', fontSize: 12 },
-  logout: { color: '#fff', fontWeight: '800' },
 
   errorToast: {
     flexDirection: 'row',
@@ -897,18 +854,6 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.85)',
     fontSize: 11,
     marginTop: 2,
-  },
-
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-  },
-
-  modalCardWrap: {
-    width: '82%',
   },
 });
 

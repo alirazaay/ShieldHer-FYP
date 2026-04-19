@@ -161,7 +161,8 @@ const AlertHistoryScreen = ({ navigation, route }) => {
           <MaterialCommunityIcons name="arrow-left" size={24} color="#111318" />
         </TouchableOpacity>
         <Text style={styles.title}>Alert History</Text>
-        <View style={{ width: 40 }} /> {/* Spacer for balance */}
+        {/* Spacer for balance */}
+        <View style={{ width: 40 }} />
       </View>
 
       {/* Content */}

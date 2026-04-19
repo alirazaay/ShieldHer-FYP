@@ -6,6 +6,8 @@ import {
   ActivityIndicator,
   ScrollView,
   TouchableOpacity,
+  Alert,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -24,7 +26,7 @@ import {
   stopLocationTracking,
   getLocationErrorMessage,
 } from '../services/location';
-import { getConnectedUsers } from '../services/profile';
+import { fetchUserProfile, getConnectedUsers } from '../services/profile';
 import { subscribeToUserLocation } from '../services/locationListener';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import {
@@ -34,6 +36,7 @@ import {
   getAlertLifecycleErrorMessage,
   formatAlertTime,
 } from '../services/alertLifecycleService';
+import { signOutUser } from '../services/auth';
 import logger from '../utils/logger';
 
 const TAG = '[GuardianDashboard]';
@@ -164,6 +167,11 @@ const GuardianDashboard = ({ navigation }) => {
   const [loadingConnectedUsers, setLoadingConnectedUsers] = useState(false);
   const userLocationSubscriptionsRef = useRef({});
 
+  // Guardian profile state
+  const [guardianProfile, setGuardianProfile] = useState(null);
+  const [loadingProfile, setLoadingProfile] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
   // Alert Lifecycle state
   const [activeAlerts, setActiveAlerts] = useState([]);
   const [respondingAlerts, setRespondingAlerts] = useState([]);
@@ -275,6 +283,32 @@ const GuardianDashboard = ({ navigation }) => {
     }
   }, [navigation]);
 
+  const loadGuardianProfile = useCallback(async () => {
+    try {
+      setLoadingProfile(true);
+
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        navigation?.replace('Login');
+        return;
+      }
+
+      const profile = await fetchUserProfile(currentUser.uid);
+      setGuardianProfile(profile);
+    } catch (err) {
+      logger.warn(TAG, 'Failed to load guardian profile:', err);
+      const currentUser = auth.currentUser;
+      setGuardianProfile((prev) => ({
+        ...prev,
+        fullName: prev?.fullName || currentUser?.displayName || 'Guardian',
+        email: prev?.email || currentUser?.email || '',
+        relationship: prev?.relationship || 'Guardian',
+      }));
+    } finally {
+      setLoadingProfile(false);
+    }
+  }, [navigation]);
+
   // Alert Subscription Setup
   useEffect(() => {
     if (connectedUsers.length === 0) return;
@@ -302,14 +336,16 @@ const GuardianDashboard = ({ navigation }) => {
   useEffect(() => {
     loadPendingInvites();
     loadConnectedUsers();
-  }, [loadPendingInvites, loadConnectedUsers]);
+    loadGuardianProfile();
+  }, [loadPendingInvites, loadConnectedUsers, loadGuardianProfile]);
 
   // Reload when screen is focused
   useFocusEffect(
     useCallback(() => {
       loadPendingInvites();
       loadConnectedUsers();
-    }, [loadPendingInvites, loadConnectedUsers])
+      loadGuardianProfile();
+    }, [loadPendingInvites, loadConnectedUsers, loadGuardianProfile])
   );
 
   // Auto-dismiss error after 4 seconds
@@ -428,9 +464,68 @@ const GuardianDashboard = ({ navigation }) => {
     }
   };
 
+  const handleRefreshDashboard = useCallback(async () => {
+    try {
+      setRefreshing(true);
+      await Promise.all([loadPendingInvites(), loadConnectedUsers(), loadGuardianProfile()]);
+    } catch (err) {
+      logger.error(TAG, 'Dashboard refresh failed:', err);
+      setError({ message: 'Failed to refresh dashboard data', type: 'error' });
+    } finally {
+      setRefreshing(false);
+    }
+  }, [loadPendingInvites, loadConnectedUsers, loadGuardianProfile]);
+
+  const handleLogout = useCallback(() => {
+    Alert.alert('Logout', 'Are you sure you want to logout?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Logout',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await signOutUser();
+            navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+          } catch (err) {
+            logger.error(TAG, 'Logout failed:', err);
+            setError({ message: 'Failed to logout. Please try again.', type: 'error' });
+          }
+        },
+      },
+    ]);
+  }, [navigation]);
+
+  const profileName = guardianProfile?.fullName || auth.currentUser?.displayName || 'Guardian';
+  const profileEmail = guardianProfile?.email || auth.currentUser?.email || 'No email';
+  const profileRelationship = guardianProfile?.relationship || 'Guardian';
+  const profileInitials = profileName
+    .split(' ')
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
+
+  const liveUsersCount = connectedUsers.filter((user) => {
+    const location = userLocations[user.id];
+    const latitude = Number(location?.latitude);
+    const longitude = Number(location?.longitude);
+    return Number.isFinite(latitude) && Number.isFinite(longitude);
+  }).length;
+
   return (
     <SafeAreaView style={[styles.safe, { paddingTop: insets.top }]}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefreshDashboard}
+            colors={['#4F2CF5']}
+            tintColor="#4F2CF5"
+          />
+        }
+      >
         {/* Error Toast - General */}
         {error && (
           <View
@@ -485,12 +580,116 @@ const GuardianDashboard = ({ navigation }) => {
             <Text style={styles.title}>Guardian Dashboard</Text>
             <Text style={styles.subtitle}>Protecting your connected users</Text>
           </View>
-          <TouchableOpacity
-            style={styles.historyButton}
-            onPress={() => navigation.push('AlertHistory', { isGuardian: true })}
-          >
-            <MaterialCommunityIcons name="history" size={24} color="#4F2CF5" />
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={styles.historyButton}
+              onPress={() => navigation.push('AlertHistory', { isGuardian: true })}
+            >
+              <MaterialCommunityIcons name="history" size={24} color="#4F2CF5" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.logoutButtonHeader} onPress={handleLogout}>
+              <MaterialCommunityIcons name="logout" size={22} color="#DC2626" />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={styles.profileCard}>
+          <View style={styles.profileTopRow}>
+            <View style={styles.profileAvatar}>
+              <Text style={styles.profileAvatarText}>{profileInitials || 'GU'}</Text>
+            </View>
+            <View style={styles.profileMeta}>
+              <Text style={styles.profileName}>
+                {loadingProfile ? 'Loading profile...' : profileName}
+              </Text>
+              <Text style={styles.profileEmail} numberOfLines={1}>
+                {profileEmail}
+              </Text>
+              <View style={styles.profileRoleBadge}>
+                <MaterialCommunityIcons name="shield-account" size={12} color="#4F2CF5" />
+                <Text style={styles.profileRoleText}>{profileRelationship}</Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.profileActionsRow}>
+            <TouchableOpacity
+              style={styles.profileActionBtn}
+              onPress={() => navigation.push('Profile')}
+              activeOpacity={0.8}
+            >
+              <MaterialCommunityIcons name="account-circle-outline" size={18} color="#4F2CF5" />
+              <Text style={styles.profileActionText}>Profile</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.profileActionBtn}
+              onPress={handleRefreshDashboard}
+              activeOpacity={0.8}
+            >
+              <MaterialCommunityIcons name="refresh" size={18} color="#4F2CF5" />
+              <Text style={styles.profileActionText}>Refresh</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={styles.overviewSection}>
+          <View style={styles.overviewCard}>
+            <Text style={styles.overviewValue}>{connectedUsers.length}</Text>
+            <Text style={styles.overviewLabel}>Connected Users</Text>
+          </View>
+          <View style={styles.overviewCard}>
+            <Text style={styles.overviewValue}>{liveUsersCount}</Text>
+            <Text style={styles.overviewLabel}>Live Now</Text>
+          </View>
+          <View style={styles.overviewCard}>
+            <Text style={styles.overviewValue}>{pendingInvites.length}</Text>
+            <Text style={styles.overviewLabel}>Pending Invites</Text>
+          </View>
+          <View style={styles.overviewCard}>
+            <Text style={styles.overviewValue}>{activeAlerts.length}</Text>
+            <Text style={styles.overviewLabel}>Active Alerts</Text>
+          </View>
+        </View>
+
+        <View style={styles.quickActionsSection}>
+          <Text style={styles.quickActionsTitle}>Quick Actions</Text>
+          <View style={styles.quickActionsGrid}>
+            <TouchableOpacity
+              style={styles.quickActionItem}
+              onPress={() => navigation.push('NotificationSettings')}
+              activeOpacity={0.8}
+            >
+              <MaterialCommunityIcons name="bell-outline" size={20} color="#4F2CF5" />
+              <Text style={styles.quickActionText}>Notifications</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.quickActionItem}
+              onPress={() => navigation.push('LocationSettings')}
+              activeOpacity={0.8}
+            >
+              <MaterialCommunityIcons name="crosshairs-gps" size={20} color="#4F2CF5" />
+              <Text style={styles.quickActionText}>Location Settings</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.quickActionItem}
+              onPress={() => navigation.push('ChangePassword')}
+              activeOpacity={0.8}
+            >
+              <MaterialCommunityIcons name="lock-reset" size={20} color="#4F2CF5" />
+              <Text style={styles.quickActionText}>Change Password</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.quickActionItem}
+              onPress={() => navigation.push('GroupLocationMap')}
+              activeOpacity={0.8}
+            >
+              <MaterialCommunityIcons name="map-search-outline" size={20} color="#4F2CF5" />
+              <Text style={styles.quickActionText}>All Locations</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* ── ALERTS SECTION ──────────────────────────────────────────────────────── */}
@@ -692,9 +891,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 16,
   },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   historyButton: {
     padding: 8,
     backgroundColor: '#EEF2FF',
+    borderRadius: 8,
+  },
+  logoutButtonHeader: {
+    padding: 8,
+    backgroundColor: '#FEE2E2',
     borderRadius: 8,
   },
   title: {
@@ -706,6 +915,152 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 14,
     color: '#4B5057',
+  },
+  profileCard: {
+    backgroundColor: '#fff',
+    marginHorizontal: 16,
+    marginBottom: 16,
+    borderRadius: 12,
+    padding: 14,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+  },
+  profileTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  profileAvatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#4F2CF5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  profileAvatarText: {
+    color: '#fff',
+    fontWeight: '800',
+    fontSize: 16,
+  },
+  profileMeta: {
+    flex: 1,
+  },
+  profileName: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#111318',
+    marginBottom: 2,
+  },
+  profileEmail: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginBottom: 6,
+  },
+  profileRoleBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: '#EEF2FF',
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    gap: 4,
+  },
+  profileRoleText: {
+    color: '#4F2CF5',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  profileActionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  profileActionBtn: {
+    flex: 1,
+    backgroundColor: '#F4F5F8',
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 6,
+  },
+  profileActionText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#111318',
+  },
+  overviewSection: {
+    marginHorizontal: 16,
+    marginBottom: 16,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  overviewCard: {
+    width: '48.8%',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 1,
+  },
+  overviewValue: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#111318',
+    marginBottom: 4,
+  },
+  overviewLabel: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '600',
+  },
+  quickActionsSection: {
+    backgroundColor: '#fff',
+    marginHorizontal: 16,
+    marginBottom: 20,
+    borderRadius: 12,
+    padding: 12,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 1,
+  },
+  quickActionsTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#111318',
+    marginBottom: 10,
+  },
+  quickActionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  quickActionItem: {
+    width: '48.8%',
+    backgroundColor: '#F4F5F8',
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  quickActionText: {
+    fontSize: 12,
+    color: '#111318',
+    fontWeight: '700',
   },
   messageContainer: {
     marginHorizontal: 16,

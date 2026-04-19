@@ -5,6 +5,8 @@ import 'dotenv/config';
 const GOOGLE_SERVICES_FILE = './google-services.json';
 const hasAndroidGoogleServices = fs.existsSync(path.join(process.cwd(), 'google-services.json'));
 const expoProjectId = process.env.EXPO_PROJECT_ID || '6877f330-8c8b-4cb0-8eda-d56797e2a328';
+const googleMapsApiKey =
+  process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY || '';
 
 export default {
   expo: {
@@ -41,6 +43,7 @@ export default {
         backgroundColor: '#ffffff',
       },
       ...(hasAndroidGoogleServices ? { googleServicesFile: GOOGLE_SERVICES_FILE } : {}),
+      ...(googleMapsApiKey ? { config: { googleMaps: { apiKey: googleMapsApiKey } } } : {}),
       edgeToEdgeEnabled: true,
       permissions: [
         'android.permission.RECORD_AUDIO',
@@ -91,6 +94,7 @@ export default {
       firebaseMeasurementId: process.env.FIREBASE_MEASUREMENT_ID,
       expoProjectId,
       hasAndroidGoogleServices,
+      hasGoogleMapsApiKey: Boolean(googleMapsApiKey),
 
       eas: {
         projectId: expoProjectId,

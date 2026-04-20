@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  Modal,
   PermissionsAndroid,
   Platform,
   RefreshControl,
@@ -27,6 +28,8 @@ import { getSafetyModeState } from '../services/profile';
 import { fetchUserDashboardSnapshot } from '../services/dashboardService';
 import { startLocationTracking, stopLocationTracking } from '../services/locationListener';
 import { useScreamDetection } from '../hooks/useScreamDetection';
+import { signOutUser } from '../services/auth';
+import LogoutPopup from './LogoutPopup';
 import logger from '../utils/logger';
 
 const TAG = '[Dashboard]';
@@ -70,6 +73,7 @@ const Dashboard = ({ navigation }) => {
   const [sosError, setSosError] = useState(null);
   const [sosMessage, setSosMessage] = useState(null);
   const [detectionAlert, setDetectionAlert] = useState(null); // { tier, prob }
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   // Escalation state – tracks whether current user's alert has been escalated to authorities
   const [escalationState, setEscalationState] = useState(null); // null | 'pending' | 'escalated'
@@ -395,6 +399,25 @@ const Dashboard = ({ navigation }) => {
     navigation.navigate('SOSCountdownScreen');
   };
 
+  const handleOpenLogout = useCallback(() => {
+    setShowLogoutModal(true);
+  }, []);
+
+  const handleConfirmLogout = useCallback(async () => {
+    try {
+      await signOutUser();
+      setShowLogoutModal(false);
+      navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+    } catch (error) {
+      logger.error(TAG, 'Logout failed:', error);
+      setShowLogoutModal(false);
+      setSosError({
+        message: 'Failed to logout. Please try again.',
+        type: 'error',
+      });
+    }
+  }, [navigation]);
+
   const handleVoicePressIn = useCallback(async () => {
     setSosError(null);
     setSosMessage({
@@ -520,6 +543,16 @@ const Dashboard = ({ navigation }) => {
               <ActivityIndicator size="small" color="#31D159" style={{ marginLeft: 2 }} />
             )}
           </View>
+
+          <TouchableOpacity
+            onPress={handleOpenLogout}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            activeOpacity={0.85}
+          >
+            <View style={styles.logoutHeaderButton}>
+              <MaterialCommunityIcons name="logout" size={16} color="#DC2626" />
+            </View>
+          </TouchableOpacity>
 
           <TouchableOpacity
             onPress={() => navigation?.push('Profile')}
@@ -806,6 +839,21 @@ const Dashboard = ({ navigation }) => {
           </View>
         </View>
       </ScrollView>
+
+      <Modal
+        visible={showLogoutModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowLogoutModal(false)}
+      >
+        <View style={styles.logoutModalBackdrop}>
+          <LogoutPopup
+            asModal
+            onCancel={() => setShowLogoutModal(false)}
+            onConfirm={handleConfirmLogout}
+          />
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -838,6 +886,15 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   appBarRight: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  logoutHeaderButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#FEE2E2',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 6,
+  },
   locationStatusContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1150,6 +1207,13 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.85)',
     fontSize: 11,
     marginTop: 2,
+  },
+  logoutModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.38)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
   },
 });
 

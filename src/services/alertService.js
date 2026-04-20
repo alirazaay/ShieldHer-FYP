@@ -57,6 +57,18 @@ function buildAlertPayload(userId, location, triggerType = 'manual', metadata = 
     payload.detectedAt = metadata.detectedAt;
   }
 
+  if (Number.isFinite(Number(metadata?.confidence))) {
+    payload.confidence = Number(metadata.confidence);
+  }
+
+  if (metadata?.alertLevel) {
+    payload.alertLevel = metadata.alertLevel;
+  }
+
+  if (typeof metadata?.notifyPolice === 'boolean') {
+    payload.notifyPolice = metadata.notifyPolice;
+  }
+
   return payload;
 }
 
@@ -135,6 +147,9 @@ async function ensureRetryQueueInitialized() {
         metadata: {
           source: item.source,
           detectedAt: item.detectedAt,
+          confidence: item.confidence,
+          alertLevel: item.alertLevel,
+          notifyPolice: item.notifyPolice,
         },
       });
     },
@@ -366,6 +381,9 @@ export async function dispatchSOSAlert(userId, location, options = {}) {
     const metadata = {
       source: options.source || (triggerType === 'AI' ? 'AI_DETECTION' : null),
       detectedAt: Number(options.detectedAt || 0) || null,
+      confidence: Number.isFinite(Number(options.confidence)) ? Number(options.confidence) : null,
+      alertLevel: options.alertLevel || null,
+      notifyPolice: Boolean(options.notifyPolice),
     };
 
     const alertId = doc(collection(db, 'alerts')).id;
@@ -443,6 +461,9 @@ export async function dispatchSOSAlert(userId, location, options = {}) {
         triggerType,
         source: metadata.source,
         detectedAt: metadata.detectedAt,
+        confidence: metadata.confidence,
+        alertLevel: metadata.alertLevel,
+        notifyPolice: metadata.notifyPolice,
         timestamp: Date.now(),
         retries: 0,
         status: 'pending_retry',

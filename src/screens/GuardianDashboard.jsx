@@ -6,7 +6,7 @@ import {
   ActivityIndicator,
   ScrollView,
   TouchableOpacity,
-  Alert,
+  Modal,
   RefreshControl,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -37,6 +37,7 @@ import {
   formatAlertTime,
 } from '../services/alertLifecycleService';
 import { signOutUser } from '../services/auth';
+import LogoutPopup from './LogoutPopup';
 import logger from '../utils/logger';
 
 const TAG = '[GuardianDashboard]';
@@ -178,6 +179,7 @@ const GuardianDashboard = ({ navigation }) => {
   const [resolvedAlerts, setResolvedAlerts] = useState([]);
   const [cancelledAlerts, setCancelledAlerts] = useState([]);
   const [processingAlertId, setProcessingAlertId] = useState(null);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const handleViewLiveLocation = useCallback(
     (user, userLocation = null) => {
@@ -477,22 +479,19 @@ const GuardianDashboard = ({ navigation }) => {
   }, [loadPendingInvites, loadConnectedUsers, loadGuardianProfile]);
 
   const handleLogout = useCallback(() => {
-    Alert.alert('Logout', 'Are you sure you want to logout?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Logout',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await signOutUser();
-            navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
-          } catch (err) {
-            logger.error(TAG, 'Logout failed:', err);
-            setError({ message: 'Failed to logout. Please try again.', type: 'error' });
-          }
-        },
-      },
-    ]);
+    setShowLogoutModal(true);
+  }, []);
+
+  const handleConfirmLogout = useCallback(async () => {
+    try {
+      await signOutUser();
+      setShowLogoutModal(false);
+      navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+    } catch (err) {
+      logger.error(TAG, 'Logout failed:', err);
+      setShowLogoutModal(false);
+      setError({ message: 'Failed to logout. Please try again.', type: 'error' });
+    }
   }, [navigation]);
 
   const profileName = guardianProfile?.fullName || auth.currentUser?.displayName || 'Guardian';
@@ -610,6 +609,9 @@ const GuardianDashboard = ({ navigation }) => {
                 <Text style={styles.profileRoleText}>{profileRelationship}</Text>
               </View>
             </View>
+            <View style={styles.profileBadgeCircle}>
+              <MaterialCommunityIcons name="shield-check" size={18} color="#4F2CF5" />
+            </View>
           </View>
 
           <View style={styles.profileActionsRow}>
@@ -634,18 +636,30 @@ const GuardianDashboard = ({ navigation }) => {
 
         <View style={styles.overviewSection}>
           <View style={styles.overviewCard}>
+            <View style={styles.overviewIconWrap}>
+              <MaterialCommunityIcons name="account-group" size={16} color="#4F2CF5" />
+            </View>
             <Text style={styles.overviewValue}>{connectedUsers.length}</Text>
             <Text style={styles.overviewLabel}>Connected Users</Text>
           </View>
           <View style={styles.overviewCard}>
+            <View style={styles.overviewIconWrap}>
+              <MaterialCommunityIcons name="map-marker-check" size={16} color="#4F2CF5" />
+            </View>
             <Text style={styles.overviewValue}>{liveUsersCount}</Text>
             <Text style={styles.overviewLabel}>Live Now</Text>
           </View>
           <View style={styles.overviewCard}>
+            <View style={styles.overviewIconWrap}>
+              <MaterialCommunityIcons name="email-fast" size={16} color="#4F2CF5" />
+            </View>
             <Text style={styles.overviewValue}>{pendingInvites.length}</Text>
             <Text style={styles.overviewLabel}>Pending Invites</Text>
           </View>
           <View style={styles.overviewCard}>
+            <View style={styles.overviewIconWrap}>
+              <MaterialCommunityIcons name="alert-octagon" size={16} color="#4F2CF5" />
+            </View>
             <Text style={styles.overviewValue}>{activeAlerts.length}</Text>
             <Text style={styles.overviewLabel}>Active Alerts</Text>
           </View>
@@ -688,6 +702,15 @@ const GuardianDashboard = ({ navigation }) => {
             >
               <MaterialCommunityIcons name="map-search-outline" size={20} color="#4F2CF5" />
               <Text style={styles.quickActionText}>All Locations</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.quickActionItemWide}
+              onPress={() => navigation.push('ConnectedUsers')}
+              activeOpacity={0.8}
+            >
+              <MaterialCommunityIcons name="account-group-outline" size={20} color="#4F2CF5" />
+              <Text style={styles.quickActionText}>Connected Users</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -775,7 +798,17 @@ const GuardianDashboard = ({ navigation }) => {
           <View style={styles.connectedUsersSection}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Connected Users</Text>
-              {loadingConnectedUsers && <ActivityIndicator size="small" color="#4F2CF5" />}
+              <View style={styles.sectionHeaderActions}>
+                {loadingConnectedUsers && <ActivityIndicator size="small" color="#4F2CF5" />}
+                <TouchableOpacity
+                  style={styles.sectionActionButton}
+                  onPress={() => navigation.push('ConnectedUsers')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.sectionActionText}>View All</Text>
+                  <MaterialCommunityIcons name="chevron-right" size={14} color="#4F2CF5" />
+                </TouchableOpacity>
+              </View>
             </View>
 
             <View style={styles.usersScrollContainer}>
@@ -829,7 +862,7 @@ const GuardianDashboard = ({ navigation }) => {
             </View>
 
             <View style={styles.usersList}>
-              {connectedUsers.map((user, index) => (
+              {connectedUsers.slice(0, 2).map((user, index) => (
                 <View key={user.id}>
                   <ConnectedUserItem
                     user={user}
@@ -839,7 +872,7 @@ const GuardianDashboard = ({ navigation }) => {
                     }
                     loading={false}
                   />
-                  {index < connectedUsers.length - 1 && <View style={styles.divider} />}
+                  {index < Math.min(connectedUsers.length, 2) - 1 && <View style={styles.divider} />}
                 </View>
               ))}
             </View>
@@ -872,6 +905,21 @@ const GuardianDashboard = ({ navigation }) => {
           <ActivityIndicator style={{ marginTop: 40 }} size="large" color="#4F2CF5" />
         )}
       </ScrollView>
+
+      <Modal
+        visible={showLogoutModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowLogoutModal(false)}
+      >
+        <View style={styles.logoutModalBackdrop}>
+          <LogoutPopup
+            asModal
+            onCancel={() => setShowLogoutModal(false)}
+            onConfirm={handleConfirmLogout}
+          />
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -950,6 +998,14 @@ const styles = StyleSheet.create({
   profileMeta: {
     flex: 1,
   },
+  profileBadgeCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#EEF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   profileName: {
     fontSize: 17,
     fontWeight: '800',
@@ -1008,11 +1064,22 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 14,
     paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: '#EEF2FF',
     elevation: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 1,
+  },
+  overviewIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#EEF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
   },
   overviewValue: {
     fontSize: 20,
@@ -1056,6 +1123,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
+  },
+  quickActionItemWide: {
+    width: '100%',
+    backgroundColor: '#EEF2FF',
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 6,
   },
   quickActionText: {
     fontSize: 12,
@@ -1236,6 +1313,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     marginBottom: 12,
   },
+  sectionHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  sectionActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EEF2FF',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    gap: 3,
+  },
+  sectionActionText: {
+    color: '#4F2CF5',
+    fontSize: 11,
+    fontWeight: '800',
+  },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '800',
@@ -1349,6 +1445,13 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: '#E0E0E2',
     marginVertical: 8,
+  },
+  logoutModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.38)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
   },
 });
 

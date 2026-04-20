@@ -173,7 +173,7 @@ async function sendHighPriorityFcm(tokens, payload) {
 
 function formatEmergencySms({ userName, mapsLink, triggerType }) {
   const who = userName || 'ShieldHer user';
-  const mode = triggerType === 'AI' ? 'AI scream detection' : 'manual SOS';
+  const mode = triggerType === 'AI' ? 'AI distress detection' : 'manual SOS';
   const locationPart = mapsLink ? `Location: ${mapsLink}` : 'Location unavailable';
   return `SOS ALERT from ShieldHer. ${who} triggered ${mode}. ${locationPart}`;
 }
@@ -820,6 +820,7 @@ exports.onAlertCreated = onDocumentCreated(
 
     const { userId, alertType, latitude, longitude, type } = alertData;
     const triggerType = type === 'AI' ? 'AI' : 'manual';
+    const shouldNotifyPoliceImmediately = triggerType === 'AI' || alertData.notifyPolice === true;
 
     if (!userId) {
       console.error('[onAlertCreated] userId missing from alert, aborting');
@@ -834,11 +835,13 @@ exports.onAlertCreated = onDocumentCreated(
 
     // ── Fetch user profile ───────────────────────────────────────────────────
     let userName = 'A user';
+    let userPhone = '';
     try {
       const userDoc = await db.collection('users').doc(userId).get();
       if (userDoc.exists) {
         const userData = userDoc.data();
         userName = userData.fullName || userData.email || 'A user';
+        userPhone = userData.phone || userData.phoneNumber || '';
         console.log('[onAlertCreated] User profile loaded for alert notification');
       } else {
         console.warn('[onAlertCreated] User doc not found for alert owner');
@@ -847,6 +850,58 @@ exports.onAlertCreated = onDocumentCreated(
       console.error(`[onAlertCreated] Error fetching user profile: ${safeErrorMessage(err)}`);
       // Continue — we can still send notifications with a generic name
     }
+
+    const routePoliceEscalation = async () => {
+      if (!shouldNotifyPoliceImmediately) {
+        await enqueueEscalation(alertId, db);
+        return false;
+      }
+
+      const latitudeNumber = Number.isFinite(Number(latitude)) ? Number(latitude) : null;
+      const longitudeNumber = Number.isFinite(Number(longitude)) ? Number(longitude) : null;
+
+      await db.collection('policeAlerts').doc(alertId).set(
+        {
+          alertId,
+          userId,
+          userName,
+          userPhone,
+          userLocation: {
+            latitude: latitudeNumber,
+            longitude: longitudeNumber,
+            accuracy: Number.isFinite(Number(alertData.accuracy))
+              ? Number(alertData.accuracy)
+              : null,
+          },
+          timestamp: FieldValue.serverTimestamp(),
+          alertCreatedAt: alertData.timestamp || alertData.createdAt || FieldValue.serverTimestamp(),
+          status: 'escalated',
+          priority: 'high',
+          escalatedAt: FieldValue.serverTimestamp(),
+          acknowledged: false,
+          triggerType,
+          source: alertData.source || null,
+          confidence: Number.isFinite(Number(alertData.confidence))
+            ? Number(alertData.confidence)
+            : null,
+          alertLevel: alertData.alertLevel || null,
+          autoEscalated: true,
+        },
+        { merge: true }
+      );
+
+      await db.collection('alerts').doc(alertId).set(
+        {
+          escalated: true,
+          escalatedAt: FieldValue.serverTimestamp(),
+          escalationState: 'completed',
+        },
+        { merge: true }
+      );
+
+      console.log('[onAlertCreated] Police dashboard escalated immediately for AI distress alert');
+      return true;
+    };
 
     // ── Fetch guardians and profile channels ──────────────────────────────────
     let guardians = [];
@@ -864,8 +919,13 @@ exports.onAlertCreated = onDocumentCreated(
 
     if (guardians.length === 0) {
       console.warn('[onAlertCreated] No guardians found, no notifications to send');
-      await enqueueEscalation(alertId, db);
-      return null;
+      const policeEscalated = await routePoliceEscalation();
+      return {
+        guardiansNotified: 0,
+        directFcm: 0,
+        expo: 0,
+        policeEscalated,
+      };
     }
 
     const mapsLink = buildMapsLink(latitude, longitude);
@@ -919,8 +979,13 @@ exports.onAlertCreated = onDocumentCreated(
 
     if (guardianTargets.length === 0) {
       console.warn('[onAlertCreated] No reachable guardian target after preference filtering');
-      await enqueueEscalation(alertId, db);
-      return null;
+      const policeEscalated = await routePoliceEscalation();
+      return {
+        guardiansNotified: 0,
+        directFcm: 0,
+        expo: 0,
+        policeEscalated,
+      };
     }
 
     // Persist per-guardian inbox entries for offline replay reliability.
@@ -992,15 +1057,16 @@ exports.onAlertCreated = onDocumentCreated(
       `[onAlertCreated] Push dispatched. directFcm=${fcmTokens.length}, expo=${expoTokens.length}, guardians=${guardianTargets.length}`
     );
 
+    const policeEscalated = await routePoliceEscalation();
+
     // Fire fail-safe SMS fallback for guardians that still have no push ack in 5-10 seconds.
     await executeSmsFallbackForPendingDeliveries(alertId, guardianTargets);
-
-    await enqueueEscalation(alertId, db);
 
     return {
       guardiansNotified: guardianTargets.length,
       directFcm: fcmTokens.length,
       expo: expoTokens.length,
+      policeEscalated,
     };
   }
 );

@@ -3,6 +3,7 @@ import Login from './src/screens/Login';
 import SignUp from './src/screens/SignUp';
 import Dashboard from './src/screens/Dashboard';
 import GuardianDashboard from './src/screens/GuardianDashboard';
+import ConnectedUsersScreen from './src/screens/ConnectedUsersScreen';
 import LogoutPopup from './src/screens/LogoutPopup';
 import ForgotPass from './src/screens/ForgotPass';
 import ProfileScreen from './src/screens/ProfileScreen';
@@ -275,6 +276,7 @@ export default function App() {
               <Stack.Screen name="VerifyOTP" component={VerifyOTPScreen} />
               <Stack.Screen name="Dashboard" component={Dashboard} />
               <Stack.Screen name="GuardianDashboard" component={GuardianDashboard} />
+              <Stack.Screen name="ConnectedUsers" component={ConnectedUsersScreen} />
               <Stack.Screen name="LogoutPopup" component={LogoutPopup} />
               <Stack.Screen name="Profile" component={ProfileScreen} />
               <Stack.Screen name="ChangePassword" component={ChangePassword} />

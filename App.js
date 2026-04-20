@@ -262,36 +262,35 @@ export default function App() {
               <ActivityIndicator size="large" color="#3A2BF1" />
             </View>
           ) : (
-          {/* Pass navigationRef so we can navigate from notification handlers */}
-          <NavigationContainer ref={navigationRef}>
-            <Stack.Navigator
-              initialRouteName={sessionInitialRoute}
-              screenOptions={{ headerShown: false }}
-            >
-              <Stack.Screen name="Home" component={Home} />
-              <Stack.Screen name="Login" component={Login} />
-              <Stack.Screen name="SignUp" component={SignUp} />
-              <Stack.Screen name="ForgotPass" component={ForgotPass} />
-              <Stack.Screen name="PhoneLogin" component={PhoneLoginScreen} />
-              <Stack.Screen name="VerifyOTP" component={VerifyOTPScreen} />
-              <Stack.Screen name="Dashboard" component={Dashboard} />
-              <Stack.Screen name="GuardianDashboard" component={GuardianDashboard} />
-              <Stack.Screen name="ConnectedUsers" component={ConnectedUsersScreen} />
-              <Stack.Screen name="LogoutPopup" component={LogoutPopup} />
-              <Stack.Screen name="Profile" component={ProfileScreen} />
-              <Stack.Screen name="ChangePassword" component={ChangePassword} />
-              <Stack.Screen name="NotificationSettings" component={NotificationSettings} />
-              <Stack.Screen name="LocationSettings" component={LocationSettings} />
-              <Stack.Screen name="UserLocationMap" component={UserLocationMapScreen} />
-              <Stack.Screen name="LiveMap" component={UserLocationMapScreen} />
-              <Stack.Screen name="GroupLocationMap" component={GroupLocationMapScreen} />
-              <Stack.Screen name="AlertHistory" component={AlertHistoryScreen} />
-              <Stack.Screen name="AlertTimeline" component={AlertTimelineScreen} />
-              <Stack.Screen name="SOSCountdownScreen" component={SOSCountdownScreen} />
-              <Stack.Screen name="AlertActiveScreen" component={AlertActiveScreen} />
-              <Stack.Screen name="IncomingSOSCall" component={IncomingSOSCallScreen} />
-            </Stack.Navigator>
-          </NavigationContainer>
+            <NavigationContainer ref={navigationRef}>
+              <Stack.Navigator
+                initialRouteName={sessionInitialRoute}
+                screenOptions={{ headerShown: false }}
+              >
+                <Stack.Screen name="Home" component={Home} />
+                <Stack.Screen name="Login" component={Login} />
+                <Stack.Screen name="SignUp" component={SignUp} />
+                <Stack.Screen name="ForgotPass" component={ForgotPass} />
+                <Stack.Screen name="PhoneLogin" component={PhoneLoginScreen} />
+                <Stack.Screen name="VerifyOTP" component={VerifyOTPScreen} />
+                <Stack.Screen name="Dashboard" component={Dashboard} />
+                <Stack.Screen name="GuardianDashboard" component={GuardianDashboard} />
+                <Stack.Screen name="ConnectedUsers" component={ConnectedUsersScreen} />
+                <Stack.Screen name="LogoutPopup" component={LogoutPopup} />
+                <Stack.Screen name="Profile" component={ProfileScreen} />
+                <Stack.Screen name="ChangePassword" component={ChangePassword} />
+                <Stack.Screen name="NotificationSettings" component={NotificationSettings} />
+                <Stack.Screen name="LocationSettings" component={LocationSettings} />
+                <Stack.Screen name="UserLocationMap" component={UserLocationMapScreen} />
+                <Stack.Screen name="LiveMap" component={UserLocationMapScreen} />
+                <Stack.Screen name="GroupLocationMap" component={GroupLocationMapScreen} />
+                <Stack.Screen name="AlertHistory" component={AlertHistoryScreen} />
+                <Stack.Screen name="AlertTimeline" component={AlertTimelineScreen} />
+                <Stack.Screen name="SOSCountdownScreen" component={SOSCountdownScreen} />
+                <Stack.Screen name="AlertActiveScreen" component={AlertActiveScreen} />
+                <Stack.Screen name="IncomingSOSCall" component={IncomingSOSCallScreen} />
+              </Stack.Navigator>
+            </NavigationContainer>
           )}
         </View>
       </SafeAreaProvider>

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { DeviceEventEmitter, NativeModules, PermissionsAndroid, Platform } from 'react-native';
 
 const ScreamDetectionModule = NativeModules.ScreamDetectionModule || NativeModules.ScreamDetection;
-const DEFAULT_THRESHOLD = 0.003;
+const DEFAULT_THRESHOLD = 0.5;
 const DEFAULT_COOLDOWN_MS = 30000;
 const MAX_DETECTION_BUFFER_SIZE = 10;
 const HIGH_VARIANCE_THRESHOLD = 0.3;

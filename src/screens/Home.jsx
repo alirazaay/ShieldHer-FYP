@@ -24,6 +24,13 @@ const TAG = '[Home]';
 const AI_DETECTION_STORAGE_KEY = '@shieldher_ai_detection_enabled';
 const AUTO_SOS_COOLDOWN_MS = 60000;
 
+function alertLevelFromProb(prob) {
+  if (prob >= 0.75) return 'CRITICAL';
+  if (prob >= 0.55) return 'DISTRESS';
+  if (prob >= 0.3) return 'CAUTION';
+  return 'SAFE';
+}
+
 const Home = ({ navigation }) => {
   const isFocused = useIsFocused();
   const [autoSosEnabled, setAutoSosEnabled] = useState(false);
@@ -62,8 +69,8 @@ const Home = ({ navigation }) => {
       try {
         if (!autoSosEnabled) return;
 
-        console.log('Scream Detected');
-        logger.warn(TAG, 'Scream Detected', {
+        console.log('Distress detected');
+        logger.warn(TAG, 'Distress detected', {
           confidence: data?.confidence ?? null,
           source: data?.source ?? 'unknown',
         });
@@ -105,8 +112,11 @@ const Home = ({ navigation }) => {
 
         const result = await dispatchSOSAlert(user.uid, location, {
           triggerType: 'AI',
-          source: 'AI_DETECTION',
+          source: 'AI_DISTRESS_DETECTION',
           detectedAt,
+          confidence: Number(data?.confidence || 0),
+          alertLevel: alertLevelFromProb(Number(data?.confidence || 0)),
+          notifyPolice: true,
         });
 
         if (result.success) {
@@ -149,7 +159,7 @@ const Home = ({ navigation }) => {
     continuous: isFocused,
     onScreamDetected: handleScreamDetected,
     config: {
-      confidenceThreshold: 0.003,
+      confidenceThreshold: 0.5,
       requiredConsecutiveFrames: 3,
       validationWindowMs: 2000,
       cooldownMs: 60000,
@@ -222,7 +232,7 @@ const Home = ({ navigation }) => {
 
         {/* 🚨 Auto SOS Toggle */}
         <View style={styles.toggleContainer}>
-          <Text style={styles.toggleText}>AI Auto SOS (Scream Detection)</Text>
+          <Text style={styles.toggleText}>AI Auto SOS (Distress Detection)</Text>
           <Switch
             value={autoSosEnabled}
             onValueChange={handleToggleAiDetection}

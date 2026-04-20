@@ -24,15 +24,16 @@ import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { enableScreens } from 'react-native-screens';
-import { View } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { getApps } from 'firebase/app';
 import { onAuthStateChanged } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
 import * as Notifications from 'expo-notifications';
 
 import './src/config/firebase';
-import { auth } from './src/config/firebase';
-import { useEffect, useRef } from 'react';
+import { auth, db } from './src/config/firebase';
+import { useEffect, useRef, useState } from 'react';
 import { checkFirebaseConnection } from './src/utils/checkFirebaseConnection';
 import {
   registerForPushNotifications,
@@ -69,6 +70,34 @@ export default function App() {
   const cleanupTokenRefresh = useRef(null);
   const notifResponseListener = useRef(null);
   const cleanupEmergencyListener = useRef(null);
+  const [authSessionResolved, setAuthSessionResolved] = useState(false);
+  const [sessionInitialRoute, setSessionInitialRoute] = useState('Home');
+
+  // ── Auth session bootstrap ───────────────────────────────────────────────
+  // Resolve persisted auth state before mounting navigator so returning users
+  // re-enter directly into their dashboard after app restart.
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        setSessionInitialRoute('Home');
+        setAuthSessionResolved(true);
+        return;
+      }
+
+      try {
+        const userSnap = await getDoc(doc(db, 'users', user.uid));
+        const role = userSnap.exists() ? userSnap.data()?.role : null;
+        setSessionInitialRoute(role === 'guardian' ? 'GuardianDashboard' : 'Dashboard');
+      } catch (error) {
+        logger.warn(TAG, 'Failed to resolve role during auth bootstrap:', error);
+        setSessionInitialRoute('Dashboard');
+      } finally {
+        setAuthSessionResolved(true);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   // ── Firebase connection check ──────────────────────────────────────────────
   useEffect(() => {
@@ -220,9 +249,24 @@ export default function App() {
         {/* Wrap entire app stack to easily render fixed absolute views across all flows securely */}
         <View style={{ flex: 1 }}>
           <OfflineBanner />
+          {!authSessionResolved ? (
+            <View
+              style={{
+                flex: 1,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: '#E9EAEE',
+              }}
+            >
+              <ActivityIndicator size="large" color="#3A2BF1" />
+            </View>
+          ) : (
           {/* Pass navigationRef so we can navigate from notification handlers */}
           <NavigationContainer ref={navigationRef}>
-            <Stack.Navigator initialRouteName="Home" screenOptions={{ headerShown: false }}>
+            <Stack.Navigator
+              initialRouteName={sessionInitialRoute}
+              screenOptions={{ headerShown: false }}
+            >
               <Stack.Screen name="Home" component={Home} />
               <Stack.Screen name="Login" component={Login} />
               <Stack.Screen name="SignUp" component={SignUp} />
@@ -246,6 +290,7 @@ export default function App() {
               <Stack.Screen name="IncomingSOSCall" component={IncomingSOSCallScreen} />
             </Stack.Navigator>
           </NavigationContainer>
+          )}
         </View>
       </SafeAreaProvider>
     </ErrorBoundary>

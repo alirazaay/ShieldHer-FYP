@@ -27,10 +27,17 @@ import { getSafetyModeState } from '../services/profile';
 import { fetchUserDashboardSnapshot } from '../services/dashboardService';
 import { startLocationTracking, stopLocationTracking } from '../services/locationListener';
 import { useScreamDetection } from '../hooks/useScreamDetection';
-import { classifyProb, HARASSMENT_TIERS, logHarassmentEvent } from '../services/harassmentLogger';
 import logger from '../utils/logger';
 
 const TAG = '[Dashboard]';
+const DISTRESS_THRESHOLD = 0.5;
+
+function alertLevelFromProb(prob) {
+  if (prob >= 0.75) return 'CRITICAL';
+  if (prob >= 0.55) return 'DISTRESS';
+  if (prob >= 0.3) return 'CAUTION';
+  return 'SAFE';
+}
 
 function getUserInitial(profile, firebaseUser) {
   const nameCandidate =
@@ -194,6 +201,9 @@ const Dashboard = ({ navigation }) => {
         setSosLoading(true);
         setSosError(null);
 
+        const confidence = Number(prob || 0);
+        const alertLevel = alertLevelFromProb(confidence);
+
         const currentUser = auth.currentUser;
         if (!currentUser) {
           navigation?.replace('Login');
@@ -213,12 +223,14 @@ const Dashboard = ({ navigation }) => {
         const dispatchResult = await dispatchSOSAlert(currentUser.uid, location, {
           triggerType: 'AI',
           source: reason,
-          confidence: prob,
+          confidence,
+          alertLevel,
+          notifyPolice: reason?.startsWith('AI_') || alertLevel === 'CRITICAL',
         });
 
         if (dispatchResult.success) {
           setSosMessage({
-            message: `SOS triggered (${reason}) at ${(Number(prob || 0) * 100).toFixed(0)}% confidence.`,
+            message: `SOS triggered (${reason}) at ${(confidence * 100).toFixed(0)}% confidence (${alertLevel}).`,
             type: dispatchResult.deliveryStatus === 'pending_retry' ? 'warning' : 'success',
           });
         } else {
@@ -242,47 +254,19 @@ const Dashboard = ({ navigation }) => {
 
   const handleAutoDetect = useCallback(
     async ({ prob }) => {
-      const tier = classifyProb(prob);
-      if (!tier) return;
-
-      console.log(`[ShieldHer] prob=${Number(prob).toFixed(3)} tier=${tier}`);
-      await logHarassmentEvent({ prob, source: 'AUTO', location: null });
-
-      if (tier === 'MILD') {
-        logger.info(TAG, 'Mild detection logged silently');
+      const confidence = Number(prob || 0);
+      if (confidence < DISTRESS_THRESHOLD) {
         return;
       }
 
-      if (tier === 'MODERATE') {
-        const tierLabel = HARASSMENT_TIERS[tier]?.label || tier;
-        setDetectionAlert({ tier, prob });
+      const alertLevel = alertLevelFromProb(confidence);
+      setDetectionAlert({ tier: alertLevel, prob: confidence });
 
-        Alert.alert(
-          `${tierLabel} Distress Detected`,
-          `Confidence: ${(Number(prob) * 100).toFixed(0)}%. Do you want to trigger SOS?`,
-          [
-            {
-              text: 'Dismiss',
-              style: 'cancel',
-              onPress: () => setDetectionAlert(null),
-            },
-            {
-              text: 'Send SOS',
-              style: 'destructive',
-              onPress: async () => {
-                setDetectionAlert(null);
-                await triggerSOS({ reason: 'AI_MODERATE', prob });
-              },
-            },
-          ],
-          { cancelable: true }
-        );
-        return;
-      }
-
-      setDetectionAlert({ tier, prob });
-      logger.warn(TAG, 'HIGH tier detected; auto-triggering SOS');
-      await triggerSOS({ reason: 'AI_AUTO_HIGH', prob });
+      logger.warn(TAG, 'Distress detected via AI; auto-triggering SOS', {
+        confidence,
+        alertLevel,
+      });
+      await triggerSOS({ reason: `AI_${alertLevel}`, prob: confidence });
     },
     [triggerSOS]
   );
@@ -295,13 +279,10 @@ const Dashboard = ({ navigation }) => {
       }
 
       const prob = Number(result.maxProb || 0);
-      await logHarassmentEvent({ prob, source: 'MANUAL', location: null });
-
-      const tier = classifyProb(prob);
-      const tierLabel = HARASSMENT_TIERS[tier]?.label || tier;
+      const alertLevel = alertLevelFromProb(prob);
       Alert.alert(
         'Distress Detected in Recording',
-        `Level: ${tierLabel} (${(prob * 100).toFixed(0)}%). SOS has been triggered.`
+        `Level: ${alertLevel} (${(prob * 100).toFixed(0)}%). SOS has been triggered.`
       );
 
       await triggerSOS({ reason: 'MANUAL_HOLD', prob });
@@ -321,6 +302,10 @@ const Dashboard = ({ navigation }) => {
   } = useScreamDetection({
     onAutoDetect: handleAutoDetect,
     onManualResult: handleManualResult,
+    config: {
+      confidenceThreshold: DISTRESS_THRESHOLD,
+      cooldownMs: 30000,
+    },
   });
 
   const requestAudioPermission = useCallback(async () => {
@@ -440,9 +425,9 @@ const Dashboard = ({ navigation }) => {
   const voiceLastResult =
     lastProb == null
       ? 'No sample yet'
-      : Number(lastProb) >= 0.65
+      : Number(lastProb) >= DISTRESS_THRESHOLD
         ? 'Distress detected'
-        : 'No distress';
+        : 'Non-distress';
 
   const statusSummary = (() => {
     if (sosLoading || dashboardSnapshot.hasActiveAlert || escalationState === 'escalated') {
@@ -724,7 +709,7 @@ const Dashboard = ({ navigation }) => {
               {isAutoRunning ? 'Stop AI Detection' : 'Start AI Detection'}
             </Text>
             <Text style={[styles.voiceSubText, compactMode && styles.voiceSubTextCompact]}>
-              Calibration threshold: 0.0030
+              Distress threshold: 0.5000
             </Text>
           </View>
         </TouchableOpacity>

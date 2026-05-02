@@ -1,248 +1,93 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { Shield, Mail, Lock, User, Phone, MapPin, Briefcase, ArrowRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import './SignupPage.css';
+import './LoginPage.css'; /* reuse auth styles */
 
 function SignupPage() {
-  const [formData, setFormData] = useState({
-    name: '',
-    contact: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
-    location: '',
-    rank: '',
-  });
-
-  const [errors, setErrors] = useState({});
-  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const { signup } = useAuth();
+  const { signup, authError, clearError } = useAuth();
+  const [form, setForm] = useState({ name: '', email: '', password: '', confirm: '', contact: '', location: '', rank: 'constable' });
+  const [loading, setLoading] = useState(false);
+  const [localError, setLocalError] = useState('');
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prevState) => ({
-      ...prevState,
-      [name]: value,
-    }));
-    // Clear error for this field when user starts typing
-    if (errors[name]) {
-      setErrors((prevState) => ({
-        ...prevState,
-        [name]: '',
-      }));
-    }
-  };
+  const handleChange = (e) => { setForm((p) => ({ ...p, [e.target.name]: e.target.value })); };
 
-  const validateForm = () => {
-    const newErrors = {};
-
-    if (!formData.name.trim()) {
-      newErrors.name = 'Name is required';
-    }
-
-    if (!formData.contact.trim()) {
-      newErrors.contact = 'Contact number is required';
-    } else if (!/^\d{10}$/.test(formData.contact.replace(/\D/g, ''))) {
-      newErrors.contact = 'Contact number must be 10 digits';
-    }
-
-    if (!formData.email.trim()) {
-      newErrors.email = 'Email is required';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      newErrors.email = 'Please enter a valid email';
-    }
-
-    if (!formData.password) {
-      newErrors.password = 'Password is required';
-    } else if (formData.password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
-    }
-
-    if (!formData.confirmPassword) {
-      newErrors.confirmPassword = 'Please confirm your password';
-    } else if (formData.password !== formData.confirmPassword) {
-      newErrors.confirmPassword = 'Passwords do not match';
-    }
-
-    if (!formData.location.trim()) {
-      newErrors.location = 'Location is required';
-    }
-
-    if (!formData.rank) {
-      newErrors.rank = 'Rank is required';
-    }
-
-    return newErrors;
-  };
-
-  const handleSignup = async (e) => {
-    e.preventDefault();
-
-    const newErrors = validateForm();
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      return;
-    }
-
+  const handleSubmit = async (e) => {
+    e.preventDefault(); clearError(); setLocalError('');
+    if (form.password !== form.confirm) { setLocalError('Passwords do not match'); return; }
+    if (form.password.length < 6) { setLocalError('Password must be at least 6 characters'); return; }
     setLoading(true);
-
     try {
-      await signup(formData.email, formData.password, {
-        name: formData.name,
-        contact: formData.contact,
-        location: formData.location,
-        rank: formData.rank,
-      });
+      await signup(form.email, form.password, { name: form.name, contact: form.contact, location: form.location, rank: form.rank });
       navigate('/dashboard');
-    } catch (error) {
-      setErrors({ submit: error.message });
-    } finally {
-      setLoading(false);
-    }
+    } catch { /* authError set by context */ }
+    finally { setLoading(false); }
   };
+
+  const fields = [
+    { name: 'name', icon: User, placeholder: 'Full Name', type: 'text', required: true },
+    { name: 'email', icon: Mail, placeholder: 'Email Address', type: 'email', required: true },
+    { name: 'password', icon: Lock, placeholder: 'Password', type: 'password', required: true },
+    { name: 'confirm', icon: Lock, placeholder: 'Confirm Password', type: 'password', required: true },
+    { name: 'contact', icon: Phone, placeholder: 'Contact Number', type: 'tel' },
+    { name: 'location', icon: MapPin, placeholder: 'Station / Location', type: 'text' },
+  ];
+
+  const error = localError || authError;
 
   return (
-    <div className="signup-container">
-      <div className="signup-title">Create Account</div>
-      <div className="signup-content">
-        <div className="signup-left">
-          <div className="signup-shield">🛡️</div>
-          <h2 className="signup-heading">POLICE COMMAND & CONTROL</h2>
-          <p className="signup-subheading">
-            Join our secure network.
-            <br />
-            Protecting Our Communities.
-            <br />
-            Secure Their Future
-          </p>
-        </div>
-        <div className="signup-right">
-          <div className="signup-logo">🛡️</div>
-          <h1 className="signup-app-name">ShieldHer</h1>
-          <p className="signup-app-subtitle">Police Portal - Sign Up</p>
+    <div className="auth-page">
+      <div className="auth-bg-pattern" />
+      <motion.div className="auth-card" style={{ maxWidth: 460 }}
+        initial={{ opacity: 0, y: 30, scale: 0.97 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.5, ease: 'easeOut' }}>
+        <motion.div className="auth-logo"
+          initial={{ scale: 0, rotate: -180 }}
+          animate={{ scale: 1, rotate: 0 }}
+          transition={{ type: 'spring', stiffness: 260, damping: 20, delay: 0.2 }}>
+          <Shield size={32} />
+        </motion.div>
+        <h1 className="auth-title">Create Account</h1>
+        <p className="auth-subtitle">Register as a ShieldHer Police Officer</p>
 
-          <form onSubmit={handleSignup} className="signup-form">
-            {errors.submit && <div className="signup-error-message">{errors.submit}</div>}
+        {error && <div className="auth-error">{error}</div>}
 
-            {/* Name Field */}
-            <div className="signup-form-group">
-              <label className="signup-label">Full Name</label>
-              <input
-                type="text"
-                name="name"
-                className={`signup-input ${errors.name ? 'error' : ''}`}
-                value={formData.name}
-                onChange={handleChange}
-                placeholder="Enter your full name"
-              />
-              {errors.name && <span className="signup-error">{errors.name}</span>}
-            </div>
-
-            {/* Contact Field */}
-            <div className="signup-form-group">
-              <label className="signup-label">Contact Number</label>
-              <input
-                type="tel"
-                name="contact"
-                className={`signup-input ${errors.contact ? 'error' : ''}`}
-                value={formData.contact}
-                onChange={handleChange}
-                placeholder="Enter 10-digit contact number"
-              />
-              {errors.contact && <span className="signup-error">{errors.contact}</span>}
-            </div>
-
-            {/* Email Field */}
-            <div className="signup-form-group">
-              <label className="signup-label">Email Address</label>
-              <input
-                type="email"
-                name="email"
-                className={`signup-input ${errors.email ? 'error' : ''}`}
-                value={formData.email}
-                onChange={handleChange}
-                placeholder="Enter your email"
-              />
-              {errors.email && <span className="signup-error">{errors.email}</span>}
-            </div>
-
-            {/* Password Field */}
-            <div className="signup-form-group">
-              <label className="signup-label">Password</label>
-              <input
-                type="password"
-                name="password"
-                className={`signup-input ${errors.password ? 'error' : ''}`}
-                value={formData.password}
-                onChange={handleChange}
-                placeholder="Enter password (min 6 characters)"
-              />
-              {errors.password && <span className="signup-error">{errors.password}</span>}
-            </div>
-
-            {/* Confirm Password Field */}
-            <div className="signup-form-group">
-              <label className="signup-label">Confirm Password</label>
-              <input
-                type="password"
-                name="confirmPassword"
-                className={`signup-input ${errors.confirmPassword ? 'error' : ''}`}
-                value={formData.confirmPassword}
-                onChange={handleChange}
-                placeholder="Re-enter your password"
-              />
-              {errors.confirmPassword && (
-                <span className="signup-error">{errors.confirmPassword}</span>
-              )}
-            </div>
-
-            {/* Location Field */}
-            <div className="signup-form-group">
-              <label className="signup-label">Location / Police Station</label>
-              <input
-                type="text"
-                name="location"
-                className={`signup-input ${errors.location ? 'error' : ''}`}
-                value={formData.location}
-                onChange={handleChange}
-                placeholder="Enter your police station location"
-              />
-              {errors.location && <span className="signup-error">{errors.location}</span>}
-            </div>
-
-            {/* Rank Field */}
-            <div className="signup-form-group">
-              <label className="signup-label">Rank</label>
-              <select
-                name="rank"
-                className={`signup-input signup-select ${errors.rank ? 'error' : ''}`}
-                value={formData.rank}
-                onChange={handleChange}
-              >
-                <option value="">Select your rank</option>
-                <option value="constable">Constable</option>
-                <option value="head-constable">Head Constable</option>
-                <option value="assistant-sub-inspector">Assistant Sub Inspector</option>
-                <option value="sub-inspector">Sub Inspector</option>
-                <option value="inspector">Inspector</option>
-                <option value="deputy-superintendent">Deputy Superintendent</option>
-                <option value="superintendent">Superintendent</option>
-                <option value="commissioner">Commissioner</option>
-              </select>
-              {errors.rank && <span className="signup-error">{errors.rank}</span>}
-            </div>
-
-            <button type="submit" className="signup-button" disabled={loading}>
-              {loading ? 'Creating Account...' : 'Sign Up'}
-            </button>
-
-            <p className="signup-login-link">
-              Already have an account? <a href="/login">Login here</a>
-            </p>
-          </form>
-        </div>
-      </div>
+        <form onSubmit={handleSubmit} className="auth-form">
+          {fields.map((f, i) => {
+            const Icon = f.icon;
+            return (
+              <motion.div key={f.name} className="auth-field"
+                initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 + i * 0.05 }}>
+                <Icon size={18} className="auth-field-icon" />
+                <input type={f.type} name={f.name} placeholder={f.placeholder} value={form[f.name]} onChange={handleChange} required={f.required} />
+              </motion.div>
+            );
+          })}
+          <motion.div className="auth-field"
+            initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
+            <Briefcase size={18} className="auth-field-icon" />
+            <select name="rank" value={form.rank} onChange={handleChange}
+              style={{ width: '100%', padding: '14px 16px 14px 48px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.06)', color: '#fff', fontSize: 14, fontFamily: 'Inter, sans-serif', appearance: 'none' }}>
+              <option value="constable">Constable</option>
+              <option value="head-constable">Head Constable</option>
+              <option value="asi">ASI</option>
+              <option value="si">Sub Inspector</option>
+              <option value="inspector">Inspector</option>
+              <option value="dsp">DSP</option>
+              <option value="sp">SP</option>
+            </select>
+          </motion.div>
+          <motion.button type="submit" className="auth-btn" disabled={loading}
+            whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }}>
+            {loading ? 'Creating Account...' : <><span>Create Account</span><ArrowRight size={18} /></>}
+          </motion.button>
+        </form>
+        <p className="auth-footer">Already have an account? <Link to="/login" className="auth-link-bold">Sign In</Link></p>
+      </motion.div>
     </div>
   );
 }

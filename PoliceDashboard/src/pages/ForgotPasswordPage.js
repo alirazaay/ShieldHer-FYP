@@ -1,108 +1,67 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { Shield, Mail, ArrowLeft, Send } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import './ForgotPasswordPage.css';
+import './LoginPage.css'; /* reuse auth styles */
 
 function ForgotPasswordPage() {
+  const { resetPassword, authError, clearError } = useAuth();
   const [email, setEmail] = useState('');
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
-  const { resetPassword } = useAuth();
+  const [sent, setSent] = useState(false);
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!email) {
-      setError('Please enter your email');
-      return;
-    }
-    setError('');
-    setLoading(true);
-    try {
-      await resetPassword(email);
-      setSuccess(true);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+    e.preventDefault(); clearError(); setLoading(true);
+    try { await resetPassword(email); setSent(true); }
+    catch { /* authError set by context */ }
+    finally { setLoading(false); }
   };
 
   return (
-    <div className="forgot-password-container">
-      <div className="forgot-password-title">Reset Password</div>
-      <div className="forgot-password-content">
-        <div className="forgot-password-left">
-          <div className="forgot-password-shield">🛡️</div>
-          <h2 className="forgot-password-heading">POLICE COMMAND & CONTROL</h2>
-          <p className="forgot-password-subheading">
-            Protecting Our Communities.
-            <br />
-            Secure Their Future
-          </p>
-        </div>
-        <div className="forgot-password-right">
-          <div className="forgot-password-logo">🛡️</div>
-          <h1 className="forgot-password-app-name">ShieldHer</h1>
-          <p className="forgot-password-app-subtitle">Police Portal</p>
+    <div className="auth-page">
+      <div className="auth-bg-pattern" />
+      <motion.div className="auth-card"
+        initial={{ opacity: 0, y: 30, scale: 0.97 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.5, ease: 'easeOut' }}>
+        <motion.div className="auth-logo"
+          initial={{ scale: 0, rotate: -180 }}
+          animate={{ scale: 1, rotate: 0 }}
+          transition={{ type: 'spring', stiffness: 260, damping: 20, delay: 0.2 }}>
+          <Shield size={32} />
+        </motion.div>
+        <h1 className="auth-title">Reset Password</h1>
+        <p className="auth-subtitle">Enter your email to receive a reset link</p>
 
-          {success ? (
-            <div className="forgot-password-form">
-              <div
-                style={{
-                  textAlign: 'center',
-                  padding: '20px 0',
-                }}
-              >
-                <div style={{ fontSize: '48px', marginBottom: '15px' }}>✉️</div>
-                <h3 className="forgot-password-step-title">Check Your Email</h3>
-                <p
-                  style={{
-                    color: '#666',
-                    fontSize: '14px',
-                    lineHeight: '1.6',
-                    marginBottom: '20px',
-                  }}
-                >
-                  We&apos;ve sent a password reset link to <strong>{email}</strong>. Please check
-                  your inbox and follow the instructions.
-                </p>
-                <button className="forgot-password-button" onClick={() => navigate('/login')}>
-                  Back to Login
-                </button>
-              </div>
+        {authError && <div className="auth-error">{authError}</div>}
+
+        {sent ? (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+            style={{ textAlign: 'center', padding: 24, background: 'rgba(22,163,74,0.1)', borderRadius: 12, border: '1px solid rgba(22,163,74,0.2)' }}>
+            <Send size={32} style={{ color: '#22c55e', marginBottom: 12 }} />
+            <p style={{ color: '#86efac', fontSize: 14, fontWeight: 500 }}>Password reset email sent!</p>
+            <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12, marginTop: 6 }}>Check your inbox for instructions</p>
+          </motion.div>
+        ) : (
+          <form onSubmit={handleSubmit} className="auth-form">
+            <div className="auth-field">
+              <Mail size={18} className="auth-field-icon" />
+              <input type="email" placeholder="Email address" value={email} onChange={(e) => setEmail(e.target.value)} required />
             </div>
-          ) : (
-            <form onSubmit={handleSubmit} className="forgot-password-form">
-              <h3 className="forgot-password-step-title">Enter Your Email</h3>
-              <p style={{ color: '#666', fontSize: '13px', marginBottom: '15px' }}>
-                We&apos;ll send you a link to reset your password.
-              </p>
-              <label className="forgot-password-label">Email Address</label>
-              <input
-                type="email"
-                className="forgot-password-input"
-                placeholder="Enter your registered email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={loading}
-              />
-              {error && <p className="forgot-password-error">{error}</p>}
-              <button type="submit" className="forgot-password-button" disabled={loading}>
-                {loading ? 'Sending...' : 'Send Reset Link'}
-              </button>
-              <button
-                type="button"
-                className="forgot-password-back-button"
-                onClick={() => navigate('/login')}
-              >
-                Back to Login
-              </button>
-            </form>
-          )}
-        </div>
-      </div>
+            <motion.button type="submit" className="auth-btn" disabled={loading}
+              whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+              {loading ? 'Sending...' : <><span>Send Reset Link</span><Send size={18} /></>}
+            </motion.button>
+          </form>
+        )}
+
+        <p className="auth-footer">
+          <Link to="/login" className="auth-link-bold" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <ArrowLeft size={14} /> Back to Sign In
+          </Link>
+        </p>
+      </motion.div>
     </div>
   );
 }

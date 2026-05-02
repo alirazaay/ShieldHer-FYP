@@ -1,103 +1,61 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { Shield, Mail, Lock, ArrowRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import './LoginPage.css';
 
 function LoginPage() {
+  const navigate = useNavigate();
+  const { login, authError, clearError } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const navigate = useNavigate();
-  const { login, user } = useAuth();
 
-  // If already logged in, redirect to dashboard
-  if (user) {
-    navigate('/dashboard', { replace: true });
-    return null;
-  }
-
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    if (!email || !password) {
-      setError('Please enter email and password');
-      return;
-    }
-    setError('');
-    setLoading(true);
-    try {
-      await login(email, password);
-      navigate('/dashboard');
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+  const handleSubmit = async (e) => {
+    e.preventDefault(); clearError(); setLoading(true);
+    try { await login(email, password); navigate('/dashboard'); }
+    catch { /* authError set by context */ }
+    finally { setLoading(false); }
   };
 
   return (
-    <div className="login-container">
-      <div className="login-title">Sign In</div>
-      <div className="login-content">
-        <div className="login-left">
-          <div className="login-shield">🛡️</div>
-          <h2 className="login-heading">POLICE COMMAND & CONTROL</h2>
-          <p className="login-subheading">
-            Protecting Our Communities.
-            <br />
-            Secure Their Future
-          </p>
-        </div>
-        <div className="login-right">
-          <div className="login-logo">🛡️</div>
-          <h1 className="login-app-name">ShieldHer</h1>
-          <p className="login-app-subtitle">Police Portal</p>
-          <form onSubmit={handleLogin} className="login-form">
-            {error && (
-              <div
-                style={{
-                  background: '#ffe5e5',
-                  color: '#ff0000',
-                  padding: '10px 15px',
-                  borderRadius: '8px',
-                  fontSize: '13px',
-                  marginBottom: '15px',
-                  fontWeight: '500',
-                }}
-              >
-                {error}
-              </div>
-            )}
-            <label className="login-label">Email</label>
-            <input
-              type="email"
-              className="login-input"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Enter your email"
-              disabled={loading}
-            />
-            <label className="login-label">Password</label>
-            <input
-              type="password"
-              className="login-input"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter your password"
-              disabled={loading}
-            />
-            <button type="submit" className="login-button" disabled={loading}>
-              {loading ? 'Signing in...' : 'Login'}
-            </button>
-            <p className="login-forgot-password-link">
-              <a href="/forgot-password">Forgot Password?</a>
-            </p>
-            <p className="login-signup-link">
-              Don&apos;t have an account? <a href="/signup">Sign up here</a>
-            </p>
-          </form>
-        </div>
-      </div>
+    <div className="auth-page">
+      <div className="auth-bg-pattern" />
+      <motion.div className="auth-card"
+        initial={{ opacity: 0, y: 30, scale: 0.97 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.5, ease: 'easeOut' }}>
+        <motion.div className="auth-logo"
+          initial={{ scale: 0, rotate: -180 }}
+          animate={{ scale: 1, rotate: 0 }}
+          transition={{ type: 'spring', stiffness: 260, damping: 20, delay: 0.2 }}>
+          <Shield size={32} />
+        </motion.div>
+        <h1 className="auth-title">Welcome Back</h1>
+        <p className="auth-subtitle">Sign in to ShieldHer Police Portal</p>
+
+        {authError && <div className="auth-error">{authError}</div>}
+
+        <form onSubmit={handleSubmit} className="auth-form">
+          <div className="auth-field">
+            <Mail size={18} className="auth-field-icon" />
+            <input type="email" placeholder="Email address" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          </div>
+          <div className="auth-field">
+            <Lock size={18} className="auth-field-icon" />
+            <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+          </div>
+          <div style={{ textAlign: 'right', marginBottom: 16 }}>
+            <Link to="/forgot-password" className="auth-link">Forgot password?</Link>
+          </div>
+          <motion.button type="submit" className="auth-btn" disabled={loading}
+            whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+            {loading ? 'Signing in...' : <><span>Sign In</span><ArrowRight size={18} /></>}
+          </motion.button>
+        </form>
+        <p className="auth-footer">Don't have an account? <Link to="/signup" className="auth-link-bold">Sign Up</Link></p>
+      </motion.div>
     </div>
   );
 }

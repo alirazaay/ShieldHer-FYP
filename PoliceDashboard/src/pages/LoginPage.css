@@ -4,9 +4,10 @@
   align-items: center;
   justify-content: center;
   background: linear-gradient(135deg, #1a0e42 0%, #0f0824 40%, #1a0533 100%);
-  padding: 20px;
+  padding: 40px 20px;
   position: relative;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .auth-bg-pattern {

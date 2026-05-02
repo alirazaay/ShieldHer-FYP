@@ -1,137 +1,42 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { motion } from 'framer-motion';
+import { MapPin, AlertTriangle, Shield, Navigation } from 'lucide-react';
 import { GoogleMap, InfoWindow, Marker, useJsApiLoader } from '@react-google-maps/api';
 import { MapContainer, Marker as LeafletMarker, Popup, TileLayer, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import {
-  formatTimestamp,
-  getUserById,
-  subscribeToAlerts,
-  subscribeToPoliceUnits,
-} from '../services/firestoreService';
+import { formatTimestamp, getUserById, subscribeToAlerts, subscribeToPoliceUnits } from '../services/firestoreService';
 import LoadingSpinner from '../components/LoadingSpinner';
 
-const mapContainerStyle = {
-  width: '100%',
-  height: '100%',
-  borderRadius: '12px',
-};
-
+const mapStyle = { width: '100%', height: '100%', borderRadius: '14px' };
 const defaultCenter = { lat: 33.6844, lng: 73.0479 };
-const GOOGLE_API_KEY = process.env.REACT_APP_GOOGLE_MAPS_API_KEY || '';
-const hasValidGoogleKey = GOOGLE_API_KEY && GOOGLE_API_KEY !== 'YOUR_GOOGLE_MAPS_API_KEY';
+const GOOGLE_KEY = process.env.REACT_APP_GOOGLE_MAPS_API_KEY || '';
+const hasGoogle = GOOGLE_KEY && GOOGLE_KEY !== 'YOUR_GOOGLE_MAPS_API_KEY';
 
-const emergencyLeafletIcon = L.divIcon({
-  className: 'shieldher-marker',
-  html: '<div style="width:22px;height:22px;border-radius:50%;background:#ff0000;color:#fff;display:flex;align-items:center;justify-content:center;border:2px solid #fff;font-weight:700;font-size:12px;">!</div>',
-  iconSize: [22, 22],
-  iconAnchor: [11, 11],
-});
+const emergIcon = L.divIcon({ className: '', html: '<div style="width:20px;height:20px;border-radius:50%;background:#dc2626;border:3px solid #fff;box-shadow:0 2px 8px rgba(220,38,38,0.4)"></div>', iconSize: [20, 20], iconAnchor: [10, 10] });
+const unitIcon = L.divIcon({ className: '', html: '<div style="width:20px;height:20px;border-radius:50%;background:#4318FF;border:3px solid #fff;box-shadow:0 2px 8px rgba(67,24,255,0.4)"></div>', iconSize: [20, 20], iconAnchor: [10, 10] });
 
-const unitLeafletIcon = L.divIcon({
-  className: 'shieldher-marker',
-  html: '<div style="width:24px;height:24px;border-radius:50%;background:#4318ff;color:#fff;display:flex;align-items:center;justify-content:center;border:2px solid #fff;font-size:12px;">🚓</div>',
-  iconSize: [24, 24],
-  iconAnchor: [12, 12],
-});
+function Recenter({ center }) { const m = useMap(); useEffect(() => { m.setView(center); }, [center, m]); return null; }
 
-function RecenterMap({ center }) {
-  const map = useMap();
-
-  useEffect(() => {
-    map.setView(center);
-  }, [center, map]);
-
-  return null;
-}
-
-function GoogleLiveMap({
-  activeView,
-  center,
-  emergencyMarkers,
-  unitMarkers,
-  onSelectMarker,
-  selectedMarker,
-  onCloseMarker,
-}) {
-  const { isLoaded, loadError } = useJsApiLoader({
-    id: 'shieldher-google-map',
-    googleMapsApiKey: GOOGLE_API_KEY,
-  });
-
-  if (loadError) {
-    return null;
-  }
-
-  if (!isLoaded) {
-    return <LoadingSpinner message="Loading map..." />;
-  }
-
+function GoogleLive({ activeView, center, eMarkers, uMarkers, selected, onSelect, onClose }) {
+  const { isLoaded, loadError } = useJsApiLoader({ id: 'shieldher-map', googleMapsApiKey: GOOGLE_KEY });
+  if (loadError) return null;
+  if (!isLoaded) return <LoadingSpinner message="Loading map..." />;
   return (
-    <GoogleMap
-      mapContainerStyle={mapContainerStyle}
-      center={center}
-      zoom={12}
-      options={{
-        disableDefaultUI: false,
-        zoomControl: true,
-        mapTypeControl: false,
-        streetViewControl: false,
-      }}
-    >
-      {activeView === 'Emergencies' &&
-        emergencyMarkers.map((marker) => (
-          <Marker
-            key={marker.id}
-            position={marker.position}
-            icon={{
-              url:
-                'data:image/svg+xml;charset=UTF-8,' +
-                encodeURIComponent(
-                  '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><circle cx="16" cy="16" r="14" fill="#ff0000" stroke="white" stroke-width="3"/><text x="16" y="21" text-anchor="middle" fill="white" font-size="16">!</text></svg>'
-                ),
-            }}
-            onClick={() => onSelectMarker({ type: 'alert', data: marker })}
-          />
-        ))}
-
-      {activeView === 'Units' &&
-        unitMarkers.map((marker) => (
-          <Marker
-            key={marker.id}
-            position={marker.position}
-            icon={{
-              url:
-                'data:image/svg+xml;charset=UTF-8,' +
-                encodeURIComponent(
-                  '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><circle cx="16" cy="16" r="14" fill="#4318ff" stroke="white" stroke-width="3"/><text x="16" y="21" text-anchor="middle" fill="white" font-size="14">🚓</text></svg>'
-                ),
-            }}
-            onClick={() => onSelectMarker({ type: 'unit', data: marker })}
-          />
-        ))}
-
-      {selectedMarker && (
-        <InfoWindow position={selectedMarker.data.position} onCloseClick={onCloseMarker}>
-          <div style={{ padding: '5px', maxWidth: '220px' }}>
-            {selectedMarker.type === 'alert' ? (
-              <>
-                <strong style={{ color: '#ff0000' }}>🚨 Emergency</strong>
-                <div style={{ fontSize: '12px', marginTop: '5px' }}>
-                  <div>👤 {selectedMarker.data.userData?.fullName || 'Unknown'}</div>
-                  <div>📱 {selectedMarker.data.userData?.phone || 'N/A'}</div>
-                  <div>🕐 {formatTimestamp(selectedMarker.data.createdAt)}</div>
-                  <div>Status: {selectedMarker.data.status}</div>
-                </div>
-              </>
+    <GoogleMap mapContainerStyle={mapStyle} center={center} zoom={12} options={{ disableDefaultUI: false, zoomControl: true, mapTypeControl: false, streetViewControl: false }}>
+      {activeView === 'Emergencies' && eMarkers.map((m) => (
+        <Marker key={m.id} position={m.position} icon={{ url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28"><circle cx="14" cy="14" r="11" fill="#dc2626" stroke="white" stroke-width="3"/></svg>') }} onClick={() => onSelect({ type: 'alert', data: m })} />
+      ))}
+      {activeView === 'Units' && uMarkers.map((m) => (
+        <Marker key={m.id} position={m.position} icon={{ url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28"><circle cx="14" cy="14" r="11" fill="#4318FF" stroke="white" stroke-width="3"/></svg>') }} onClick={() => onSelect({ type: 'unit', data: m })} />
+      ))}
+      {selected && (
+        <InfoWindow position={selected.data.position} onCloseClick={onClose}>
+          <div style={{ padding: 4, maxWidth: 200, fontFamily: 'Inter, sans-serif' }}>
+            {selected.type === 'alert' ? (
+              <><strong style={{ color: '#dc2626' }}>Emergency</strong><div style={{ fontSize: 12, marginTop: 4 }}><div>{selected.data.userData?.fullName || 'Unknown'}</div><div>{formatTimestamp(selected.data.createdAt)}</div></div></>
             ) : (
-              <>
-                <strong style={{ color: '#4318ff' }}>🚓 {selectedMarker.data.name}</strong>
-                <div style={{ fontSize: '12px', marginTop: '5px' }}>
-                  <div>👮 {selectedMarker.data.officerName || 'N/A'}</div>
-                  <div>Status: {selectedMarker.data.status}</div>
-                </div>
-              </>
+              <><strong style={{ color: '#4318FF' }}>{selected.data.name}</strong><div style={{ fontSize: 12, marginTop: 4 }}><div>{selected.data.officerName || 'N/A'}</div><div>Status: {selected.data.status}</div></div></>
             )}
           </div>
         </InfoWindow>
@@ -140,52 +45,21 @@ function GoogleLiveMap({
   );
 }
 
-function OpenStreetMapLiveMap({ activeView, center, emergencyMarkers, unitMarkers }) {
-  const leafletCenter = [center.lat, center.lng];
-
+function OSMLive({ activeView, center, eMarkers, uMarkers }) {
   return (
-    <MapContainer center={leafletCenter} zoom={12} style={mapContainerStyle}>
-      <RecenterMap center={leafletCenter} />
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-      />
-
-      {activeView === 'Emergencies' &&
-        emergencyMarkers.map((marker) => (
-          <LeafletMarker
-            key={marker.id}
-            position={[marker.position.lat, marker.position.lng]}
-            icon={emergencyLeafletIcon}
-          >
-            <Popup>
-              <div style={{ fontSize: '12px' }}>
-                <strong>🚨 Emergency</strong>
-                <div>👤 {marker.userData?.fullName || 'Unknown'}</div>
-                <div>📱 {marker.userData?.phone || 'N/A'}</div>
-                <div>🕐 {formatTimestamp(marker.createdAt)}</div>
-                <div>Status: {marker.status}</div>
-              </div>
-            </Popup>
-          </LeafletMarker>
-        ))}
-
-      {activeView === 'Units' &&
-        unitMarkers.map((marker) => (
-          <LeafletMarker
-            key={marker.id}
-            position={[marker.position.lat, marker.position.lng]}
-            icon={unitLeafletIcon}
-          >
-            <Popup>
-              <div style={{ fontSize: '12px' }}>
-                <strong>🚓 {marker.name}</strong>
-                <div>👮 {marker.officerName || 'N/A'}</div>
-                <div>Status: {marker.status}</div>
-              </div>
-            </Popup>
-          </LeafletMarker>
-        ))}
+    <MapContainer center={[center.lat, center.lng]} zoom={12} style={mapStyle}>
+      <Recenter center={[center.lat, center.lng]} />
+      <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+      {activeView === 'Emergencies' && eMarkers.map((m) => (
+        <LeafletMarker key={m.id} position={[m.position.lat, m.position.lng]} icon={emergIcon}>
+          <Popup><div style={{ fontSize: 12 }}><strong>Emergency</strong><div>{m.userData?.fullName || 'Unknown'}</div><div>{formatTimestamp(m.createdAt)}</div></div></Popup>
+        </LeafletMarker>
+      ))}
+      {activeView === 'Units' && uMarkers.map((m) => (
+        <LeafletMarker key={m.id} position={[m.position.lat, m.position.lng]} icon={unitIcon}>
+          <Popup><div style={{ fontSize: 12 }}><strong>{m.name}</strong><div>{m.officerName || 'N/A'}</div></div></Popup>
+        </LeafletMarker>
+      ))}
     </MapContainer>
   );
 }
@@ -195,312 +69,113 @@ function LiveMapPage() {
   const [alerts, setAlerts] = useState([]);
   const [units, setUnits] = useState([]);
   const [userCache, setUserCache] = useState({});
-  const [selectedMarker, setSelectedMarker] = useState(null);
+  const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(true);
-  const fetchedUserIdsRef = useRef(new Set());
+  const fetched = useRef(new Set());
 
   useEffect(() => {
-    const unsubAlerts = subscribeToAlerts((allAlerts) => {
-      const activeAlerts = allAlerts.filter(
-        (a) => a.status === 'active' || a.status === 'escalated' || a.status === 'responded'
-      );
-
-      setAlerts(activeAlerts);
-      setLoading(false);
-
-      activeAlerts.forEach(async (alert) => {
-        const uid = alert.userId || alert.ownerId;
-        if (!uid || fetchedUserIdsRef.current.has(uid)) return;
-
-        fetchedUserIdsRef.current.add(uid);
-
-        const userData = await getUserById(uid);
-        if (!userData) {
-          fetchedUserIdsRef.current.delete(uid);
-          return;
-        }
-
-        setUserCache((prev) => {
-          if (prev[uid]) return prev;
-          return { ...prev, [uid]: userData };
-        });
+    const u1 = subscribeToAlerts((all) => {
+      const active = all.filter((a) => ['active', 'escalated', 'responded'].includes(a.status));
+      setAlerts(active); setLoading(false);
+      active.forEach(async (a) => {
+        const uid = a.userId || a.ownerId;
+        if (!uid || fetched.current.has(uid)) return;
+        fetched.current.add(uid);
+        const ud = await getUserById(uid);
+        if (ud) setUserCache((p) => p[uid] ? p : { ...p, [uid]: ud });
       });
     });
-
-    const unsubUnits = subscribeToPoliceUnits((allUnits) => {
-      setUnits(allUnits);
-    });
-
-    return () => {
-      unsubAlerts();
-      unsubUnits();
-    };
+    const u2 = subscribeToPoliceUnits((all) => setUnits(all));
+    return () => { u1(); u2(); };
   }, []);
 
-  const emergencyCount = useMemo(
-    () => alerts.filter((a) => a.status === 'active' || a.status === 'escalated').length,
-    [alerts]
-  );
+  const eCount = useMemo(() => alerts.filter((a) => a.status === 'active' || a.status === 'escalated').length, [alerts]);
+  const uCount = useMemo(() => units.filter((u) => u.status !== 'offline').length, [units]);
+  const eMarkers = useMemo(() => alerts.filter((a) => a.latitude && a.longitude).map((a) => ({ ...a, userData: userCache[a.userId || a.ownerId], position: { lat: Number(a.latitude), lng: Number(a.longitude) } })), [alerts, userCache]);
+  const uMarkers = useMemo(() => units.filter((u) => u.status !== 'offline' && u.location?.latitude).map((u) => ({ ...u, position: { lat: Number(u.location.latitude), lng: Number(u.location.longitude) } })), [units]);
+  const center = useMemo(() => eMarkers[0]?.position || uMarkers[0]?.position || defaultCenter, [eMarkers, uMarkers]);
 
-  const activeUnitCount = useMemo(
-    () => units.filter((u) => u.status !== 'offline').length,
-    [units]
-  );
-
-  const emergencyMarkers = useMemo(
-    () =>
-      alerts
-        .filter((alert) => alert.latitude && alert.longitude)
-        .map((alert) => {
-          const uid = alert.userId || alert.ownerId;
-          return {
-            ...alert,
-            userData: userCache[uid],
-            position: {
-              lat: Number(alert.latitude),
-              lng: Number(alert.longitude),
-            },
-          };
-        }),
-    [alerts, userCache]
-  );
-
-  const unitMarkers = useMemo(
-    () =>
-      units
-        .filter(
-          (unit) => unit.status !== 'offline' && unit.location?.latitude && unit.location?.longitude
-        )
-        .map((unit) => ({
-          ...unit,
-          position: {
-            lat: Number(unit.location.latitude),
-            lng: Number(unit.location.longitude),
-          },
-        })),
-    [units]
-  );
-
-  const mapCenter = useMemo(() => {
-    if (emergencyMarkers.length > 0) return emergencyMarkers[0].position;
-    if (unitMarkers.length > 0) return unitMarkers[0].position;
-    return defaultCenter;
-  }, [emergencyMarkers, unitMarkers]);
-
-  const statusColors = {
-    available: '#10b981',
-    dispatched: '#ffa500',
-    on_emergency: '#ff0000',
-    on_scene: '#4318ff',
-  };
-
-  if (loading) {
-    return <LoadingSpinner message="Loading live map..." />;
-  }
+  if (loading) return <LoadingSpinner message="Loading map..." />;
 
   return (
     <>
-      <div
-        className="page-header"
-        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-      >
-        <h1 className="page-title">🗺️ Live Location Tracking</h1>
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <button
-            onClick={() => setActiveView('Emergencies')}
-            className="button"
-            style={{
-              background: activeView === 'Emergencies' ? '#4318ff' : '#f5f5f5',
-              color: activeView === 'Emergencies' ? '#fff' : '#666',
-            }}
-          >
-            🚨 Emergencies
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h1 className="page-title"><Navigation size={28} /> Live Location Tracking</h1>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className={`button ${activeView === 'Emergencies' ? 'button-danger' : 'button-ghost'}`} onClick={() => setActiveView('Emergencies')}>
+            <AlertTriangle size={16} /> Emergencies
           </button>
-          <button
-            onClick={() => setActiveView('Units')}
-            className="button"
-            style={{
-              background: activeView === 'Units' ? '#4318ff' : '#f5f5f5',
-              color: activeView === 'Units' ? '#fff' : '#666',
-            }}
-          >
-            🚓 Units
+          <button className={`button ${activeView === 'Units' ? 'button-primary' : 'button-ghost'}`} onClick={() => setActiveView('Units')}>
+            <Shield size={16} /> Units
           </button>
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: '20px', height: 'calc(100vh - 200px)' }}>
+      <div style={{ display: 'flex', gap: 20, height: 'calc(100vh - 220px)' }}>
         <div style={{ flex: 2, position: 'relative' }}>
-          <div
-            style={{
-              position: 'absolute',
-              top: '20px',
-              left: '20px',
-              zIndex: 1000,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '10px',
-            }}
-          >
-            <div className="card" style={{ minWidth: '130px' }}>
-              <div style={{ fontSize: '32px', fontWeight: 'bold', marginBottom: '5px' }}>
-                {emergencyCount}
-              </div>
-              <div style={{ fontSize: '12px', color: '#666' }}>Emergencies</div>
-            </div>
-            <div className="card" style={{ minWidth: '130px' }}>
-              <div style={{ fontSize: '32px', fontWeight: 'bold', marginBottom: '5px' }}>
-                {activeUnitCount}
-              </div>
-              <div style={{ fontSize: '12px', color: '#666' }}>Active Units</div>
+          {/* Floating stats */}
+          <div style={{ position: 'absolute', top: 16, left: 16, zIndex: 1000, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <motion.div className="card card-elevated" style={{ minWidth: 120, marginBottom: 0 }} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
+              <div style={{ fontSize: 28, fontWeight: 800, marginBottom: 2 }}>{eCount}</div>
+              <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>Emergencies</div>
+            </motion.div>
+            <motion.div className="card card-elevated" style={{ minWidth: 120, marginBottom: 0 }} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 }}>
+              <div style={{ fontSize: 28, fontWeight: 800, marginBottom: 2 }}>{uCount}</div>
+              <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>Active Units</div>
+            </motion.div>
+          </div>
+
+          {/* Legend */}
+          <div style={{ position: 'absolute', bottom: 16, right: 16, zIndex: 1000, background: 'white', borderRadius: 'var(--radius-md)', padding: '12px 16px', boxShadow: 'var(--shadow-md)', fontSize: 12 }}>
+            <div style={{ fontWeight: 700, marginBottom: 8, fontSize: 11, textTransform: 'uppercase', color: 'var(--color-text-muted)' }}>Legend</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: '50%', background: '#dc2626' }} /> Emergency</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: '50%', background: '#4318FF' }} /> Unit</span>
             </div>
           </div>
 
-          {!hasValidGoogleKey && (
-            <div
-              style={{
-                position: 'absolute',
-                top: '20px',
-                right: '20px',
-                zIndex: 1000,
-                background: '#fff7ed',
-                color: '#9a3412',
-                border: '1px solid #fed7aa',
-                borderRadius: '999px',
-                padding: '8px 12px',
-                fontSize: '12px',
-                fontWeight: '600',
-              }}
-            >
-              Using OpenStreetMap (set REACT_APP_GOOGLE_MAPS_API_KEY for Google Maps)
-            </div>
-          )}
-
-          {hasValidGoogleKey ? (
-            <GoogleLiveMap
-              activeView={activeView}
-              center={mapCenter}
-              emergencyMarkers={emergencyMarkers}
-              unitMarkers={unitMarkers}
-              selectedMarker={selectedMarker}
-              onSelectMarker={setSelectedMarker}
-              onCloseMarker={() => setSelectedMarker(null)}
-            />
+          {hasGoogle ? (
+            <GoogleLive activeView={activeView} center={center} eMarkers={eMarkers} uMarkers={uMarkers} selected={selected} onSelect={setSelected} onClose={() => setSelected(null)} />
           ) : (
-            <OpenStreetMapLiveMap
-              activeView={activeView}
-              center={mapCenter}
-              emergencyMarkers={emergencyMarkers}
-              unitMarkers={unitMarkers}
-            />
+            <OSMLive activeView={activeView} center={center} eMarkers={eMarkers} uMarkers={uMarkers} />
           )}
         </div>
 
-        <div
-          style={{
-            flex: 1,
-            background: 'white',
-            borderRadius: '12px',
-            padding: '20px',
-            overflowY: 'auto',
-          }}
-        >
-          <h3 style={{ fontWeight: 'bold', marginBottom: '20px' }}>
+        {/* Side Panel */}
+        <div style={{ flex: 1, background: 'var(--color-card)', borderRadius: 'var(--radius-lg)', padding: 20, overflowY: 'auto', border: '1px solid var(--color-border)' }}>
+          <h3 style={{ fontWeight: 700, marginBottom: 16, fontSize: 15 }}>
             {activeView === 'Emergencies' ? 'Active Emergencies' : 'Active Units'}
           </h3>
-
           {activeView === 'Emergencies' ? (
-            alerts.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '20px', color: '#999' }}>
-                No active emergencies
-              </div>
-            ) : (
-              alerts.map((alert) => {
-                const uid = alert.userId || alert.ownerId;
-                const userData = userCache[uid];
-
-                return (
-                  <div
-                    key={alert.id}
-                    className="card"
-                    style={{
-                      position: 'relative',
-                      paddingLeft: '15px',
-                      background: '#f9f9f9',
-                      borderLeft: '4px solid #ff0000',
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        marginBottom: '10px',
-                      }}
-                    >
-                      <span style={{ fontWeight: 'bold', fontSize: '14px' }}>
-                        {userData?.fullName || 'Unknown'}
-                      </span>
-                      <span className="badge" style={{ background: '#ff0000', fontSize: '10px' }}>
-                        {alert.status?.toUpperCase()}
-                      </span>
-                    </div>
-                    <div style={{ fontSize: '11px', color: '#666', marginBottom: '4px' }}>
-                      📍{' '}
-                      {alert.latitude && alert.longitude
-                        ? `${Number(alert.latitude).toFixed(4)}, ${Number(alert.longitude).toFixed(4)}`
-                        : 'N/A'}
-                    </div>
-                    <div style={{ fontSize: '11px', color: '#666', marginBottom: '4px' }}>
-                      🕐 {formatTimestamp(alert.createdAt)}
-                    </div>
-                    {userData?.phone && (
-                      <div style={{ fontSize: '11px', color: '#666' }}>📱 {userData.phone}</div>
-                    )}
+            alerts.length === 0 ? <div style={{ textAlign: 'center', padding: 20, color: 'var(--color-text-muted)' }}>No active emergencies</div> :
+            alerts.map((a, i) => {
+              const ud = userCache[a.userId || a.ownerId];
+              return (
+                <motion.div key={a.id} className="card" style={{ borderLeft: '3px solid #dc2626', marginBottom: 10 }}
+                  initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <span style={{ fontWeight: 600, fontSize: 13 }}>{ud?.fullName || 'Unknown'}</span>
+                    <span className="badge badge-critical" style={{ fontSize: 9 }}>{a.status?.toUpperCase()}</span>
                   </div>
-                );
-              })
-            )
-          ) : units.filter((u) => u.status !== 'offline').length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '20px', color: '#999' }}>
-              No active units
-            </div>
+                  <div style={{ fontSize: 11, color: 'var(--color-text-muted)', display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    <span><MapPin size={11} style={{ verticalAlign: 'middle' }} /> {a.latitude ? `${Number(a.latitude).toFixed(4)}, ${Number(a.longitude).toFixed(4)}` : 'N/A'}</span>
+                    <span>{formatTimestamp(a.createdAt)}</span>
+                  </div>
+                </motion.div>
+              );
+            })
           ) : (
-            units
-              .filter((u) => u.status !== 'offline')
-              .map((unit) => (
-                <div
-                  key={unit.id}
-                  className="card"
-                  style={{
-                    position: 'relative',
-                    paddingLeft: '15px',
-                    background: '#f9f9f9',
-                    borderLeft: `4px solid ${statusColors[unit.status] || '#666'}`,
-                  }}
-                >
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      marginBottom: '10px',
-                    }}
-                  >
-                    <span style={{ fontWeight: 'bold', fontSize: '14px' }}>{unit.name}</span>
-                    <span
-                      className="badge"
-                      style={{
-                        background: statusColors[unit.status] || '#666',
-                        fontSize: '10px',
-                      }}
-                    >
-                      {unit.status?.toUpperCase()}
-                    </span>
+            units.filter((u) => u.status !== 'offline').length === 0 ?
+              <div style={{ textAlign: 'center', padding: 20, color: 'var(--color-text-muted)' }}>No active units</div> :
+              units.filter((u) => u.status !== 'offline').map((u, i) => (
+                <motion.div key={u.id} className="card" style={{ borderLeft: `3px solid ${u.status === 'available' ? '#16a34a' : u.status === 'dispatched' ? '#d97706' : '#4318FF'}`, marginBottom: 10 }}
+                  initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <span style={{ fontWeight: 600, fontSize: 13 }}>{u.name}</span>
+                    <span className={`badge ${u.status === 'available' ? 'badge-success' : u.status === 'dispatched' ? 'badge-warning' : 'badge-info'}`} style={{ fontSize: 9 }}>{u.status?.toUpperCase()}</span>
                   </div>
-                  <div style={{ fontSize: '11px', color: '#666', marginBottom: '4px' }}>
-                    👮 {unit.officerName || 'N/A'}
-                  </div>
-                  <div style={{ fontSize: '11px', color: '#666' }}>📍 {unit.station || 'N/A'}</div>
-                </div>
+                  <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{u.officerName || 'N/A'}</div>
+                </motion.div>
               ))
           )}
         </div>

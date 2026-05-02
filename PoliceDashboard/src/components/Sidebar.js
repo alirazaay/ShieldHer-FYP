@@ -2,27 +2,41 @@ import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import LogoutConfirmModal from './LogoutConfirmModal';
+import { motion } from 'framer-motion';
+import {
+  LayoutDashboard,
+  Bell,
+  Shield,
+  MapPin,
+  Users,
+  BarChart3,
+  LogOut,
+} from 'lucide-react';
+
+const NAV_ITEMS = [
+  { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { path: '/emergency', label: 'Emergency Alerts', icon: Bell },
+  { path: '/units', label: 'Units', icon: Shield },
+  { path: '/live-map', label: 'Live Map', icon: MapPin },
+  { path: '/users', label: 'Users', icon: Users },
+  { path: '/reports', label: 'Reports', icon: BarChart3 },
+];
+
+const sidebarVariants = {
+  hidden: { x: -280 },
+  visible: { x: 0, transition: { type: 'spring', stiffness: 300, damping: 30, staggerChildren: 0.05 } },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, x: -20 },
+  visible: { opacity: 1, x: 0 },
+};
 
 function Sidebar() {
   const location = useLocation();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const { policeProfile } = useAuth();
 
-  const menuItems = [
-    { path: '/dashboard', label: 'DashBoard', icon: '🏠' },
-    { path: '/emergency', label: 'Emergency Alert', icon: '⚠️' },
-    { path: '/units', label: 'Units', icon: '🚓' },
-    { path: '/users', label: 'Users', icon: '👥' },
-    { path: '/live-map', label: 'Live Map', icon: '📍' },
-    { path: '/reports', label: 'Report', icon: '📊' },
-  ];
-
-  const handleLogoutClick = (e) => {
-    e.preventDefault();
-    setShowLogoutModal(true);
-  };
-
-  // Get officer initials for avatar
   const getInitials = () => {
     if (!policeProfile?.name) return '?';
     return policeProfile.name
@@ -35,75 +49,72 @@ function Sidebar() {
 
   return (
     <>
-      <div className="sidebar">
+      <motion.div
+        className="sidebar"
+        variants={sidebarVariants}
+        initial="hidden"
+        animate="visible"
+      >
         <div className="sidebar-header">
-          <div className="logo-circle">🛡️</div>
+          <motion.div
+            className="logo-circle"
+            initial={{ scale: 0, rotate: -180 }}
+            animate={{ scale: 1, rotate: 0 }}
+            transition={{ type: 'spring', stiffness: 260, damping: 20, delay: 0.1 }}
+          >
+            <Shield size={28} strokeWidth={2.5} />
+          </motion.div>
           <div className="app-name">ShieldHer</div>
           <div className="app-subtitle">Police Portal</div>
         </div>
 
-        {/* Officer profile in sidebar */}
         {policeProfile && (
-          <div
-            style={{
-              padding: '12px 15px',
-              margin: '0 5px 15px',
-              background: '#fff',
-              borderRadius: '8px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-            }}
-          >
-            <div
-              style={{
-                width: '36px',
-                height: '36px',
-                borderRadius: '50%',
-                background: '#4318ff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'white',
-                fontSize: '13px',
-                fontWeight: 'bold',
-              }}
-            >
-              {getInitials()}
-            </div>
+          <motion.div className="sidebar-profile" variants={itemVariants}>
+            <div className="sidebar-profile-avatar">{getInitials()}</div>
             <div>
-              <div style={{ fontSize: '12px', fontWeight: '600', color: '#000' }}>
-                {policeProfile.name}
-              </div>
-              <div style={{ fontSize: '10px', color: '#666', textTransform: 'capitalize' }}>
+              <div className="sidebar-profile-name">{policeProfile.name}</div>
+              <div className="sidebar-profile-rank">
                 {policeProfile.rank?.replace(/-/g, ' ') || 'Officer'}
               </div>
             </div>
-          </div>
+          </motion.div>
         )}
 
         <div className="menu">
-          {menuItems.map((item, index) => (
-            <Link
-              key={index}
-              to={item.path}
-              className={`menu-item ${location.pathname === item.path ? 'active' : ''}`}
-            >
-              <span className="menu-icon">{item.icon}</span>
-              <span>{item.label}</span>
-            </Link>
-          ))}
+          {NAV_ITEMS.map((item) => {
+            const Icon = item.icon;
+            const isActive = location.pathname === item.path;
+            return (
+              <motion.div key={item.path} variants={itemVariants} whileHover={{ scale: 1.02 }}>
+                <Link
+                  to={item.path}
+                  className={`menu-item ${isActive ? 'active' : ''}`}
+                >
+                  <span className="menu-icon">
+                    <Icon size={19} />
+                  </span>
+                  <span>{item.label}</span>
+                </Link>
+              </motion.div>
+            );
+          })}
 
-          <button
-            className="menu-item logout-btn"
-            onClick={handleLogoutClick}
-            style={{ marginTop: '15px' }}
-          >
-            <span className="menu-icon">🚪</span>
-            <span>Logout</span>
-          </button>
+          <motion.div variants={itemVariants}>
+            <button
+              className="menu-item logout-btn"
+              onClick={(e) => { e.preventDefault(); setShowLogoutModal(true); }}
+            >
+              <span className="menu-icon"><LogOut size={19} /></span>
+              <span>Logout</span>
+            </button>
+          </motion.div>
         </div>
-      </div>
+
+        <div className="sidebar-status">
+          <div className="sidebar-status-dot" />
+          <span className="sidebar-status-text">System Online</span>
+        </div>
+      </motion.div>
 
       <LogoutConfirmModal isOpen={showLogoutModal} onCancel={() => setShowLogoutModal(false)} />
     </>
